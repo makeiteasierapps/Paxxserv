@@ -1,2 +1,7 @@
 gunicorn
 flask
+dspy-ai==2.4.9
+python-dotenv==1.0.1
+pymongo[srv]==4.6.3
+tiktoken==0.7.0
+openai==1.30.1
