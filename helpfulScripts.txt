@@ -1,0 +1,2 @@
+Start gunicorn server in dev mode
+gunicorn --worker-class gevent --reload --log-level debug -b 0.0.0.0:3033 run:app

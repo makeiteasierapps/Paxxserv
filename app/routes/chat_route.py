@@ -1,6 +1,7 @@
 from flask import Blueprint, request, Response
+from flask_socketio import SocketIO, emit
 import os
-import json
+from app import socketio
 from app.services.ChatService import ChatService
 from app.agents.BossAgent import BossAgent
 from dotenv import load_dotenv
@@ -10,6 +11,24 @@ load_dotenv()
 chat_bp = Blueprint('chat', __name__)
 
 headers = {"Access-Control-Allow-Origin": "*"}
+
+@socketio.on('connect')
+def handle_connect():
+    api_key = request.headers.get('X-API-Key')
+    if api_key == os.getenv('API_KEY'):
+        print(f"Client connected: {request.sid}")
+        return True
+    else:
+        print(f"Connection rejected: Invalid API key")
+        return False
+
+@chat_bp.route('/socket.io/', methods=['OPTIONS'])
+def handle_socketio_options():
+    response = Response()
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-API-Key'
+    return response
 
 @chat_bp.route('/chat', methods=['OPTIONS'])
 @chat_bp.route('/messages', methods=['OPTIONS'])
@@ -24,8 +43,6 @@ def cors_preflight_response():
 
 def check_api_key(request):
     api_key = request.headers.get('X-API-Key')
-    print(api_key)
-    print(os.getenv('API_KEY'))
     if api_key == os.getenv('API_KEY'):
         return True
     else:
@@ -60,11 +77,8 @@ def handle_delete_chat():
     ChatService().delete_chat(chat_id)
     return 'Conversation deleted', 200, headers
 
-@chat_bp.route('/messages', methods=['POST'])
-def handle_post_message():
-    if not check_api_key(request):
-        return {'message': 'Unauthorized'}, 401, headers
-    data = request.json
+@socketio.on('chat_request')
+def handle_chat_message(data):
     save_to_db = data.get('saveToDb', True)
     create_vector_pipeline = data.get('createVectorPipeline', False)
     boss_agent = BossAgent()
@@ -74,25 +88,14 @@ def handle_post_message():
     if create_vector_pipeline:
         query_pipeline = boss_agent.create_vector_pipeline(user_message, data['projectId'])
         results = chat_service.query_snapshots(query_pipeline)
-        print(results)
         system_message = boss_agent.prepare_vector_response(results)
-        
-    complete_message = ''
-    response_generator = boss_agent.process_message(data['chatId'], data['chatHistory'], user_message, system_message)
+    else:
+        system_message = None
 
-    def compile_and_stream():
-        nonlocal complete_message
-        for response in response_generator:
-            complete_message += response['content']
-            yield json.dumps(response) + '\n'
-
-    response = Response(compile_and_stream(), mimetype='application/json')
-    
     if save_to_db:
         chat_service.create_message(data['chatId'], 'user', user_message)
-        response.call_on_close(lambda: chat_service.create_message(data['chatId'], 'agent', complete_message))
-    
-    return response
+
+    boss_agent.process_message(data['chatHistory'], user_message, system_message)
 
 @chat_bp.route('/messages', methods=['DELETE'])
 def handle_delete_all_messages():

@@ -7,6 +7,7 @@ from dspy.functional import TypedPredictor
 from pydantic import BaseModel
 from typing import List
 from dotenv import load_dotenv
+from flask_socketio import emit
 
 class ActionItemsOutput(BaseModel):
     actions: List[str]
@@ -121,21 +122,38 @@ class BossAgent:
         return response.data[0].embedding
     
     def pass_to_boss_agent(self, new_chat_history):
-    
         response = self.openai_client.chat.completions.create(
             model=self.model,
             messages=new_chat_history,
             stream=True,
         )
+        completed_response = ''
         for chunk in response:
             if chunk.choices[0].delta.content is not None:
+                completed_response += chunk.choices[0].delta.content
                 stream_obj = {
                     'message_from': 'agent',
                     'content': chunk.choices[0].delta.content,
                     'type': 'stream',
                 }
-                yield stream_obj
+                print(stream_obj)
+                emit('chat_response', stream_obj)
+        
+        # Notify the client that the stream is over
+        end_stream_obj = {
+            'message_from': 'agent',
+            'content': completed_response,
+            'type': 'end_of_stream',
+        }
+        emit('chat_response', end_stream_obj)
 
+    def process_message(self, chat_history, user_message, system_message=None):
+        new_chat_history = self.manage_chat(chat_history, user_message)
+        if system_message:
+            new_chat_history.insert(0, system_message)
+        
+        self.pass_to_boss_agent(new_chat_history)
+    
     def get_full_response(self, message):
         response = self.openai_client.chat.completions.create(
             model=self.model,
@@ -171,11 +189,12 @@ class BossAgent:
         Takes a chat object extracts x amount of tokens and returns a message
         object ready to pass into OpenAI chat completion
         """
-
+        
         new_name = []
         token_limit = 2000
         token_count = 0
         for message in chat_history:
+            print(message)
             if token_count > token_limit:
                 break
             if message['message_from'] == 'user':
@@ -197,16 +216,6 @@ class BossAgent:
         
         return new_name
     
-    def process_message(self, chat_id, chat_history, user_message, system_message=None):
-    
-        new_chat_history = self.manage_chat(chat_history, user_message)
-        if system_message:
-            new_chat_history.insert(0, system_message)
-        
-        for response_chunk in self.pass_to_boss_agent(new_chat_history):
-            response_chunk['chat_id'] = chat_id
-            yield response_chunk
-
     def prepare_vector_response(self, query_results):
         text = []
 
