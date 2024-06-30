@@ -128,16 +128,16 @@ class BossAgent:
             stream=True,
         )
         completed_response = ''
+        inside_code_block = False
+        language = None
+        ignore_next_token = False
+
         for chunk in response:
-            if chunk.choices[0].delta.content is not None:
-                completed_response += chunk.choices[0].delta.content
-                stream_obj = {
-                    'message_from': 'agent',
-                    'content': chunk.choices[0].delta.content,
-                    'type': 'stream',
-                }
-                print(stream_obj)
-                emit('chat_response', stream_obj)
+            response_chunk = chunk.choices[0].delta.content
+            if response_chunk is not None:
+                completed_response, inside_code_block, language, ignore_next_token = self.process_response_chunk(
+                    response_chunk, completed_response, inside_code_block, language, ignore_next_token
+                )
         
         # Notify the client that the stream is over
         end_stream_obj = {
@@ -146,6 +146,42 @@ class BossAgent:
             'type': 'end_of_stream',
         }
         emit('chat_response', end_stream_obj)
+
+    def process_response_chunk(self, response_chunk, completed_response, inside_code_block, language, ignore_next_token):
+        if ignore_next_token:
+            ignore_next_token = False
+            language = None
+            return completed_response, inside_code_block, language, ignore_next_token
+
+        if response_chunk == '```':
+            inside_code_block = not inside_code_block
+            language = None if not inside_code_block else language
+        elif response_chunk == '``':
+            inside_code_block = not inside_code_block
+            ignore_next_token = True
+        else:
+            if inside_code_block and language is None:
+                language = response_chunk.strip()
+                print(language)
+            else:
+                formatted_message = self.format_stream_message(response_chunk, inside_code_block, language)
+                completed_response += response_chunk
+                emit('chat_response', formatted_message)
+        
+        return completed_response, inside_code_block, language, ignore_next_token
+    
+    def format_stream_message(self, message, inside_code_block, language):
+        if inside_code_block:
+            return {
+                'type': 'code',
+                'content': message,
+                'language': language or 'markdown',
+            }
+        else:
+            return {
+                'type': 'text',
+                'content': message,
+            }
 
     def process_message(self, chat_history, user_message, system_message=None):
         new_chat_history = self.manage_chat(chat_history, user_message)
@@ -194,7 +230,6 @@ class BossAgent:
         token_limit = 2000
         token_count = 0
         for message in chat_history:
-            print(message)
             if token_count > token_limit:
                 break
             if message['message_from'] == 'user':
@@ -204,10 +239,10 @@ class BossAgent:
                     "content": message['content'],
                 })
             else:
-                token_count += self.token_counter(message['content'])
+                token_count += self.token_counter(message['content'][0]['content'])
                 new_name.append({
                     "role": "assistant",
-                    "content": message['content'],
+                    "content": message['content'][0]['content'],
                 })
         new_name.append({
             "role": "user",
