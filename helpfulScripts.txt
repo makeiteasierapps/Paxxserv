@@ -1,3 +1,12 @@
 Start gunicorn server:
 dev - gunicorn --worker-class gevent --reload --log-level debug -b 0.0.0.0:3033 run:app
 prod - gunicorn --worker-class gevent --log-level info -b 0.0.0.0:3033 run:app --daemon
+
+list gunicorn processes:
+ps aux | grep gunicorn
+
+kill all gunicorn processes:
+pkill gunicorn
+
+open nginx config file:
+sudo nano /etc/nginx/sites-available/default
