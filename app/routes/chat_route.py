@@ -14,20 +14,13 @@ headers = {"Access-Control-Allow-Origin": "*"}
 
 @socketio.on('connect')
 def handle_connect():
-    api_key = request.headers.get('X-API-Key')
-    if api_key == os.getenv('API_KEY'):
-        print(f"Client connected: {request.sid}")
-        return True
-    else:
-        print(f"Connection rejected: Invalid API key")
-        return False
+    print(f"Client connected: {request.sid}")
 
 @chat_bp.route('/socket.io/', methods=['OPTIONS'])
 def handle_socketio_options():
     response = Response()
     response.headers['Access-Control-Allow-Origin'] = '*'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-API-Key'
     return response
 
 @chat_bp.route('/chat', methods=['OPTIONS'])
@@ -36,29 +29,18 @@ def cors_preflight_response():
     cors_headers = {
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Methods": "GET, POST, OPTIONS, DELETE, PUT, PATCH",
-        "Access-Control-Allow-Headers": "Authorization, Content-Type, Project-ID, X-API-Key",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type, Project-ID",
         "Access-Control-Max-Age": "3600",
     }
     return ("", 204, cors_headers)
 
-def check_api_key(request):
-    api_key = request.headers.get('X-API-Key')
-    if api_key == os.getenv('API_KEY'):
-        return True
-    else:
-        return False
-
 @chat_bp.route('/chat', methods=['GET'])
 def handle_fetch_chats():
-    if not check_api_key(request):
-        return {'message': 'Unauthorized'}, 401, headers
     user_id = request.headers.get('userId')
     return ChatService().get_all_chats(user_id), 200, headers
 
 @chat_bp.route('/chat', methods=['POST'])
 def handle_create_chat():
-    if not check_api_key(request):
-        return {'message': 'Unauthorized'}, 401, headers
     data = request.get_json()
     chat_service = ChatService()
     chat_id = chat_service.create_chat_in_db(data['userId'], data['chatName'], data['model'])
@@ -71,8 +53,6 @@ def handle_create_chat():
 
 @chat_bp.route('/chat', methods=['DELETE'])
 def handle_delete_chat():
-    if not check_api_key(request):
-        return {'message': 'Unauthorized'}, 401, headers
     chat_id = request.get_json()['chatId']
     ChatService().delete_chat(chat_id)
     return 'Conversation deleted', 200, headers
@@ -99,8 +79,6 @@ def handle_chat_message(data):
 
 @chat_bp.route('/messages', methods=['DELETE'])
 def handle_delete_all_messages():
-    if not check_api_key(request):
-        return {'message': 'Unauthorized'}, 401, headers
     chat_id = request.json.get('chatId')
     ChatService().delete_all_messages(chat_id)
     return 'Memory Cleared', 200, headers
