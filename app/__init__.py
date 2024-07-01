@@ -9,7 +9,9 @@ def create_app():
     CORS(app)
 
     from .routes.chat_route import chat_bp
+    from .routes.sam_route import sam_bp
     app.register_blueprint(chat_bp)
+    app.register_blueprint(sam_bp)
 
     socketio.init_app(app)  # Initialize SocketIO with the app
 
