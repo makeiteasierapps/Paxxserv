@@ -202,7 +202,7 @@ class BossAgent:
         return response.choices[0].message.content
     
     def stream_audio_response(self, message):
-        file_path = 'audio.mp3'
+        file_path = 'app/audioFiles/audio.mp3'
         
         # Delete the existing file if it exists
         if os.path.exists(file_path):

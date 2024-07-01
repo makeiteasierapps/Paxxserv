@@ -1,6 +1,4 @@
 from flask import Blueprint, request, Response
-from flask_socketio import SocketIO, emit
-import os
 from app import socketio
 from app.services.ChatService import ChatService
 from app.agents.BossAgent import BossAgent
