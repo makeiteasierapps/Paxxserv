@@ -136,7 +136,7 @@ class BossAgent:
             response_chunk = chunk.choices[0].delta.content
             if response_chunk is not None:
                 completed_response, inside_code_block, language, ignore_next_token = self.process_response_chunk(
-                    response_chunk, completed_response, inside_code_block, language, ignore_next_token
+                    chat_id, response_chunk, completed_response, inside_code_block, language, ignore_next_token
                 )
         
         # Notify the client that the stream is over
@@ -147,7 +147,7 @@ class BossAgent:
         }
         emit('chat_response', end_stream_obj, room=chat_id)
 
-    def process_response_chunk(self, response_chunk, completed_response, inside_code_block, language, ignore_next_token):
+    def process_response_chunk(self, chat_id, response_chunk, completed_response, inside_code_block, language, ignore_next_token):
         if ignore_next_token:
             ignore_next_token = False
             language = None
@@ -166,7 +166,8 @@ class BossAgent:
             else:
                 formatted_message = self.format_stream_message(response_chunk, inside_code_block, language)
                 completed_response += response_chunk
-                emit('chat_response', formatted_message)
+                print(formatted_message)
+                emit('chat_response', formatted_message, room=chat_id)
         
         return completed_response, inside_code_block, language, ignore_next_token
     

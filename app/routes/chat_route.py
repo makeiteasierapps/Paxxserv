@@ -11,6 +11,9 @@ chat_bp = Blueprint('chat', __name__)
 
 headers = {"Access-Control-Allow-Origin": "*"}
 
+# Initialize ChatService once
+chat_service = ChatService('paxxium')
+
 @socketio.on('connect')
 def handle_connect():
     print(f"Client connected: {request.sid}")
@@ -36,12 +39,11 @@ def cors_preflight_response():
 @chat_bp.route('/chat', methods=['GET'])
 def handle_fetch_chats():
     user_id = request.headers.get('userId')
-    return ChatService().get_all_chats(user_id), 200, headers
+    return chat_service.get_all_chats(user_id), 200, headers
 
 @chat_bp.route('/chat', methods=['POST'])
 def handle_create_chat():
     data = request.get_json()
-    chat_service = ChatService()
     chat_id = chat_service.create_chat_in_db(data['userId'], data['chatName'], data['model'])
     return {
         'chatId': chat_id,
@@ -53,7 +55,7 @@ def handle_create_chat():
 @chat_bp.route('/chat', methods=['DELETE'])
 def handle_delete_chat():
     chat_id = request.get_json()['chatId']
-    ChatService().delete_chat(chat_id)
+    chat_service.delete_chat(chat_id)
     return 'Conversation deleted', 200, headers
 
 @socketio.on('join_room')
@@ -67,13 +69,13 @@ def handle_chat_message(data):
     save_to_db = data.get('saveToDb', True)
     create_vector_pipeline = data.get('createVectorPipeline', False)
     boss_agent = BossAgent()
-    chat_service = ChatService(db_name=data['dbName'])
+    chat_service_with_db = ChatService(db_name=data['dbName'])  
     user_message = data['userMessage']['content']
     chat_id = data['chatId']
 
     if create_vector_pipeline:
         query_pipeline = boss_agent.create_vector_pipeline(user_message, data['projectId'])
-        results = chat_service.query_snapshots(query_pipeline)
+        results = chat_service_with_db.query_snapshots(query_pipeline)
         system_message = boss_agent.prepare_vector_response(results)
     else:
         system_message = None
@@ -86,5 +88,5 @@ def handle_chat_message(data):
 @chat_bp.route('/messages', methods=['DELETE'])
 def handle_delete_all_messages():
     chat_id = request.json.get('chatId')
-    ChatService().delete_all_messages(chat_id)
+    chat_service.delete_all_messages(chat_id)
     return 'Memory Cleared', 200, headers
