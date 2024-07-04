@@ -1,4 +1,5 @@
 from flask import Blueprint, request, Response
+from flask_socketio import join_room
 from app import socketio
 from app.services.ChatService import ChatService
 from app.agents.BossAgent import BossAgent
@@ -55,6 +56,12 @@ def handle_delete_chat():
     ChatService().delete_chat(chat_id)
     return 'Conversation deleted', 200, headers
 
+@socketio.on('join_room')
+def handle_join_room(data):
+    room = data['chatId']
+    join_room(room)
+    print(f"Client {request.sid} joined room {room}")
+
 @socketio.on('chat_request')
 def handle_chat_message(data):
     save_to_db = data.get('saveToDb', True)
@@ -62,6 +69,7 @@ def handle_chat_message(data):
     boss_agent = BossAgent()
     chat_service = ChatService(db_name=data['dbName'])
     user_message = data['userMessage']['content']
+    chat_id = data['chatId']
 
     if create_vector_pipeline:
         query_pipeline = boss_agent.create_vector_pipeline(user_message, data['projectId'])
@@ -71,9 +79,9 @@ def handle_chat_message(data):
         system_message = None
 
     if save_to_db:
-        chat_service.create_message(data['chatId'], 'user', user_message)
+        chat_service.create_message(chat_id, 'user', user_message)
 
-    boss_agent.process_message(data['chatHistory'], user_message, system_message)
+    boss_agent.process_message(data['chatHistory'], chat_id, user_message, system_message)
 
 @chat_bp.route('/messages', methods=['DELETE'])
 def handle_delete_all_messages():
