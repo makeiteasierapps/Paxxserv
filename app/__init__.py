@@ -10,8 +10,10 @@ def create_app():
 
     from .routes.chat_route import chat_bp
     from .routes.sam_route import sam_bp
+    from .routes.moments_route import moment_bp
     app.register_blueprint(chat_bp)
     app.register_blueprint(sam_bp)
+    app.register_blueprint(moment_bp)
 
     socketio.init_app(app)
     return app
