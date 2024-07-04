@@ -11,7 +11,6 @@ chat_bp = Blueprint('chat', __name__)
 
 headers = {"Access-Control-Allow-Origin": "*"}
 
-# Initialize ChatService once
 chat_service = ChatService('paxxium')
 
 @socketio.on('connect')

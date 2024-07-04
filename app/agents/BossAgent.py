@@ -59,18 +59,16 @@ class BossAgent:
         return os.getenv('OPENAI_API_KEY')
 
     def _initialize_dspy(self):
-        if self.lm is None:
-            try:
-                self.lm = dspy.OpenAI(model=self.model, api_key=self.openai_key)
-                dspy.settings.configure(lm=self.lm)
-            except Exception as e:
-                print(f"Failed to initialize dspy: {e}")
-                self.lm = None
+        try:
+            self.lm = dspy.OpenAI(model=self.model, api_key=self.openai_key)
+            dspy.settings.configure(lm=self.lm)
+        except Exception as e:
+            print(f"Failed to initialize dspy: {e}")
+            self.lm = None
 
     def extract_content(self, moment):
         self._initialize_dspy()
         content = moment['transcript']
-        
         if self.lm:
             extract_actions = TypedPredictor(ActionItemsSignature)
             actions_pred = extract_actions(content=content)
@@ -162,11 +160,9 @@ class BossAgent:
         else:
             if inside_code_block and language is None:
                 language = response_chunk.strip()
-                print(language)
             else:
                 formatted_message = self.format_stream_message(response_chunk, inside_code_block, language)
                 completed_response += response_chunk
-                print(formatted_message)
                 emit('chat_response', formatted_message, room=chat_id)
         
         return completed_response, inside_code_block, language, ignore_next_token
@@ -199,7 +195,6 @@ class BossAgent:
                 "content": message,
             }],
         )
-        print('Sam', response.choices[0].message.content)
         return response.choices[0].message.content
     
     def stream_audio_response(self, message):
