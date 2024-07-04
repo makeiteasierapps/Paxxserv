@@ -121,7 +121,7 @@ class BossAgent:
         )
         return response.data[0].embedding
     
-    def pass_to_boss_agent(self, new_chat_history):
+    def pass_to_boss_agent(self, chat_id, new_chat_history):
         response = self.openai_client.chat.completions.create(
             model=self.model,
             messages=new_chat_history,
@@ -145,7 +145,7 @@ class BossAgent:
             'content': completed_response,
             'type': 'end_of_stream',
         }
-        emit('chat_response', end_stream_obj)
+        emit('chat_response', end_stream_obj, room=chat_id)
 
     def process_response_chunk(self, response_chunk, completed_response, inside_code_block, language, ignore_next_token):
         if ignore_next_token:
@@ -183,12 +183,12 @@ class BossAgent:
                 'content': message,
             }
 
-    def process_message(self, chat_history, user_message, system_message=None):
+    def process_message(self, chat_history, chat_id, user_message, system_message=None):
         new_chat_history = self.manage_chat(chat_history, user_message)
         if system_message:
             new_chat_history.insert(0, system_message)
         
-        self.pass_to_boss_agent(new_chat_history)
+        self.pass_to_boss_agent(chat_id, new_chat_history)
     
     def get_full_response(self, message):
         response = self.openai_client.chat.completions.create(

@@ -2,7 +2,7 @@ from flask import Flask
 from flask_socketio import SocketIO
 from flask_cors import CORS
 
-socketio = SocketIO(cors_allowed_origins="*")
+socketio = SocketIO(cors_allowed_origins="*", async_mode='gevent')
 
 def create_app():
     app = Flask(__name__)
@@ -13,6 +13,5 @@ def create_app():
     app.register_blueprint(chat_bp)
     app.register_blueprint(sam_bp)
 
-    socketio.init_app(app)  # Initialize SocketIO with the app
-
+    socketio.init_app(app)
     return app
