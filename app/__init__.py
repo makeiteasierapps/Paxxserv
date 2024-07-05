@@ -2,7 +2,7 @@ from flask import Flask
 from flask_socketio import SocketIO
 from flask_cors import CORS
 
-socketio = SocketIO(cors_allowed_origins="*", async_mode='gevent')
+socketio = SocketIO(cors_allowed_origins="*", async_mode='threading')
 
 def create_app():
     app = Flask(__name__)
@@ -16,6 +16,7 @@ def create_app():
     from .routes.news_routes import news_bp
     from .routes.signup_route import signup_bp
     from .routes.profile_route import profile_bp
+    from .routes.projects_route import projects_bp
     app.register_blueprint(chat_bp)
     app.register_blueprint(sam_bp)
     app.register_blueprint(moment_bp)
@@ -24,6 +25,7 @@ def create_app():
     app.register_blueprint(profile_bp)
     app.register_blueprint(news_bp)
     app.register_blueprint(signup_bp)
+    app.register_blueprint(projects_bp)
 
     socketio.init_app(app)
     return app

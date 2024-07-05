@@ -1,6 +1,11 @@
 from app import create_app, socketio
+from hypercorn.config import Config
+from hypercorn.asyncio import serve
+import asyncio
 
 app = create_app()
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=3033)
+    config = Config()
+    config.bind = ["0.0.0.0:3033"]
+    asyncio.run(serve(socketio, config))
