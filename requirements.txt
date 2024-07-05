@@ -10,3 +10,5 @@ flask-cors
 gevent
 firebase-admin==6.4.0
 google-cloud-kms==2.21.2
+newspaper3k==0.2.8
+crcmod==1.7

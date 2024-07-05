@@ -12,10 +12,12 @@ def create_app():
     from .routes.sam_route import sam_bp
     from .routes.moments_route import moment_bp
     from .routes.auth_check_route import auth_check_bp
+    from .routes.images_route import images_bp
     app.register_blueprint(chat_bp)
     app.register_blueprint(sam_bp)
     app.register_blueprint(moment_bp)
     app.register_blueprint(auth_check_bp)
+    app.register_blueprint(images_bp)
 
     socketio.init_app(app)
     return app
