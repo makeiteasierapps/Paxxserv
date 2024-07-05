@@ -34,15 +34,24 @@ class ChatService:
                 self.client = None
                 self.db = None
 
-    def create_chat_in_db(self, uid, chat_name, agent_model):
+    def create_chat_in_db(self, uid, chat_name, agent_model, system_prompt=None, chat_constants=None, use_profile_data=False):
         self._initialize_client()
         if self.db is not None:
             new_chat = {
                 'uid': uid,
                 'chat_name': chat_name,
                 'agent_model': agent_model,
+                'is_open': True,
                 'created_at': datetime.utcnow()
             }
+            # Add optional fields only if they are not None
+            if system_prompt is not None:
+                new_chat['system_prompt'] = system_prompt
+            if chat_constants is not None:
+                new_chat['chat_constants'] = chat_constants
+            if use_profile_data is not None:
+                new_chat['use_profile_data'] = use_profile_data
+
             result = self.db['chats'].insert_one(new_chat)
             return str(result.inserted_id)
         else:
@@ -94,6 +103,28 @@ class ChatService:
         else:
             print("MongoDB connection is not initialized.")
             return 0
+
+    def update_settings(self, chat_id, chat_name, agent_model, system_prompt, chat_constants, use_profile_data):
+        """
+        Updates a chat in the database
+        """
+        update_result = self.db['chats'].update_one(
+            {'_id': ObjectId(chat_id)},
+            {'$set': {
+                'chat_name': chat_name,
+                'agent_model': agent_model,
+                'system_prompt': system_prompt,
+                'chat_constants': chat_constants,
+                'use_profile_data': use_profile_data
+            }}
+        )
+        return update_result
+
+    def update_visibility(self, chat_id, is_open):
+        """
+        Updates the visibility of a chat in the database
+        """
+        self.db['chats'].update_one({'_id': ObjectId(chat_id)}, {'$set': {'is_open': is_open}})
 
     def create_message(self, chat_id, message_from, message_content):
         self._initialize_client()
