@@ -331,3 +331,18 @@ class BossAgent:
 
         return response.data[0].url
     
+    # This is just a normal call to chat completion without streaming the response
+    # I think I should create a function that can handle both scenarios
+    def pass_to_news_agent(self, article_to_summarize):
+        response = self.openai_client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": article_to_summarize,
+                }
+            ],
+        )
+
+        return response.choices[0].message.content
+    
