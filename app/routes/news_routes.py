@@ -30,7 +30,7 @@ db = client['paxxium']
 firebase_service = FirebaseService()
 news_service = NewsService(db)
 
-@news_bp.route('/news', methods=['GET', 'POST', 'PUT', 'DELETE'])
+@news_bp.route('/news', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 def news():
     if request.method == "OPTIONS":
         return ("", 204)
@@ -72,7 +72,7 @@ def news():
         news_service.delete_news_article(uid, doc_id)
         return ({"message": "Deleted successfully"}, 200)
     
-@news_bp.route('/ai-fetch-news', methods=['GET'])
+@news_bp.route('/ai-fetch-news', methods=['GET', 'OPTIONS'])
 def ai_fetch_news():
     if request.method == "OPTIONS":
         return ("", 204)

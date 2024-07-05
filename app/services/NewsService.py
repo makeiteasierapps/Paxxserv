@@ -6,9 +6,8 @@ from newspaper import Article
 import uuid
 
 load_dotenv()
-
-
-
+# We need to pass in the users openai API key
+# or a better solution would be to decouple BossAgent from NewsService
 class NewsService:
     def __init__(self, db):
         self.db = db
