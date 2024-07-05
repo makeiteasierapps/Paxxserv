@@ -1,5 +1,5 @@
 Start gunicorn server:
-dev - gunicorn --worker-class gevent --reload --log-level debug -b 0.0.0.0:3033 run:app
+dev - hypercorn run:app --worker-class asyncio --bind 0.0.0.0:3033 --debug
 prod - gunicorn --worker-class gevent --log-level info -b 0.0.0.0:3033 run:app --daemon
 
 list gunicorn processes:
