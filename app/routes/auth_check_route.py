@@ -14,6 +14,7 @@ cred = credentials.Certificate(os.getenv('FIREBASE_ADMIN_SDK'))
 
 initialize_app(cred, {
     'projectId': 'paxxiumv1',
+    'storageBucket': 'paxxiumv1.appspot.com'
 })
 
 # MongoDB URI
