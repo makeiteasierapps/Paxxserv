@@ -14,12 +14,14 @@ def create_app():
     from .routes.auth_check_route import auth_check_bp
     from .routes.images_route import images_bp
     from .routes.news_routes import news_bp
+    from .routes.signup_route import signup_bp
     app.register_blueprint(chat_bp)
     app.register_blueprint(sam_bp)
     app.register_blueprint(moment_bp)
     app.register_blueprint(auth_check_bp)
     app.register_blueprint(images_bp)
     app.register_blueprint(news_bp)
+    app.register_blueprint(signup_bp)
 
     socketio.init_app(app)
     return app

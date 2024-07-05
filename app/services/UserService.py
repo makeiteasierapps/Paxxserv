@@ -140,9 +140,6 @@ class UserService:
     def update_user_profile(self, uid, updates):
         users_collection = self.db['users']  # Access the 'users' collection
        
-        if 'serp_key' in updates:
-            updates['serp_key'] = self.encrypt(updates['serp_key'])
-
         if 'open_key' in updates:
             updates['open_key'] = self.encrypt(updates['open_key'])
 
@@ -151,7 +148,7 @@ class UserService:
             updates['news_topics'] = {"$addToSet": {"news_topics": {"$each": news_topics_list}}}
 
         user_doc = users_collection.find_one({"_id": uid})
-
+        print(user_doc)
         if user_doc:
             # Update existing user
             if 'news_topics' in updates:
