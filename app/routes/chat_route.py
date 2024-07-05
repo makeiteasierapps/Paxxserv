@@ -41,10 +41,11 @@ def chat(subpath):
     
     if request.method == 'POST' and subpath == '':
         data = request.get_json()
+        
         chat_id = chat_service.create_chat_in_db(
         data['userId'], 
         data['chatName'], 
-        data['model'], 
+        data['agentModel'], 
         system_prompt=data.get('systemPrompt'), 
         chat_constants=data.get('chatConstants'), 
         use_profile_data=data.get('useProfileData')
@@ -52,11 +53,12 @@ def chat(subpath):
         return {
             'chatId': chat_id,
             'chat_name': data['chatName'],
-            'model': data['model'],
+            'agentModel': data['agentModel'],
             'userId': data['userId'],
             'systemPrompt': data.get('systemPrompt'),
             'chatConstants': data.get('chatConstants'),
-            'useProfileData': data.get('useProfileData')
+            'useProfileData': data.get('useProfileData'),
+            'is_open': True
         }, 200, headers
 
     if request.method == 'DELETE' and subpath == '':
