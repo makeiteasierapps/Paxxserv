@@ -44,7 +44,7 @@ class BossAgent:
             cls._instance = super(BossAgent, cls).__new__(cls)
         return cls._instance
 
-    def __init__(self, openai_key=None, model='gpt-3.5-turbo'):
+    def __init__(self, openai_key=None, model='gpt-3.5-turbo', system_prompt="You are a friendly but genuine AI Agent. Don't be annoyingly nice, but don't be rude either.", chat_constants=None, user_analysis=None):
         if not hasattr(self, 'is_initialized'):
             self.is_initialized = True
             self.openai_key = openai_key or self._load_openai_key()
@@ -52,7 +52,9 @@ class BossAgent:
             self.lm = None
             self.client = dspy.OpenAI(api_key=self.openai_key)  
             self.openai_client = OpenAI(api_key=self.openai_key)
-            self.user_analysis = ""
+            self.system_prompt = system_prompt
+            self.chat_constants = chat_constants
+            self.user_analysis = user_analysis
 
     def _load_openai_key(self):
         load_dotenv()
@@ -119,7 +121,7 @@ class BossAgent:
         )
         return response.data[0].embedding
     
-    def pass_to_boss_agent(self, chat_id, new_chat_history):
+    def pass_to_boss_agent(self, chat_id, new_chat_history, save_callback=None):
         response = self.openai_client.chat.completions.create(
             model=self.model,
             messages=new_chat_history,
@@ -144,6 +146,8 @@ class BossAgent:
             'type': 'end_of_stream',
         }
         emit('chat_response', end_stream_obj, room=chat_id)
+        if save_callback:
+            save_callback(chat_id, completed_response)
 
     def process_response_chunk(self, chat_id, response_chunk, completed_response, inside_code_block, language, ignore_next_token):
         if ignore_next_token:
@@ -180,12 +184,15 @@ class BossAgent:
                 'content': message,
             }
 
-    def process_message(self, chat_history, chat_id, user_message, system_message=None):
-        new_chat_history = self.manage_chat(chat_history, user_message)
+    def process_message(self, chat_history, chat_id, user_message, system_message=None, save_callback=None, image_url=None):
+        new_chat_history = self.manage_chat(chat_history, user_message, image_url)
         if system_message:
             new_chat_history.insert(0, system_message)
         
-        self.pass_to_boss_agent(chat_id, new_chat_history)
+        if image_url:
+            self.pass_to_vision_model(chat_id, new_chat_history, save_callback)
+        else:
+            self.pass_to_boss_agent(chat_id, new_chat_history, save_callback)
     
     def get_full_response(self, message):
         response = self.openai_client.chat.completions.create(
@@ -216,13 +223,21 @@ class BossAgent:
         #     if chunk:
         #         yield chunk
  
-    def manage_chat(self, chat_history, new_user_message):
+    def manage_chat(self, chat_history, new_user_message, image_url=None):
         """
         Takes a chat object extracts x amount of tokens and returns a message
         object ready to pass into OpenAI chat completion
         """
         
-        new_name = []
+        formatted_messages = [{
+                "role": "system",
+                "content": 
+                f'''
+                    {self.system_prompt}\n***USER ANALYSIS***\n{self.user_analysis}\n**************
+                    ***THINGS TO REMEMBER***\n{self.chat_constants}\n**************
+                ''',
+            },
+        ]
         token_limit = 2000
         token_count = 0
         for message in chat_history:
@@ -230,24 +245,41 @@ class BossAgent:
                 break
             if message['message_from'] == 'user':
                 token_count += self.token_counter(message['content'])
-                new_name.append({
+                formatted_messages.append({
                     "role": "user",
                     "content": message['content'],
                 })
             else:
                 token_count += self.token_counter(message['content'][0]['content'])
-                new_name.append({
+                formatted_messages.append({
                     "role": "assistant",
                     "content": message['content'][0]['content'],
                 })
-        new_name.append({
-            "role": "user",
+
+        if image_url:
+            formatted_messages.append({
+                "role": "user",
+                "content": 
+                [
+                    {
+                        "type": "text", 
+                        "text": new_user_message
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": image_url
+                    },
+                ],
+            })
+        else:
+            formatted_messages.append({
+                "role": "user",
             "content": new_user_message,
         })
         
-        return new_name
+        return formatted_messages
     
-    def prepare_vector_response(self, query_results):
+    def prepare_vector_response(self, query_results, system_prompt=None):
         text = []
 
         for item in query_results:
@@ -265,6 +297,9 @@ class BossAgent:
         a detailed response that is relevant to the users question.\n
         KNOWLEDGE BASE: {combined_text}
         '''
+        if system_prompt:
+            query_instructions += f"\n{system_prompt}"
+        
         system_message = {
             'role': 'system',
             'content': query_instructions
@@ -368,3 +403,30 @@ class BossAgent:
             response_format={ "type": "json_object" },
         )
         return response.choices[0].message.content
+
+    def pass_to_vision_model(self, new_chat_history, chat_id, save_callback=None):
+        response = self.openai_client.chat.completions.create(
+            model="gpt-4-vision-preview",
+            messages=new_chat_history,
+            stream=True,
+        )
+        completed_response = ''
+        inside_code_block = False
+        language = None
+        ignore_next_token = False
+        
+        for chunk in response:
+            response_chunk = chunk.choices[0].delta.content
+            if response_chunk is not None:
+                completed_response, inside_code_block, language, ignore_next_token = self.process_response_chunk(
+                    chat_id, response_chunk, completed_response, inside_code_block, language, ignore_next_token
+                )
+        # Notify the client that the stream is over
+        end_stream_obj = {
+            'message_from': 'agent',
+            'content': completed_response,
+            'type': 'end_of_stream',
+        }
+        emit('chat_response', end_stream_obj, room=chat_id)
+        if save_callback:
+            save_callback(chat_id, completed_response)
