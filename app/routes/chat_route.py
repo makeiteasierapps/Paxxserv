@@ -106,9 +106,9 @@ def handle_chat_message(data):
     system_prompt = None
     chat_settings = data.get('chatSettings', None)
     if chat_settings:
-        chat_constants = chat_settings.get('chat_constants')
-        use_profile_data = chat_settings.get('use_profile_data', None)
-        system_prompt = chat_settings.get('system_prompt')
+        chat_constants = chat_settings.get('chatConstants')
+        use_profile_data = chat_settings.get('useProfileData', None)
+        system_prompt = chat_settings.get('systemPrompt')
         user_analysis = None
         if use_profile_data:
             user_analysis = user_service.get_user_analysis(uid)
@@ -135,10 +135,11 @@ def handle_chat_message(data):
     def save_agent_message(chat_id, message):
         chat_service.create_message(chat_id, 'agent', message)
 
-    boss_agent.process_message(data['chatHistory'], chat_id, user_message, system_message, save_agent_message if save_to_db else None)
+    image_url = data.get('imageUrl', None)
+    boss_agent.process_message(data['chatHistory'], chat_id, user_message, system_message, save_agent_message if save_to_db else None, image_url)
 
-@chat_bp.route('/messages', defaults={'subpath': ''}, methods=['DELETE'])
-@chat_bp.route('/messages/<path:subpath>', methods=['DELETE'])
+@chat_bp.route('/messages', defaults={'subpath': ''}, methods=['DELETE', 'POST'])
+@chat_bp.route('/messages/<path:subpath>', methods=['DELETE', 'POST'])
 def handle_delete_all_messages(subpath):
     if request.method == 'DELETE' and subpath == '':
         chat_id = request.json.get('chatId')
