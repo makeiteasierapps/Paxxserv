@@ -34,16 +34,8 @@ news_service = NewsService(db)
 def news():
     if request.method == "OPTIONS":
         return ("", 204)
-    id_token = request.headers.get('Authorization')
-    if not id_token:
-        return ('Missing token', 403)
-
-    decoded_token = firebase_service.verify_id_token(id_token)
-    if not decoded_token:
-        return ('Invalid token', 403)
-
-    uid = decoded_token['uid']
     
+    uid = request.headers.get('uid')
     if request.method == 'GET':
         news_data = news_service.get_all_news_articles(uid)
         # Convert ObjectId to string

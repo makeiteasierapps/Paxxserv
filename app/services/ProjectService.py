@@ -115,7 +115,7 @@ class ProjectService:
         )
         return response.choices[0].message.content
     
-    def crawl_site(self, url, project_id, name, visited=None):
+    def crawl_site(self, url, project_id, visited=None):
         if visited is None:
             visited = set()
 
@@ -133,7 +133,7 @@ class ProjectService:
                     site_docs.append(scraped_doc)
                     if content:
                         all_contents.append(content)  # Add content to the list for batch update
-                site_docs.extend(self.crawl_site(link, project_id, name, visited))
+                site_docs.extend(self.crawl_site(link, project_id, visited))
 
         # Batch update the Colbert index with all contents after crawling is done
         # if all_contents:
@@ -251,6 +251,7 @@ class ProjectService:
 
         # Finally, update the project_doc with the list of chunk_ids
         self.db['project_docs'].update_one({'_id': doc_id}, {'$set': {'chunks': chunk_ids}})
+        return text
 
     def create_new_project(self, uid, name, objective):
         project_details = {

@@ -35,17 +35,8 @@ def auth_check():
     """
     if request.method == 'OPTIONS':
         return ('', 204)
-
-    id_token = request.headers.get('Authorization')
-    if not id_token:
-        return ('Missing token', 403)
-
-    decoded_token = firebase_service.verify_id_token(id_token)
-    if not decoded_token:
-        return ('Invalid token', 403)
-
-    uid = decoded_token['uid']
-    print(uid)
+    
+    uid = request.json.get('uid')
     user_doc = db['users'].find_one({'_id': uid})  
     auth_status = user_doc.get('authorized', False)
     return jsonify({'auth_status': auth_status})

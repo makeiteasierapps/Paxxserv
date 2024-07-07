@@ -1,6 +1,6 @@
 import os
 from pymongo import MongoClient
-from flask import Blueprint, g
+from flask import Blueprint
 import certifi
 from dotenv import load_dotenv
 from flask import jsonify, request
@@ -29,24 +29,6 @@ db = client['paxxium']
 firebase_service = FirebaseService()
 project_services = ProjectService(db)
 
-def verify_request_token():
-    id_token = request.headers.get('Authorization')
-    if not id_token:
-        return None  # Token missing
-    
-    decoded_token = firebase_service.verify_id_token(id_token)
-    if not decoded_token:
-        return None  # Token invalid
-    
-    return decoded_token['uid']  # Return UID if successful
-
-def generate_token_error_response():
-    message = 'Missing token' if 'Authorization' not in request.headers else 'Invalid token'
-    return jsonify({'message': message}), 403
-
-@projects_bp.before_request
-def before_request():
-    g.uid = verify_request_token()
 
 @projects_bp.route('/projects', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 @projects_bp.route('/projects/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
@@ -55,11 +37,10 @@ def projects(subpath):
     if request.method == "OPTIONS":
         return ("", 204)
     
-    if g.uid is None:
-        return generate_token_error_response()
+    uid = request.headers.get('uid')
     
     if request.method == "GET" and subpath == '':
-        project_list = project_services.get_projects(g.uid)
+        project_list = project_services.get_projects(uid)
         return jsonify({'projects': project_list}), 200
     
     if request.method == "POST" and subpath == '':
@@ -67,7 +48,7 @@ def projects(subpath):
         name = data.get('name')
         objective = data.get('objective')
         
-        new_project_details, new_chat_details = project_services.create_new_project(g.uid, name, objective)
+        new_project_details, new_chat_details = project_services.create_new_project(uid, name, objective)
         return jsonify({'new_project': new_project_details, 'new_chat': new_chat_details}), 200
     
     if request.method == "DELETE" and subpath == '':
@@ -123,7 +104,6 @@ def projects(subpath):
         
         try:
             text = project_services.extract_pdf(file, project_id)
-            
             return jsonify({'message': 'Extracted', 'text': text}), 200
         
         except Exception as e:
