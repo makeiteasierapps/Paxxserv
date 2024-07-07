@@ -48,7 +48,7 @@ class BossAgent:
         if not hasattr(self, 'is_initialized'):
             self.is_initialized = True
             self.openai_key = openai_key or self._load_openai_key()
-            self.model = model if model == 'gpt-4-turbo' else 'gpt-3.5-turbo'
+            self.model = model
             self.lm = None
             self.client = dspy.OpenAI(api_key=self.openai_key)  
             self.openai_client = OpenAI(api_key=self.openai_key)
@@ -122,6 +122,7 @@ class BossAgent:
         return response.data[0].embedding
     
     def pass_to_boss_agent(self, chat_id, new_chat_history, save_callback=None):
+        print(self.model)
         response = self.openai_client.chat.completions.create(
             model=self.model,
             messages=new_chat_history,
@@ -203,10 +204,8 @@ class BossAgent:
             new_chat_history.insert(0, system_message)
         
         print(new_chat_history)
-        if image_url:
-            self.pass_to_vision_model(new_chat_history, chat_id, save_callback)
-        else:
-            self.pass_to_boss_agent(chat_id, new_chat_history, save_callback)
+        
+        self.pass_to_boss_agent(chat_id, new_chat_history, save_callback)
     
     def get_full_response(self, message):
         response = self.openai_client.chat.completions.create(
@@ -417,42 +416,3 @@ class BossAgent:
             response_format={ "type": "json_object" },
         )
         return response.choices[0].message.content
-
-    def pass_to_vision_model(self, new_chat_history, chat_id, save_callback=None):
-        response = self.openai_client.chat.completions.create(
-            model="gpt-4o",
-            messages=new_chat_history,
-            stream=True,
-        )
-        response_chunks = []
-        inside_code_block = False
-        language = None
-        ignore_next_token = False
-        
-        for chunk in response:
-            response_chunk = chunk.choices[0].delta.content
-            if response_chunk is not None:
-                response_chunks, inside_code_block, language, ignore_next_token = self.process_response_chunk(
-                    chat_id, response_chunk, response_chunks, inside_code_block, language, ignore_next_token
-                )
-
-        collapsed_response = []
-        if response_chunks:
-            current_message = response_chunks[0]
-            for chunk in response_chunks[1:]:
-                if chunk['type'] == current_message['type']:
-                    current_message['content'] += chunk['content']
-                else:
-                    collapsed_response.append(current_message)
-                    current_message = chunk
-            collapsed_response.append(current_message)
-
-        # Notify the client that the stream is over
-        end_stream_obj = {
-            'message_from': 'agent',
-            'content': response_chunks,
-            'type': 'end_of_stream',
-        }
-        emit('chat_response', end_stream_obj, room=chat_id)
-        if save_callback:
-            save_callback(chat_id, collapsed_response)

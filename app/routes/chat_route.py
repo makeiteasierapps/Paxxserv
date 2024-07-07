@@ -108,13 +108,14 @@ def handle_chat_message(data):
     if chat_settings:
         chat_constants = chat_settings.get('chatConstants')
         use_profile_data = chat_settings.get('useProfileData', None)
+        model = chat_settings.get('agentModel', None)
         system_prompt = chat_settings.get('systemPrompt')
         user_analysis = None
         if use_profile_data:
             user_analysis = user_service.get_user_analysis(uid)
-        boss_agent = BossAgent(chat_constants=chat_constants, system_prompt=system_prompt, user_analysis=user_analysis)
+        boss_agent = BossAgent(model=model, chat_constants=chat_constants, system_prompt=system_prompt, user_analysis=user_analysis)
     else:
-        boss_agent = BossAgent()
+        boss_agent = BossAgent(model=model)
     
     chat_service_with_db = ChatService(db_name=data['dbName'])  
     user_message = data['userMessage']['content']
