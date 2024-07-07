@@ -109,6 +109,7 @@ def handle_chat_message(data):
         chat_constants = chat_settings.get('chatConstants')
         use_profile_data = chat_settings.get('useProfileData', None)
         model = chat_settings.get('agentModel', None)
+        print('received model', model)
         system_prompt = chat_settings.get('systemPrompt')
         user_analysis = None
         if use_profile_data:
