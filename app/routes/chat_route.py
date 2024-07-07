@@ -19,7 +19,7 @@ client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
 
 db = client['paxxium']
 
-chat_service = ChatService('paxxium')
+chat_service = ChatService(db_name='paxxium')
 user_service = UserService(db)
 
 @socketio.on('connect')
@@ -38,8 +38,8 @@ def handle_socketio_options():
 def handle_messages_options():
     if request.method == 'OPTIONS':
         return ("", 204)
-@chat_bp.route('/chat', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
-@chat_bp.route('/chat/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+@chat_bp.route('/chat', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'])
+@chat_bp.route('/chat/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'])
 def chat(subpath):
     if request.method == 'OPTIONS':
         return ("", 204)
@@ -102,14 +102,14 @@ def handle_join_room(data):
 
 @socketio.on('chat_request')
 def handle_chat_message(data):
-    uid = data['userId']
-    
-    
+    uid = data.get('userId')
+    system_prompt = None
     chat_settings = data.get('chatSettings', None)
     if chat_settings:
         chat_constants = chat_settings.get('chat_constants')
         use_profile_data = chat_settings.get('use_profile_data', None)
         system_prompt = chat_settings.get('system_prompt')
+        user_analysis = None
         if use_profile_data:
             user_analysis = user_service.get_user_analysis(uid)
         boss_agent = BossAgent(chat_constants=chat_constants, system_prompt=system_prompt, user_analysis=user_analysis)
