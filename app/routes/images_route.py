@@ -22,6 +22,7 @@ try:
     })
 except ValueError:
     pass
+
 # MongoDB URI
 mongo_uri = os.getenv('MONGO_URI')
 # Create a new MongoClient and connect to the server
@@ -35,17 +36,7 @@ user_service = UserService(db)
 def images():
     if request.method == "OPTIONS":
         return ("", 204)
-    
-    id_token = request.headers.get('Authorization')
-    if not id_token:
-        return ('Missing token', 403)
-
-    decoded_token = firebase_service.verify_id_token(id_token)
-    if not decoded_token:
-        return ('Invalid token', 403)
-
-    uid = decoded_token['uid']
-
+    uid = request.headers.get('uid')
     if request.method == "POST":
         image_request = request.get_json()
         encrypted_openai_key = user_service.get_keys(uid)

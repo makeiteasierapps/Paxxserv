@@ -36,21 +36,10 @@ user_service = UserService(db)
 def signup():
 
     if request.method == "OPTIONS":
-        return ("", 204, )
+        return ("", 204)
     
-    id_token = request.headers.get('Authorization')
-    if not id_token:
-        return ('Missing token', 403)
-
-    decoded_token = firebase_service.verify_id_token(id_token)
-    if not decoded_token:
-        return ('Invalid token', 403)
-
-    uid = decoded_token['uid']
-
     if request.method == 'POST':
         req_data = request.get_json()
-        print(req_data)
         username = req_data.get('username')
         uid = req_data.get('uid')
         openai_api_key = req_data.get('openAiApiKey')

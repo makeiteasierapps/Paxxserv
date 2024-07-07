@@ -9,15 +9,8 @@ moment_bp = Blueprint('moment_bp', __name__)
 
 moment_service = MomentService('paxxium')
 
-
-headers = {"Access-Control-Allow-Origin": "*"}
 def cors_preflight_response():
-    return ("", 204, {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS, DELETE, PUT, PATCH",
-        "Access-Control-Allow-Headers": "Authorization, Content-Type, Project-ID",
-        "Access-Control-Max-Age": "3600",
-    })
+    return ("", 204)
 
 @moment_bp.route('/moments', methods=['GET'])
 def handle_fetch_moments():
@@ -26,7 +19,6 @@ def handle_fetch_moments():
     response = jsonify(all_moments)
     
     response.status_code = 200
-    response.headers.update(headers)
     return response
     
 @moment_bp.route('/moments', methods=['POST'])
@@ -51,7 +43,6 @@ def handle_add_moment():
     response = jsonify(new_moment)
     
     response.status_code = 200
-    response.headers.update(headers)
     
     return response
 
@@ -82,7 +73,6 @@ def handle_update_moment():
     new_snapshot['transcript'] = moment_service.update_moment(new_snapshot)
     response = jsonify(new_snapshot)
     response.status_code = 200
-    response.headers.update(headers)
     return response
 
 @moment_bp.route('/moments', methods=['DELETE'])
@@ -91,5 +81,4 @@ def handle_delete_moment():
     moment_service.delete_moment(moment_id)
     response = jsonify({'message': 'Moment Deleted'})
     response.status_code = 200
-    response.headers.update(headers)
     return response
