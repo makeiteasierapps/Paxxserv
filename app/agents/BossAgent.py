@@ -127,7 +127,7 @@ class BossAgent:
             messages=new_chat_history,
             stream=True,
         )
-        completed_response = ''
+        response_chunks = []
         inside_code_block = False
         language = None
         ignore_next_token = False
@@ -135,25 +135,37 @@ class BossAgent:
         for chunk in response:
             response_chunk = chunk.choices[0].delta.content
             if response_chunk is not None:
-                completed_response, inside_code_block, language, ignore_next_token = self.process_response_chunk(
-                    chat_id, response_chunk, completed_response, inside_code_block, language, ignore_next_token
+                response_chunks, inside_code_block, language, ignore_next_token = self.process_response_chunk(
+                    chat_id, response_chunk, response_chunks, inside_code_block, language, ignore_next_token
                 )
-        
+
+        collapsed_response = []
+        if response_chunks:
+            current_message = response_chunks[0]
+            for chunk in response_chunks[1:]:
+                if chunk['type'] == current_message['type']:
+                    current_message['content'] += chunk['content']
+                else:
+                    collapsed_response.append(current_message)
+                    current_message = chunk
+            collapsed_response.append(current_message)
+
         # Notify the client that the stream is over
         end_stream_obj = {
             'message_from': 'agent',
-            'content': completed_response,
+            'content': response_chunks,
             'type': 'end_of_stream',
+            'room': chat_id
         }
         emit('chat_response', end_stream_obj, room=chat_id)
         if save_callback:
-            save_callback(chat_id, completed_response)
+            save_callback(chat_id, collapsed_response)
 
-    def process_response_chunk(self, chat_id, response_chunk, completed_response, inside_code_block, language, ignore_next_token):
+    def process_response_chunk(self, chat_id, response_chunk, response_chunks, inside_code_block, language, ignore_next_token):
         if ignore_next_token:
             ignore_next_token = False
             language = None
-            return completed_response, inside_code_block, language, ignore_next_token
+            return response_chunks, inside_code_block, language, ignore_next_token
 
         if response_chunk == '```':
             inside_code_block = not inside_code_block
@@ -166,10 +178,11 @@ class BossAgent:
                 language = response_chunk.strip()
             else:
                 formatted_message = self.format_stream_message(response_chunk, inside_code_block, language)
-                completed_response += response_chunk
+                formatted_message['room'] = chat_id
+                response_chunks.append(formatted_message)
                 emit('chat_response', formatted_message, room=chat_id)
         
-        return completed_response, inside_code_block, language, ignore_next_token
+        return response_chunks, inside_code_block, language, ignore_next_token
     
     def format_stream_message(self, message, inside_code_block, language):
         if inside_code_block:
@@ -190,7 +203,7 @@ class BossAgent:
             new_chat_history.insert(0, system_message)
         
         if image_url:
-            self.pass_to_vision_model(chat_id, new_chat_history, save_callback)
+            self.pass_to_vision_model(new_chat_history, chat_id, save_callback)
         else:
             self.pass_to_boss_agent(chat_id, new_chat_history, save_callback)
     
@@ -241,6 +254,7 @@ class BossAgent:
         token_limit = 2000
         token_count = 0
         for message in chat_history:
+            print(message)
             if token_count > token_limit:
                 break
             if message['message_from'] == 'user':

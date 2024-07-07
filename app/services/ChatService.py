@@ -124,7 +124,9 @@ class ChatService:
         """
         Updates the visibility of a chat in the database
         """
-        self.db['chats'].update_one({'_id': ObjectId(chat_id)}, {'$set': {'is_open': is_open}})
+        self._initialize_client()
+        if self.db is not None:
+            self.db['chats'].update_one({'_id': ObjectId(chat_id)}, {'$set': {'is_open': is_open}})
 
     def create_message(self, chat_id, message_from, message_content):
         self._initialize_client()
