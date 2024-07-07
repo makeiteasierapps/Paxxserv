@@ -116,7 +116,7 @@ def handle_chat_message(data):
             user_analysis = user_service.get_user_analysis(uid)
         boss_agent = BossAgent(model=model, chat_constants=chat_constants, system_prompt=system_prompt, user_analysis=user_analysis)
     else:
-        boss_agent = BossAgent(model=model)
+        boss_agent = BossAgent(model='gpt-4o')
     
     chat_service_with_db = ChatService(db_name=data['dbName'])  
     user_message = data['userMessage']['content']

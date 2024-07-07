@@ -9,4 +9,42 @@ kill all gunicorn processes:
 pkill gunicorn
 
 open nginx config file:
-sudo nano /etc/nginx/sites-available/default
+/etc/nginx/sites-available/default
+
+
+Systemd service file:
+/etc/systemd/system/paxxserv.service
+
+# Check Hypercorn logs
+sudo journalctl -u paxxserv.service -f
+
+# Verify Hypercorn is running
+sudo systemctl status paxxserv.service
+
+# Check network configuration
+sudo netstat -tuln | grep 3033
+# or
+sudo ss -tuln | grep 3033
+
+# Check firewall rules
+sudo ufw status
+sudo ufw allow 3033
+
+# Test connectivity from a client machine
+curl http://your_server_ip:3033
+
+# If needed, revert to Gunicorn temporarily
+sudo nano /etc/systemd/system/paxxserv.service
+
+# Update the [Service] section to use Gunicorn
+# [Service]
+# User=gravitaskillis
+# Group=gravitaskillis
+# WorkingDirectory=/home/gravitaskillis/projects/paxxserv
+# ExecStart=/home/gravitaskillis/projects/paxxserv/venv/bin/gunicorn --worker-class gevent --log-level info -b 0.0.0.0:3033 run:app --daemon
+# Restart=always
+
+# Reload systemd and restart the service
+sudo systemctl daemon-reload
+sudo systemctl restart paxxserv.service
+sudo systemctl status paxxserv.service
