@@ -37,24 +37,17 @@ class DocumentContent(Signature):
     summary = OutputField()
     
 class BossAgent:
-    _instance = None
-
-    def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = super(BossAgent, cls).__new__(cls)
-        return cls._instance
 
     def __init__(self, openai_key=None, model='gpt-3.5-turbo', system_prompt="You are a friendly but genuine AI Agent. Don't be annoyingly nice, but don't be rude either.", chat_constants=None, user_analysis=None):
-        if not hasattr(self, 'is_initialized'):
-            self.is_initialized = True
-            self.openai_key = openai_key or self._load_openai_key()
-            self.model = model
-            self.lm = None
-            self.client = dspy.OpenAI(api_key=self.openai_key)  
-            self.openai_client = OpenAI(api_key=self.openai_key)
-            self.system_prompt = system_prompt
-            self.chat_constants = chat_constants
-            self.user_analysis = user_analysis
+        self.is_initialized = True
+        self.openai_key = openai_key or self._load_openai_key()
+        self.model = model
+        self.lm = None
+        self.client = dspy.OpenAI(api_key=self.openai_key)  
+        self.openai_client = OpenAI(api_key=self.openai_key)
+        self.system_prompt = system_prompt
+        self.chat_constants = chat_constants
+        self.user_analysis = user_analysis
 
     def _load_openai_key(self):
         load_dotenv()
@@ -202,8 +195,6 @@ class BossAgent:
         new_chat_history = self.manage_chat(chat_history, user_message, image_url)
         if system_message:
             new_chat_history.insert(0, system_message)
-        
-        print(new_chat_history)
         
         self.pass_to_boss_agent(chat_id, new_chat_history, save_callback)
     

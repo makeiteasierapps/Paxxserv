@@ -108,17 +108,22 @@ class ChatService:
         """
         Updates a chat in the database
         """
-        update_result = self.db['chats'].update_one(
-            {'_id': ObjectId(chat_id)},
-            {'$set': {
-                'chat_name': chat_name,
-                'agent_model': agent_model,
-                'system_prompt': system_prompt,
-                'chat_constants': chat_constants,
-                'use_profile_data': use_profile_data
-            }}
-        )
-        return update_result
+        self._initialize_client()
+        if self.db is not None:
+            update_result = self.db['chats'].update_one(
+                {'_id': ObjectId(chat_id)},
+                {'$set': {
+                    'chat_name': chat_name,
+                    'agent_model': agent_model,
+                    'system_prompt': system_prompt,
+                    'chat_constants': chat_constants,
+                    'use_profile_data': use_profile_data
+                    }}
+            )
+            return update_result
+        else:
+            print("MongoDB connection is not initialized.")
+            return None
 
     def update_visibility(self, chat_id, is_open):
         """
@@ -127,6 +132,10 @@ class ChatService:
         self._initialize_client()
         if self.db is not None:
             self.db['chats'].update_one({'_id': ObjectId(chat_id)}, {'$set': {'is_open': is_open}})
+            return True
+        else:
+            print("MongoDB connection is not initialized.")
+            return False
 
     def create_message(self, chat_id, message_from, message_content):
         self._initialize_client()
