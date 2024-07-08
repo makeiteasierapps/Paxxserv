@@ -50,5 +50,4 @@ def auth_check():
            "messagingSenderId": os.getenv('FIREBASE_MESSAGING_SENDER_ID'),
            "appId": os.getenv('FIREBASE_APP_ID'),
        }
-        print(config)
         return jsonify(config)
