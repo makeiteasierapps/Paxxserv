@@ -1,4 +1,5 @@
 import os
+import re
 import tiktoken
 from openai import OpenAI
 import dspy
@@ -156,20 +157,24 @@ class BossAgent:
             save_callback(chat_id, collapsed_response)
 
     def process_response_chunk(self, chat_id, response_chunk, response_chunks, inside_code_block, language, ignore_next_token):
+        print(response_chunk)
         if ignore_next_token:
             ignore_next_token = False
             language = None
             return response_chunks, inside_code_block, language, ignore_next_token
 
         if response_chunk == '```':
-            inside_code_block = not inside_code_block
-            language = None if not inside_code_block else language
-        elif response_chunk == '``':
-            inside_code_block = not inside_code_block
+            inside_code_block = True
+        elif response_chunk == '``' and language != 'markdown':
+            inside_code_block = False
             ignore_next_token = True
         else:
             if inside_code_block and language is None:
                 language = response_chunk.strip()
+                if language == 'markdown':
+                    inside_code_block = False
+                    response_chunk = ''
+                    language = None
             else:
                 formatted_message = self.format_stream_message(response_chunk, inside_code_block, language)
                 formatted_message['room'] = chat_id
