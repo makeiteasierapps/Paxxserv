@@ -1,9 +1,10 @@
+from dotenv import load_dotenv
 import os
 from flask import Flask
 from flask_socketio import SocketIO
 from flask_cors import CORS
 from firebase_admin import credentials, initialize_app
-
+load_dotenv()
 cred = credentials.Certificate(os.getenv('FIREBASE_ADMIN_SDK'))
 
 try:
