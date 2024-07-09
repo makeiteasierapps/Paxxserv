@@ -1,9 +1,8 @@
 import os
 import random
-from flask import Blueprint, request
+from flask import Blueprint, request, g
 from dotenv import load_dotenv
 from firebase_admin import credentials, initialize_app
-from app.services.FirebaseService import FirebaseService
 from app.services.NewsService import NewsService
 load_dotenv()
 
@@ -18,18 +17,19 @@ try:
 except ValueError:
     pass
 
-
-firebase_service = FirebaseService()
-news_service = NewsService(db_name='paxxium')
+@news_bp.before_request
+def initialize_services():
+    db_name = request.headers.get('dbName', 'paxxium')
+    g.news_service = NewsService(db_name=db_name)
+    g.uid = request.headers.get('uid')
 
 @news_bp.route('/news', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 def news():
     if request.method == "OPTIONS":
         return ("", 204)
     
-    uid = request.headers.get('uid')
     if request.method == 'GET':
-        news_data = news_service.get_all_news_articles(uid)
+        news_data = g.news_service.get_all_news_articles(g.uid)
         # Convert ObjectId to string
         for article in news_data:
             article['_id'] = str(article['_id'])
@@ -38,48 +38,38 @@ def news():
     if request.method == 'POST':
         data = request.get_json()
         query = data['query']
-        urls = news_service.get_article_urls(query)
-        news_data = news_service.summarize_articles(urls)
-        news_service.upload_news_data(uid, news_data)
-
+        urls = g.news_service.get_article_urls(query)
+        news_data = g.news_service.summarize_articles(urls)
+        g.news_service.upload_news_data(g.uid, news_data)
         return (news_data, 200)
     
     if request.method == 'PUT':
         data = request.get_json()
         doc_id = data['articleId']
-        news_service.mark_is_read(uid, doc_id)
+        g.news_service.mark_is_read(g.uid, doc_id)
         return ({"message": "Updated successfully"}, 200) 
     
     if request.method == 'DELETE':
         data = request.get_json()
         doc_id = data['articleId']
-        news_service.delete_news_article(uid, doc_id)
+        g.news_service.delete_news_article(g.uid, doc_id)
         return ({"message": "Deleted successfully"}, 200)
     
 @news_bp.route('/ai-fetch-news', methods=['GET', 'OPTIONS'])
 def ai_fetch_news():
     if request.method == "OPTIONS":
         return ("", 204)
-    id_token = request.headers.get('Authorization')
-
-    if not id_token:
-        return ('Missing token', 403)
-
-    decoded_token = firebase_service.verify_id_token(id_token)
-    if not decoded_token:
-        return ('Invalid token', 403)
-
-    uid = decoded_token['uid']
+    
     if request.method == 'GET':
-        news_topics = news_service.get_user_news_topics(uid)
+        news_topics = g.news_service.get_user_news_topics(g.uid)
         if not news_topics:
-            return ({"message": "No news topics found, please answer some questions in the profile section and analyze"}, 404, headers)
+            return ({"message": "No news topics found, please answer some questions in the profile section and analyze"}, 404)
         
         random_topic = random.choice(news_topics)
-        urls = news_service.get_article_urls(random_topic)
+        urls = g.news_service.get_article_urls(random_topic)
         
-        news_data = news_service.summarize_articles(urls)
-        news_service.upload_news_data(uid, news_data)
+        news_data = g.news_service.summarize_articles(urls)
+        g.news_service.upload_news_data(g.uid, news_data)
         return (news_data, 200)
     
     

@@ -1,9 +1,8 @@
 import os
 import json
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 from dotenv import load_dotenv
 from firebase_admin import credentials, initialize_app
-from app.services.FirebaseService import FirebaseService
 from app.services.UserService import UserService
 from app.agents.BossAgent import BossAgent
 
@@ -21,8 +20,10 @@ try:
 except ValueError:
     pass
 
-firebase_service = FirebaseService()
-user_service = UserService(db_name='paxxium')
+@profile_bp.before_request
+def initialize_services():
+    db_name = request.headers.get('dbName', 'paxxium')
+    g.user_service = UserService(db_name=db_name)
 
 @profile_bp.route('/profile', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 @profile_bp.route('/profile/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
@@ -33,35 +34,35 @@ def profile(subpath):
     uid = request.headers.get('uid')
 
     if request.method == 'GET' and subpath == '':
-        user_profile = user_service.get_profile(uid)
+        user_profile = g.user_service.get_profile(uid)
         return jsonify(user_profile), 200
 
     if subpath == 'answers':
         if request.method == 'POST':
             data = request.get_json()
-            user_service.update_profile_answers(uid, data)
+            g.user_service.update_profile_answers(uid, data)
             return jsonify({'response': 'Profile questions/answers updated successfully'}), 200
-        profile_data = user_service.load_profile_answers(uid)
+        profile_data = g.user_service.load_profile_answers(uid)
         return jsonify(profile_data), 200
 
     if subpath == 'user':
         data = request.get_json()
-        user_service.update_user_profile(uid, data)
+        g.user_service.update_user_profile(uid, data)
         return jsonify({'response': 'User profile updated successfully'}), 200
     
     if subpath == 'analyze':
-        encrypted_openai_key = user_service.get_keys(uid)
-        openai_key = user_service.decrypt(encrypted_openai_key)
+        encrypted_openai_key = g.user_service.get_keys(uid)
+        openai_key = g.user_service.decrypt(encrypted_openai_key)
         profile_agent = BossAgent(openai_key=openai_key, model='gpt-4o')
-        prompt = user_service.prepare_analysis_prompt(uid)
+        prompt = g.user_service.prepare_analysis_prompt(uid)
         response = profile_agent.pass_to_profile_agent(prompt)
         analysis_obj = json.loads(response)
-        user_service.update_user_profile(uid, analysis_obj.copy())
+        g.user_service.update_user_profile(uid, analysis_obj.copy())
         return jsonify(analysis_obj), 200
 
     if subpath in ('update_avatar', 'profile/update_avatar'):
         file = request.files['avatar']
-        avatar_url = user_service.upload_profile_image_to_firebase_storage(file, uid)
+        avatar_url = g.user_service.upload_profile_image_to_firebase_storage(file, uid)
         return jsonify({'avatar_url': avatar_url}), 200
 
     return 'Not Found', 404

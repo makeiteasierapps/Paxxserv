@@ -1,13 +1,10 @@
 import io
 import os
-import certifi
-from pymongo import MongoClient
 from dotenv import load_dotenv
-from app.services.FirebaseService import FirebaseService
 from app.agents.BossAgent import BossAgent
 from app.services.UserService import UserService
 from firebase_admin import credentials, initialize_app
-from flask import request, Blueprint
+from flask import request, Blueprint, g
 import requests
 
 load_dotenv()
@@ -23,9 +20,10 @@ try:
 except ValueError:
     pass
 
-firebase_service = FirebaseService()
-
-user_service = UserService(db_name='paxxium')
+@images_bp.before_request
+def initialize_services():
+    db_name = request.headers.get('dbName', 'paxxium')
+    g.user_service = UserService(db_name=db_name)
 
 @images_bp.route('/images', methods=['GET', 'POST', 'DELETE', 'PUT', 'PATCH', 'OPTIONS'])
 def images():
@@ -34,20 +32,20 @@ def images():
     uid = request.headers.get('uid')
     if request.method == "POST":
         image_request = request.get_json()
-        encrypted_openai_key = user_service.get_keys(uid)
-        openai_key = user_service.decrypt(encrypted_openai_key)
+        encrypted_openai_key = g.user_service.get_keys(uid)
+        openai_key = g.user_service.decrypt(encrypted_openai_key)
         image_agent = BossAgent(openai_key=openai_key)
     
         image_url = image_agent.generate_image(image_request)
         return (image_url, 200)
     
     if request.method == "GET":
-        images_list = user_service.fetch_all_from_dalle_images(uid)
+        images_list = g.user_service.fetch_all_from_dalle_images(uid)
         return (images_list, 200)
     
     if request.method == "DELETE":
         path = request.get_json()
-        user_service.delete_generated_image_from_firebase_storage(path)
+        g.user_service.delete_generated_image_from_firebase_storage(path)
         return ({'message': 'Image deleted successfully'}, 200)
 
 @images_bp.route('/images/save', methods=['POST'])
@@ -64,5 +62,5 @@ def save_image():
         return ({'error': 'Failed to fetch image'}, 400)
     image_data = response.content
     image_blob = io.BytesIO(image_data)
-    image_url = user_service.upload_generated_image_to_firebase_storage(image_blob, uid)
+    image_url = g.user_service.upload_generated_image_to_firebase_storage(image_blob, uid)
     return (image_url, 200)
