@@ -23,14 +23,9 @@ try:
 except ValueError:
     pass
 
-# MongoDB URI
-mongo_uri = os.getenv('MONGO_URI')
-# Create a new MongoClient and connect to the server
-client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
-db = client['paxxium']
 firebase_service = FirebaseService()
 
-user_service = UserService(db)
+user_service = UserService(db_name='paxxium')
 
 @images_bp.route('/images', methods=['GET', 'POST', 'DELETE', 'PUT', 'PATCH', 'OPTIONS'])
 def images():

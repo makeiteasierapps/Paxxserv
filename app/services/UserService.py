@@ -1,13 +1,15 @@
 import os
 import uuid
 import base64
+from .MongoDbClient import MongoDbClient
 from dotenv import load_dotenv
 from google.cloud import kms
 from firebase_admin import storage
 
 class UserService:
-    def __init__(self, db):
-        self.db = db
+    def __init__(self, db_name):
+        self.db_client = MongoDbClient(db_name)
+        self.db = self.db_client.connect()
 
     def get_keys(self, uid):
         user_doc = self.db['users'].find_one({'_id': uid}, {'open_key': 1})
@@ -219,4 +221,7 @@ class UserService:
         blob.upload_from_string(file_data, content_type=content_type)
         blob.make_public()
 
-        return blob.public_url
+        return blob.public_url  
+    
+    def __del__(self):
+        self.db_client.close()

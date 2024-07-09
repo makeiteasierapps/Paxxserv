@@ -1,11 +1,8 @@
 import os
 import random
-import certifi
 from flask import Blueprint, request
-from pymongo import MongoClient
 from dotenv import load_dotenv
 from firebase_admin import credentials, initialize_app
-
 from app.services.FirebaseService import FirebaseService
 from app.services.NewsService import NewsService
 load_dotenv()
@@ -21,14 +18,9 @@ try:
 except ValueError:
     pass
 
-# MongoDB URI
-mongo_uri = os.getenv('MONGO_URI')
-# Create a new MongoClient and connect to the server
-client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
 
-db = client['paxxium']
 firebase_service = FirebaseService()
-news_service = NewsService(db)
+news_service = NewsService(db_name='paxxium')
 
 @news_bp.route('/news', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 def news():

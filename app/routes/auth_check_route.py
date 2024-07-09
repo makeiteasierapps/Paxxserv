@@ -1,8 +1,7 @@
 import os
-import certifi
 from flask import Blueprint, request, jsonify
 from firebase_admin import credentials, initialize_app
-from pymongo import MongoClient
+from app.services.MongoDbClient import MongoDbClient
 from app.services.FirebaseService import FirebaseService
 from dotenv import load_dotenv
 
@@ -17,12 +16,8 @@ initialize_app(cred, {
     'storageBucket': 'paxxiumv1.appspot.com'
 })
 
-# MongoDB URI
-mongo_uri = os.getenv('MONGO_URI')
-# Create a new MongoClient and connect to the server
-client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
-
-db = client['paxxium']
+db_client = MongoDbClient(db_name='paxxium')
+db = db_client.connect()
 
 firebase_service = FirebaseService()
 
