@@ -9,6 +9,8 @@ projects_bp = Blueprint('projects_bp', __name__)
 
 @projects_bp.before_request
 def initialize_services():
+    if request.method == "OPTIONS":
+        return ("", 204)
     db_name = request.headers.get('dbName', 'paxxium')
     g.uid = request.headers.get('uid')
     g.project_services = ProjectService(db_name=db_name)
@@ -16,10 +18,6 @@ def initialize_services():
 @projects_bp.route('/projects', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 @projects_bp.route('/projects/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 def projects(subpath):
-
-    if request.method == "OPTIONS":
-        return ("", 204)
-    
     if request.method == "GET" and subpath == '':
         project_list = g.project_services.get_projects(g.uid)
         return jsonify({'projects': project_list}), 200

@@ -389,6 +389,7 @@ class BossAgent:
 
         return response.choices[0].message.content
     
+    # Refactor this to use dspy, its not always outputing the json in the correct format
     def pass_to_profile_agent(self, message):
         response = self.openai_client.chat.completions.create(
             model=self.model,

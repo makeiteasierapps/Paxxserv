@@ -9,6 +9,8 @@ auth_check_bp = Blueprint('auth_check', __name__)
 
 @auth_check_bp.before_request
 def initialize_services():
+    if request.method == 'OPTIONS':
+        return ('', 204)
     db_name = request.headers.get('dbName', 'paxxium')
     db_client = MongoDbClient(db_name=db_name)
     g.db = db_client.connect()
@@ -18,8 +20,6 @@ def auth_check():
     """
     Checks if admin has granted access to the user
     """
-    if request.method == 'OPTIONS':
-        return ('', 204)
     
     if request.method == 'POST':
         uid = request.json.get('uid')

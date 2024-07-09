@@ -8,11 +8,10 @@ moment_bp = Blueprint('moment_bp', __name__)
 
 @moment_bp.before_request
 def initialize_services():
+    if request.method == 'OPTIONS':
+        return ('', 204)
     db_name = request.headers.get('dbName', 'paxxium')
     g.moment_service = MomentService(db_name=db_name)
-
-def cors_preflight_response():
-    return ("", 204)
 
 @moment_bp.route('/moments', methods=['GET'])
 def handle_fetch_moments():
