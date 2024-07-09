@@ -1,7 +1,6 @@
 import os
 from dotenv import load_dotenv
-from flask import Blueprint, request
-from app.services.FirebaseService import FirebaseService
+from flask import Blueprint, request, g
 from app.services.UserService import UserService
 from firebase_admin import credentials, initialize_app
 
@@ -11,7 +10,6 @@ signup_bp = Blueprint('signup_bp', __name__)
 
 cred = credentials.Certificate(os.getenv('FIREBASE_ADMIN_SDK'))
 
-
 try:
     initialize_app(cred, {
         'projectId': 'paxxiumv1',
@@ -20,9 +18,9 @@ try:
 except ValueError:
     pass
 
-firebase_service = FirebaseService()
-
-user_service = UserService(db_name='paxxium')
+@signup_bp.before_request
+def initialize_services():
+    g.user_service = UserService(db_name='paxxium')
 
 @signup_bp.route('/signup', methods=['POST'])
 def signup():
@@ -42,7 +40,7 @@ def signup():
             'open_key': openai_api_key,
             'authorized': authorized}
       
-        user_service.update_user_profile(uid, updates)
+        g.user_service.update_user_profile(uid, updates)
 
         return ({'message': 'User added successfully'}, 200)
 

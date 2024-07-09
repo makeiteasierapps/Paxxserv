@@ -1,8 +1,7 @@
 import os
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 from firebase_admin import credentials, initialize_app
 from app.services.MongoDbClient import MongoDbClient
-from app.services.FirebaseService import FirebaseService
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -16,12 +15,11 @@ initialize_app(cred, {
     'storageBucket': 'paxxiumv1.appspot.com'
 })
 
-db_client = MongoDbClient(db_name='paxxium')
-db = db_client.connect()
-
-firebase_service = FirebaseService()
-
-os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+@auth_check_bp.before_request
+def initialize_services():
+    db_name = request.headers.get('dbName', 'paxxium')
+    db_client = MongoDbClient(db_name=db_name)
+    g.db = db_client.connect()
 
 @auth_check_bp.route('/auth_check', methods=['POST', 'OPTIONS', 'GET'])
 def auth_check():
@@ -33,7 +31,7 @@ def auth_check():
     
     if request.method == 'POST':
         uid = request.json.get('uid')
-        user_doc = db['users'].find_one({'_id': uid})  
+        user_doc = g.db['users'].find_one({'_id': uid})  
         auth_status = user_doc.get('authorized', False)
         return jsonify({'auth_status': auth_status})
     

@@ -1,5 +1,4 @@
 import os
-import re
 import tiktoken
 from openai import OpenAI
 import dspy
