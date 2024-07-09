@@ -2,23 +2,11 @@ import os
 from flask import Blueprint
 from dotenv import load_dotenv
 from flask import jsonify, request, g
-from firebase_admin import credentials, initialize_app
-from app.services.FirebaseService import FirebaseService
 from app.services.ProjectService import ProjectService
 
 load_dotenv()
 
 projects_bp = Blueprint('projects_bp', __name__)
-
-cred = credentials.Certificate(os.getenv('FIREBASE_ADMIN_SDK'))
-
-try:
-    initialize_app(cred, {
-        'projectId': 'paxxiumv1',
-        'storageBucket': 'paxxiumv1.appspot.com'
-    })
-except ValueError:
-    pass
 
 @projects_bp.before_request
 def initialize_services():

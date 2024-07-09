@@ -1,19 +1,11 @@
 import os
 from flask import Blueprint, request, jsonify, g
-from firebase_admin import credentials, initialize_app
 from app.services.MongoDbClient import MongoDbClient
 from dotenv import load_dotenv
 
 load_dotenv()
 
 auth_check_bp = Blueprint('auth_check', __name__)
-
-cred = credentials.Certificate(os.getenv('FIREBASE_ADMIN_SDK'))
-
-initialize_app(cred, {
-    'projectId': 'paxxiumv1',
-    'storageBucket': 'paxxiumv1.appspot.com'
-})
 
 @auth_check_bp.before_request
 def initialize_services():

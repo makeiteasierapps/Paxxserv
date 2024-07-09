@@ -2,23 +2,12 @@ import os
 import json
 from flask import Blueprint, request, jsonify, g
 from dotenv import load_dotenv
-from firebase_admin import credentials, initialize_app
 from app.services.UserService import UserService
 from app.agents.BossAgent import BossAgent
 
 load_dotenv()
 
 profile_bp = Blueprint('profile_bp', __name__)
-
-cred = credentials.Certificate(os.getenv('FIREBASE_ADMIN_SDK'))
-
-try:
-    initialize_app(cred, {
-        'projectId': 'paxxiumv1',
-        'storageBucket': 'paxxiumv1.appspot.com'
-    })
-except ValueError:
-    pass
 
 @profile_bp.before_request
 def initialize_services():

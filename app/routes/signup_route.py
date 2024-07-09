@@ -1,22 +1,10 @@
-import os
 from dotenv import load_dotenv
 from flask import Blueprint, request, g
 from app.services.UserService import UserService
-from firebase_admin import credentials, initialize_app
 
 load_dotenv()
 
 signup_bp = Blueprint('signup_bp', __name__)
-
-cred = credentials.Certificate(os.getenv('FIREBASE_ADMIN_SDK'))
-
-try:
-    initialize_app(cred, {
-        'projectId': 'paxxiumv1',
-        'storageBucket': 'paxxiumv1.appspot.com'
-    })
-except ValueError:
-    pass
 
 @signup_bp.before_request
 def initialize_services():
