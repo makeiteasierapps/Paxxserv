@@ -1,8 +1,6 @@
 import os
 import json
-import certifi
 from flask import Blueprint, request, jsonify
-from pymongo import MongoClient
 from dotenv import load_dotenv
 from firebase_admin import credentials, initialize_app
 from app.services.FirebaseService import FirebaseService
@@ -23,11 +21,8 @@ try:
 except ValueError:
     pass
 
-mongo_uri = os.getenv('MONGO_URI')
-client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
-db = client['paxxium']
 firebase_service = FirebaseService()
-user_service = UserService(db)
+user_service = UserService(db_name='paxxium')
 
 @profile_bp.route('/profile', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 @profile_bp.route('/profile/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])

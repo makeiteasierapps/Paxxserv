@@ -1,5 +1,6 @@
 import os
 from app.agents.BossAgent import BossAgent
+from .MongoDbClient import MongoDbClient
 from dotenv import load_dotenv
 import requests
 from newspaper import Article
@@ -9,8 +10,9 @@ load_dotenv()
 # We need to pass in the users openai API key
 # or a better solution would be to decouple BossAgent from NewsService
 class NewsService:
-    def __init__(self, db):
-        self.db = db
+    def __init__(self, db_name):
+        self.db_client = MongoDbClient(db_name)
+        self.db = self.db_client.connect()
         self.apikey = os.getenv('GNEWS_API_KEY')
 
     # Fetch article URLs based on query
@@ -148,3 +150,6 @@ class NewsService:
             return "Deletion successful"
         except Exception as e:
             return f"Deletion failed: {str(e)}"
+        
+    def __del__(self):
+        self.db_client.close()

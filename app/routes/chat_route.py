@@ -1,8 +1,5 @@
 from flask import Blueprint, request, Response
 from flask_socketio import join_room
-from pymongo import MongoClient
-import certifi
-import os
 import json
 from app import socketio
 from app.services.ChatService import ChatService
@@ -14,13 +11,8 @@ load_dotenv()
 
 chat_bp = Blueprint('chat', __name__)
 
-mongo_uri = os.getenv('MONGO_URI')
-client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
-
-db = client['paxxium']
-
 chat_service = ChatService(db_name='paxxium')
-user_service = UserService(db)
+user_service = UserService(db_name='paxxium')
 
 @socketio.on('connect')
 def handle_connect():

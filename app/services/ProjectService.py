@@ -1,10 +1,10 @@
-import os
 import uuid
 import time
 from bson import ObjectId
 from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
+from .MongoDbClient import MongoDbClient
 from canopy.tokenizer import Tokenizer
 from canopy.models.data_models import Document
 from canopy.knowledge_base.models import KBEncodedDocChunk
@@ -17,56 +17,42 @@ Tokenizer.initialize()
 tokenizer = Tokenizer()
 
 class ProjectService:
-    def __init__(self, db):
-        self.db = db
+    def __init__(self, db_name):
+        self.db_client = MongoDbClient(db_name)
+        self.db = self.db_client.connect()
 
     def get_projects(self, uid):
-        # Query the 'projects' collection for all projects with the matching 'uid'
         projects_cursor = self.db['projects'].find({'uid': uid})
-        # Convert the cursor to a list of dictionaries, adding an 'id' field from the '_id' field
         project_list = [{'id': str(project['_id']), **project} for project in projects_cursor]
-        # Remove the MongoDB '_id' from the dictionary to avoid serialization issues
         for project in project_list:
             project.pop('_id', None)
         return project_list
     
     def get_docs_by_projectId(self, project_id):
-        # Search collection 'project_docs' for documents with the matching 'project_id'
         docs_cursor = self.db['project_docs'].find({'project_id': project_id})
-        # Convert the cursor to a list of dictionaries, adding an 'id' field from the '_id' field
         docs_list = [{'id': str(doc['_id']), **doc} for doc in docs_cursor]
-        # Convert the 'chunks' list of ObjectIds to strings
         for doc in docs_list:
             if 'chunks' in doc:
                 doc['chunks'] = [str(chunk_id) for chunk_id in doc['chunks']]
-            # Remove the MongoDB '_id' from the dictionary to avoid serialization issues
             doc.pop('_id', None)
         return docs_list
     
     def delete_project_by_id(self, project_id):
-        # Delete the project with the matching 'project_id' from the 'projects' collection
         self.db['projects'].delete_one({'_id': ObjectId(project_id)})
-        # Delete all documents with the matching 'project_id' from the 'project_docs' collection
         self.db['project_docs'].delete_many({'project_id': project_id})
-        # Delete all chunks with the matching 'project_id' from the 'chunks' collection
         self.db['chunks'].delete_many({'project_id': project_id})
-        # Delete Chat associated with the project
         self.db['chats'].delete_one({'project_id': project_id})
         
     def delete_doc_by_id(self, doc_id):
-        # Delete the document with the matching 'doc_id' from the 'project_docs' collection
         self.db['project_docs'].delete_one({'_id': ObjectId(doc_id)})
-        # Delete all chunks with the matching 'doc_id' from the 'chunks' collection
         self.db['chunks'].delete_many({'doc_id': doc_id})
 
     def chunkify(self, source, doc=None, chunks=None):
         if chunks is None:
-            # Generate a unique ID for the document using its content
             doc_id = str(uuid.uuid4())
             chunker = RecursiveCharacterChunker(chunk_size=450)
             chunks = chunker.chunk_single_document(Document(id=doc_id, text=doc, source=source))
         else:
-            # If chunks are provided, convert each chunk into a Document
             chunks = [Document(id=chunk['id'], text=chunk['text'], source=source) for chunk in chunks]
         return chunks
     
@@ -74,17 +60,15 @@ class ProjectService:
         client = OpenAI()
         encoded_chunks = []
         for chunk in chunks:
-            # Assuming `chunk` is an instance of `KBDocChunk`
             response = client.embeddings.create(input=chunk.text, model='text-embedding-3-small')
             embeddings = response.data[0].embedding
-            # Wrap the KBDocChunk in a KBEncodedDocChunk with embeddings
             encoded_chunk = KBEncodedDocChunk(
                 id=chunk.id,
                 text=chunk.text,
-                document_id=chunk.id,  # Ensure this is set in your KBDocChunk
-                values=embeddings,  # The embeddings you obtained
-                metadata=chunk.metadata if hasattr(chunk, 'metadata') else {},  # Optional metadata
-                source=chunk.source if hasattr(chunk, 'source') else None  # Optional source
+                document_id=chunk.id,
+                values=embeddings,
+                metadata=chunk.metadata if hasattr(chunk, 'metadata') else {},
+                source=chunk.source if hasattr(chunk, 'source') else None
             )
             
             record = encoded_chunk.to_db_record()

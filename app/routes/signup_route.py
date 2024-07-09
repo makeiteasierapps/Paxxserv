@@ -1,11 +1,9 @@
 import os
-import certifi
 from dotenv import load_dotenv
 from flask import Blueprint, request
 from app.services.FirebaseService import FirebaseService
 from app.services.UserService import UserService
 from firebase_admin import credentials, initialize_app
-from pymongo import MongoClient
 
 load_dotenv()
 
@@ -24,13 +22,7 @@ except ValueError:
 
 firebase_service = FirebaseService()
 
-# MongoDB URI
-mongo_uri = os.getenv('MONGO_URI')
-# Create a new MongoClient and connect to the server
-client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
-
-db = client['paxxium']
-user_service = UserService(db)
+user_service = UserService(db_name='paxxium')
 
 @signup_bp.route('/signup', methods=['POST'])
 def signup():

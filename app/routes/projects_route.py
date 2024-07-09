@@ -1,7 +1,5 @@
 import os
-from pymongo import MongoClient
 from flask import Blueprint
-import certifi
 from dotenv import load_dotenv
 from flask import jsonify, request
 from firebase_admin import credentials, initialize_app
@@ -22,12 +20,8 @@ try:
 except ValueError:
     pass
 
-mongo_uri = os.getenv('MONGO_URI')
-client = MongoClient(mongo_uri, tlsCAFile=certifi.where())
-
-db = client['paxxium']
 firebase_service = FirebaseService()
-project_services = ProjectService(db)
+project_services = ProjectService(db_name='paxxium')
 
 
 @projects_bp.route('/projects', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
