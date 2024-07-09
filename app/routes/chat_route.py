@@ -1,6 +1,6 @@
 import json
 from dotenv import load_dotenv
-from flask import Blueprint, request, Response, g
+from flask import Blueprint, request, Response, g, jsonify
 from flask_socketio import join_room
 from app import socketio
 from app.services.ChatService import ChatService
@@ -13,7 +13,9 @@ chat_bp = Blueprint('chat', __name__)
 
 @chat_bp.before_request
 def initialize_services():
-    db_name = request.headers.get('dbName', 'paxxium')
+    db_name = request.headers.get('dbName')
+    if not db_name:
+        return jsonify({"error": "dbName is required in the headers"}), 400
     g.chat_service = ChatService(db_name=db_name)
     g.user_service = UserService(db_name=db_name)
 
@@ -113,41 +115,45 @@ def handle_join_room(data):
 @socketio.on('chat_request')
 def handle_chat_message(data):
     uid = data.get('userId')
-    db_name = data.get('dbName')
-    chat_service = ChatService(db_name=db_name)
-    user_service = UserService(db_name=db_name)
-    system_prompt = None
+    save_to_db = data.get('saveToDb', False)
+    create_vector_pipeline = data.get('createVectorPipeline', False)
     chat_settings = data.get('chatSettings', None)
-    if chat_settings:
-        chat_constants = chat_settings.get('chatConstants')
-        use_profile_data = chat_settings.get('useProfileData', None)
-        model = chat_settings.get('agentModel', None)
-        system_prompt = chat_settings.get('systemPrompt')
-        user_analysis = None
-        if use_profile_data:
-            user_analysis = user_service.get_user_analysis(uid)
-        boss_agent = BossAgent(model=model, chat_constants=chat_constants, system_prompt=system_prompt, user_analysis=user_analysis)
-    else:
-        boss_agent = BossAgent(model='gpt-4o')
-    
-    chat_service_with_db = ChatService(db_name=data['dbName'])  
+    db_name = data.get('dbName')
+    system_prompt = None
     user_message = data['userMessage']['content']
     chat_id = data['chatId']
-
-    create_vector_pipeline = data.get('createVectorPipeline', False)
-    if create_vector_pipeline:
-        query_pipeline = boss_agent.create_vector_pipeline(user_message, data['projectId'])
-        results = chat_service_with_db.query_snapshots(query_pipeline)
-        system_message = boss_agent.prepare_vector_response(results, system_prompt)
-    else:
-        system_message = None
-
-    save_to_db = data.get('saveToDb', True)
-    if save_to_db:
-        chat_service.create_message(chat_id, 'user', user_message)
-
-    def save_agent_message(chat_id, message):
-        chat_service.create_message(chat_id, 'agent', message)
-
     image_url = data.get('imageUrl', None)
+    
+    if save_to_db and not db_name:
+        return jsonify({"error": "dbName is required in the headers"}), 400
+    
+    if save_to_db:
+        chat_service = ChatService(db_name=db_name)
+        user_service = UserService(db_name=db_name)
+        
+        if chat_settings:
+            chat_constants = chat_settings.get('chatConstants')
+            use_profile_data = chat_settings.get('useProfileData', None)
+            model = chat_settings.get('agentModel', None)
+            system_prompt = chat_settings.get('systemPrompt')
+            user_analysis = None
+            if use_profile_data:
+                user_analysis = user_service.get_user_analysis(uid)
+            boss_agent = BossAgent(model=model, chat_constants=chat_constants, system_prompt=system_prompt, user_analysis=user_analysis)
+            
+        if create_vector_pipeline:
+            query_pipeline = boss_agent.create_vector_pipeline(user_message, data['projectId'])
+            results = chat_service.query_snapshots(query_pipeline)
+            system_message = boss_agent.prepare_vector_response(results, system_prompt)
+        else:
+            system_message = None
+
+        
+            chat_service.create_message(chat_id, 'user', user_message)
+
+        def save_agent_message(chat_id, message):
+            chat_service.create_message(chat_id, 'agent', message)
+    else:
+        boss_agent = BossAgent(model='gpt-4o')
+
     boss_agent.process_message(data['chatHistory'], chat_id, user_message, system_message, save_agent_message if save_to_db else None, image_url)
