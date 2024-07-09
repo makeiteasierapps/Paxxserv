@@ -1,4 +1,5 @@
 Start server:
+hypercorn run:app --worker-class asyncio --bind 0.0.0.0:3033 --debug --reload
 python run.py --mode dev
 python run.py --mode prod
 

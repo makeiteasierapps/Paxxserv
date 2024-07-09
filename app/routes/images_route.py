@@ -1,24 +1,13 @@
 import io
-import os
 from dotenv import load_dotenv
-from app.agents.BossAgent import BossAgent
-from app.services.UserService import UserService
-from firebase_admin import credentials, initialize_app
 from flask import request, Blueprint, g
 import requests
+from app.agents.BossAgent import BossAgent
+from app.services.UserService import UserService
 
 load_dotenv()
 
 images_bp = Blueprint('images', __name__)
-cred = credentials.Certificate(os.getenv('FIREBASE_ADMIN_SDK'))
-
-try:
-    initialize_app(cred, {
-        'projectId': 'paxxiumv1',
-        'storageBucket': 'paxxiumv1.appspot.com'
-    })
-except ValueError:
-    pass
 
 @images_bp.before_request
 def initialize_services():

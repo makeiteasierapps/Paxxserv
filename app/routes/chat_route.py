@@ -1,11 +1,11 @@
+import json
+from dotenv import load_dotenv
 from flask import Blueprint, request, Response, g
 from flask_socketio import join_room
-import json
 from app import socketio
 from app.services.ChatService import ChatService
 from app.services.UserService import UserService
 from app.agents.BossAgent import BossAgent
-from dotenv import load_dotenv
 
 load_dotenv()
 

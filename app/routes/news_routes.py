@@ -1,21 +1,11 @@
-import os
 import random
 from flask import Blueprint, request, g
 from dotenv import load_dotenv
-from firebase_admin import credentials, initialize_app
 from app.services.NewsService import NewsService
+
 load_dotenv()
 
 news_bp = Blueprint('news_bp', __name__)
-cred = credentials.Certificate(os.getenv('FIREBASE_ADMIN_SDK'))
-
-try:
-    initialize_app(cred, {
-        'projectId': 'paxxiumv1',
-        'storageBucket': 'paxxiumv1.appspot.com'
-    })
-except ValueError:
-    pass
 
 @news_bp.before_request
 def initialize_services():

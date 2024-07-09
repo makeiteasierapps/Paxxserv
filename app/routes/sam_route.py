@@ -3,7 +3,6 @@ from app.agents.BossAgent import BossAgent
 
 sam_bp = Blueprint('sam', __name__)
 
-
 @sam_bp.route('/sam', methods=['OPTIONS'])
 def handle_socketio_options():
     response = Response()
