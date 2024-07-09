@@ -150,7 +150,6 @@ class UserService:
             updates['news_topics'] = {"$addToSet": {"news_topics": {"$each": news_topics_list}}}
 
         user_doc = users_collection.find_one({"_id": uid})
-        print(user_doc)
         if user_doc:
             # Update existing user
             if 'news_topics' in updates:

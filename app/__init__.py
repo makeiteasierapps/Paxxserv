@@ -1,6 +1,18 @@
+import os
 from flask import Flask
 from flask_socketio import SocketIO
 from flask_cors import CORS
+from firebase_admin import credentials, initialize_app
+
+cred = credentials.Certificate(os.getenv('FIREBASE_ADMIN_SDK'))
+
+try:
+    initialize_app(cred, {
+        'projectId': 'paxxiumv1',
+        'storageBucket': 'paxxiumv1.appspot.com'
+    })
+except ValueError:
+    pass
 
 socketio = SocketIO(cors_allowed_origins="*", async_mode='threading')
 

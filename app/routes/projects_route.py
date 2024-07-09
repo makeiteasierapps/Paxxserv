@@ -1,4 +1,3 @@
-import os
 from flask import Blueprint
 from dotenv import load_dotenv
 from flask import jsonify, request, g
