@@ -13,11 +13,15 @@ chat_bp = Blueprint('chat', __name__)
 
 @chat_bp.before_request
 def initialize_services():
+    if request.method == 'OPTIONS':
+        return ("", 204)
     db_name = request.headers.get('dbName')
     if not db_name:
         return jsonify({"error": "dbName is required in the headers"}), 400
     g.chat_service = ChatService(db_name=db_name)
     g.user_service = UserService(db_name=db_name)
+    g.uid = request.headers.get('userId')
+    
 
 @socketio.on('connect')
 def handle_connect():
@@ -30,20 +34,11 @@ def handle_socketio_options():
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
     return response
 
-
-@chat_bp.route('/messages', methods=['OPTIONS'])
-def handle_messages_options():
-    if request.method == 'OPTIONS':
-        return ("", 204)
 @chat_bp.route('/chat', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'])
 @chat_bp.route('/chat/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'])
 def chat(subpath):
-    if request.method == 'OPTIONS':
-        return ("", 204)
-
     if request.method == 'GET' and subpath == '':
-        user_id = request.headers.get('userId')
-        return g.chat_service.get_all_chats(user_id), 200
+        return g.chat_service.get_all_chats(g.uid), 200
     
     if request.method == 'POST' and subpath == '':
         data = request.get_json()
@@ -130,6 +125,10 @@ def handle_chat_message(data):
     if save_to_db:
         chat_service = ChatService(db_name=db_name)
         user_service = UserService(db_name=db_name)
+
+        chat_service.create_message(chat_id, 'user', user_message)
+        def save_agent_message(chat_id, message):
+            chat_service.create_message(chat_id, 'agent', message)
         
         if chat_settings:
             chat_constants = chat_settings.get('chatConstants')
@@ -148,11 +147,6 @@ def handle_chat_message(data):
         else:
             system_message = None
 
-        
-            chat_service.create_message(chat_id, 'user', user_message)
-
-        def save_agent_message(chat_id, message):
-            chat_service.create_message(chat_id, 'agent', message)
     else:
         boss_agent = BossAgent(model='gpt-4o')
 

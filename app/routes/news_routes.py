@@ -9,15 +9,14 @@ news_bp = Blueprint('news_bp', __name__)
 
 @news_bp.before_request
 def initialize_services():
+    if request.method == "OPTIONS":
+        return ("", 204)
     db_name = request.headers.get('dbName', 'paxxium')
     g.news_service = NewsService(db_name=db_name)
     g.uid = request.headers.get('uid')
 
 @news_bp.route('/news', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 def news():
-    if request.method == "OPTIONS":
-        return ("", 204)
-    
     if request.method == 'GET':
         news_data = g.news_service.get_all_news_articles(g.uid)
         # Convert ObjectId to string
@@ -47,9 +46,6 @@ def news():
     
 @news_bp.route('/ai-fetch-news', methods=['GET', 'OPTIONS'])
 def ai_fetch_news():
-    if request.method == "OPTIONS":
-        return ("", 204)
-    
     if request.method == 'GET':
         news_topics = g.news_service.get_user_news_topics(g.uid)
         if not news_topics:

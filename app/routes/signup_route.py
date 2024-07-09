@@ -8,14 +8,12 @@ signup_bp = Blueprint('signup_bp', __name__)
 
 @signup_bp.before_request
 def initialize_services():
+    if request.method == "OPTIONS":
+        return ("", 204)
     g.user_service = UserService(db_name='paxxium')
 
 @signup_bp.route('/signup', methods=['POST'])
 def signup():
-
-    if request.method == "OPTIONS":
-        return ("", 204)
-    
     if request.method == 'POST':
         req_data = request.get_json()
         username = req_data.get('username')
