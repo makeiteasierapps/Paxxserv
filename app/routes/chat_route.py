@@ -139,15 +139,19 @@ def handle_chat_message(data):
             if use_profile_data:
                 user_analysis = user_service.get_user_analysis(uid)
             boss_agent = BossAgent(model=model, chat_constants=chat_constants, system_prompt=system_prompt, user_analysis=user_analysis)
-            
+        else: 
+            boss_agent = BossAgent(model='gpt-4o')  
+        if create_vector_pipeline:
+                query_pipeline = boss_agent.create_vector_pipeline(user_message, data['projectId'])
+                results = chat_service.query_snapshots(query_pipeline)
+                system_message = boss_agent.prepare_vector_response(results, system_prompt)
+    else:
+        boss_agent = BossAgent(model='gpt-4o')
+        chat_service = ChatService(db_name=db_name)
         if create_vector_pipeline:
             query_pipeline = boss_agent.create_vector_pipeline(user_message, data['projectId'])
             results = chat_service.query_snapshots(query_pipeline)
             system_message = boss_agent.prepare_vector_response(results, system_prompt)
-        else:
-            system_message = None
-
-    else:
-        boss_agent = BossAgent(model='gpt-4o')
-
+         
+    
     boss_agent.process_message(data['chatHistory'], chat_id, user_message, system_message, save_agent_message if save_to_db else None, image_url)
