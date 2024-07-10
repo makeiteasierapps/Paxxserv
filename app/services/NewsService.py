@@ -89,11 +89,8 @@ class NewsService:
 
             Write a summary of the previous article.
             """
-
-
-            news_agent = BossAgent()
             
-            summary = news_agent.pass_to_news_agent(template)
+            summary = self.pass_to_news_agent(template)
 
             unique_id = str(uuid.uuid4())
 
