@@ -49,7 +49,15 @@ class BossAgent:
         self.chat_constants = chat_constants
         self.user_analysis = user_analysis
 
-    def _load_openai_key(self):
+    
+    @staticmethod
+    def get_openai_client(api_key=None):
+        if api_key is None:
+            api_key = BossAgent._load_openai_key()
+        return OpenAI(api_key=api_key)
+
+    @staticmethod
+    def _load_openai_key():
         load_dotenv()
         return os.getenv('OPENAI_API_KEY')
 
@@ -115,7 +123,6 @@ class BossAgent:
         return response.data[0].embedding
     
     def pass_to_boss_agent(self, chat_id, new_chat_history, save_callback=None):
-        print(self.model)
         response = self.openai_client.chat.completions.create(
             model=self.model,
             messages=new_chat_history,
@@ -156,7 +163,6 @@ class BossAgent:
             save_callback(chat_id, collapsed_response)
 
     def process_response_chunk(self, chat_id, response_chunk, response_chunks, inside_code_block, language, ignore_next_token):
-        print(response_chunk)
         if ignore_next_token:
             ignore_next_token = False
             language = None
@@ -355,60 +361,3 @@ class BossAgent:
         num_tokens += len(encoding.encode(message))
         num_tokens += 3  # every reply is primed with <|im_start|>assistant<|im_sep|>
         return num_tokens
-    
-    def generate_image(self, request):
-        prompt = request['prompt']
-        size=request['size'].lower()
-        quality=request['quality'].lower()
-        style=request['style'].lower()
-        
-
-        response = self.openai_client.images.generate(
-            model="dall-e-3",
-            prompt=prompt,
-            n=1,
-            size=size,
-            quality=quality,
-            style=style,
-        )
-
-        return response.data[0].url
-    
-    # This is just a normal call to chat completion without streaming the response
-    # I think I should create a function that can handle both scenarios
-    def pass_to_news_agent(self, article_to_summarize):
-        response = self.openai_client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {
-                    "role": "user",
-                    "content": article_to_summarize,
-                }
-            ],
-        )
-
-        return response.choices[0].message.content
-    
-    # Refactor this to use dspy, its not always outputing the json in the correct format
-    def pass_to_profile_agent(self, message):
-        response = self.openai_client.chat.completions.create(
-            model=self.model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": '''
-                    You are an expert in identify the personality traits of your user.
-                    Your response must be in json format with the following structure:
-                        - analysis: provide a personality analysis of the user based on their answers to the questions. Do not simply summarize the answers, but provide a unique analysis of the user.
-                        - news_topics: Should be a list of queries that are one or two words and be a good query parameter for calling a news API. Your topics should be derived from your analyis. Example formats: 2 words - Rock climbing - 1 word -AI
-                        '''
-                    },
-                    {
-                'role': 'user',
-                'content': f'''{message}''',
-                }
-                
-            ],
-            response_format={ "type": "json_object" },
-        )
-        return response.choices[0].message.content

@@ -3,7 +3,9 @@ import json
 from flask import Blueprint, request, jsonify, g
 from dotenv import load_dotenv
 from app.services.UserService import UserService
+from app.services.ProfileService import ProfileService
 from app.agents.BossAgent import BossAgent
+from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
 
@@ -14,8 +16,12 @@ def initialize_services():
     if request.method == "OPTIONS":
         return "", 204
     db_name = request.headers.get('dbName', 'paxxium')
-    g.user_service = UserService(db_name=db_name)
-    g.uid = request.headers.get('uid')
+    with MongoDbClient(db_name) as db:
+        g.user_service = UserService(db)
+        openai_key = g.user_service.get_keys(g.uid)
+        g.openai_client = BossAgent.get_openai_client(api_key=openai_key)
+        g.profile_service = ProfileService(db, g.openai_client)
+        g.uid = request.headers.get('uid')
 
 @profile_bp.route('/profile', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 @profile_bp.route('/profile/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
@@ -38,10 +44,8 @@ def profile(subpath):
         return jsonify({'response': 'User profile updated successfully'}), 200
     
     if subpath == 'analyze':
-        openai_key = g.user_service.get_keys(g.uid)
-        profile_agent = BossAgent(openai_key=openai_key, model='gpt-4o')
         prompt = g.user_service.prepare_analysis_prompt(g.uid)
-        response = profile_agent.pass_to_profile_agent(prompt)
+        response = g.profile_service.pass_to_profile_agent(prompt)
         analysis_obj = json.loads(response)
         g.user_service.update_user_profile(g.uid, analysis_obj.copy())
         return jsonify(analysis_obj), 200

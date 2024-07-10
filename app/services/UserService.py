@@ -1,11 +1,9 @@
 import uuid
-from .MongoDbClient import MongoDbClient
 from firebase_admin import storage
 
 class UserService:
-    def __init__(self, db_name):
-        self.db_client = MongoDbClient(db_name)
-        self.db = self.db_client.connect()
+    def __init__(self, db):
+        self.db = db
 
     def get_keys(self, uid):
         user_doc = self.db['users'].find_one({'_id': uid}, {'open_key': 1})
@@ -158,5 +156,3 @@ class UserService:
 
         return blob.public_url  
     
-    def __del__(self):
-        self.db_client.close()

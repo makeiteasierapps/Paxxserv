@@ -1,7 +1,4 @@
 import os
-from app.agents.BossAgent import BossAgent
-from .MongoDbClient import MongoDbClient
-from app.services.UserService import UserService
 from dotenv import load_dotenv
 import requests
 from newspaper import Article
@@ -11,11 +8,24 @@ load_dotenv()
 # We need to pass in the users openai API key
 # or a better solution would be to decouple BossAgent from NewsService
 class NewsService:
-    def __init__(self, db_name):
-        self.db_client = MongoDbClient(db_name)
-        self.db = self.db_client.connect()
+    def __init__(self, db, uid, openai_client):
+        self.uid = uid
+        self.db = db
+        self.openai_client = openai_client
         self.apikey = os.getenv('GNEWS_API_KEY')
 
+    def pass_to_news_agent(self, article_to_summarize, model='gpt-3.5-turbo'):
+        response = self.openai_client.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": article_to_summarize,
+                }
+            ],
+        )
+        return response.choices[0].message.content
+    
     # Fetch article URLs based on query
     def get_article_urls(self, query):
         # Construct API URL
@@ -100,14 +110,14 @@ class NewsService:
 
         return summarized_articles
 
-    def upload_news_data(self, uid, news_data_list):
+    def upload_news_data(self, news_data_list):
         for news_data in news_data_list:
             url = news_data['url']
             
             news_data_with_uid = news_data.copy()
-            news_data_with_uid['uid'] = uid
+            news_data_with_uid['uid'] = self.uid
 
-            existing_article = self.db['newsArticles'].find_one({'url': url, 'uid': uid})
+            existing_article = self.db['newsArticles'].find_one({'url': url, 'uid': self.uid})
 
             if existing_article is None:
                 self.db['newsArticles'].insert_one(news_data_with_uid)
@@ -115,23 +125,23 @@ class NewsService:
             else:
                 print(f"URL '{url}' already exists, skipping...")
 
-    def get_all_news_articles(self, uid):
-        articles_cursor = self.db['newsArticles'].find({'uid': uid})
+    def get_all_news_articles(self):
+        articles_cursor = self.db['newsArticles'].find({'uid': self.uid})
         all_news = list(articles_cursor)
 
         return all_news
 
-    def get_user_news_topics(self,uid):
-        user_document = self.db['users'].find_one({'_id': uid})
+    def get_user_news_topics(self):
+        user_document = self.db['users'].find_one({'_id': self.uid})
         if user_document:
             return user_document.get('news_topics', [])
         return []
 
-    def mark_is_read(self, uid, doc_id):
+    def mark_is_read(self, doc_id):
         try:
             # Query for the document with the matching 'id' and 'uid' fields
             result = self.db['newsArticles'].update_one(
-                {'id': doc_id, 'uid': uid},  # Query to find the document
+                {'id': doc_id, 'uid': self.uid},  # Query to find the document
                 {'$set': {'is_read': True}}  # Update operation
             )
 
@@ -142,15 +152,12 @@ class NewsService:
         except Exception as e:
             return f"Update failed: {str(e)}"
 
-    def delete_news_article(self, uid, doc_id):
+    def delete_news_article(self, doc_id):
         try:
-            result = self.db['newsArticles'].delete_one({'id': doc_id, 'uid': uid})
+            result = self.db['newsArticles'].delete_one({'id': doc_id, 'uid': self.uid})
 
             if result.deleted_count == 0:
                 return "No matching document found"
             return "Deletion successful"
         except Exception as e:
             return f"Deletion failed: {str(e)}"
-        
-    def __del__(self):
-        self.db_client.close()

@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 from flask import  Blueprint, request, jsonify, g
 from app.agents.BossAgent import BossAgent
 from app.services.MomentService import MomentService
+from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
 moment_bp = Blueprint('moment_bp', __name__)
@@ -11,7 +12,8 @@ def initialize_services():
     if request.method == 'OPTIONS':
         return ('', 204)
     db_name = request.headers.get('dbName', 'paxxium')
-    g.moment_service = MomentService(db_name=db_name)
+    with MongoDbClient(db_name) as db:
+        g.moment_service = MomentService(db)
 
 @moment_bp.route('/moments', methods=['GET'])
 def handle_fetch_moments():

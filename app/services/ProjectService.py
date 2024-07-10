@@ -4,7 +4,6 @@ from bson import ObjectId
 from datetime import datetime
 from dotenv import load_dotenv
 from openai import OpenAI
-from .MongoDbClient import MongoDbClient
 from canopy.tokenizer import Tokenizer
 from canopy.models.data_models import Document
 from canopy.knowledge_base.models import KBEncodedDocChunk
@@ -17,9 +16,8 @@ Tokenizer.initialize()
 tokenizer = Tokenizer()
 
 class ProjectService:
-    def __init__(self, db_name):
-        self.db_client = MongoDbClient(db_name)
-        self.db = self.db_client.connect()
+    def __init__(self, db):
+        self.db = db
 
     def get_projects(self, uid):
         projects_cursor = self.db['projects'].find({'uid': uid})
