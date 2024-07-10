@@ -17,11 +17,18 @@ def initialize_services():
     db_name = request.headers.get('dbName', 'paxxium')
     g.uid = request.headers.get('uid')
     
-    with MongoDbClient(db_name) as db:
-        g.user_service = UserService(db)
-        openai_key = g.user_service.get_keys(g.uid)
-        g.openai_client = BossAgent.get_openai_client(api_key=openai_key)
-        g.news_service = NewsService(db, g.uid, g.openai_client)
+    g.mongo_client = MongoDbClient(db_name)
+    db = g.mongo_client.connect()
+    g.user_service = UserService(db)
+    openai_key = g.user_service.get_keys(g.uid)
+    g.openai_client = BossAgent.get_openai_client(api_key=openai_key)
+    g.news_service = NewsService(db, g.uid, g.openai_client)
+
+@news_bp.after_request
+def close_mongo_connection(response):
+    if hasattr(g, 'mongo_client'):
+        g.mongo_client.close()
+    return response
 
 @news_bp.route('/news', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 def news():

@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 from flask import Blueprint, request, g
 from app.services.UserService import UserService
+from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
 
@@ -10,7 +11,12 @@ signup_bp = Blueprint('signup_bp', __name__)
 def initialize_services():
     if request.method == "OPTIONS":
         return ("", 204)
-    g.user_service = UserService(db_name='paxxium')
+    db_name = request.headers.get('dbName')
+    if not db_name:
+        return ('Database name is required', 400)
+    g.mongo_client = MongoDbClient(db_name)
+    db = g.mongo_client.connect()
+    g.user_service = UserService(db)
 
 @signup_bp.route('/signup', methods=['POST'])
 def signup():

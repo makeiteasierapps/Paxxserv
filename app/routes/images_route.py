@@ -19,12 +19,13 @@ def initialize_services():
     if not db_name:
         return jsonify({"error": "dbName is required in the headers"}), 400
     g.uid = request.headers.get('uid')
-    with MongoDbClient(db_name) as db:
-        g.user_service = UserService(db)
-        openai_key = g.user_service.get_keys(g.uid)
-        g.openai_client = BossAgent.get_openai_client(api_key=openai_key)
-        g.image_manager = ImageManager(g.openai_client)
-        
+    g.mongo_client = MongoDbClient(db_name)
+    db = g.mongo_client.connect()
+    g.user_service = UserService(db)
+    openai_key = g.user_service.get_keys(g.uid)
+    g.openai_client = BossAgent.get_openai_client(api_key=openai_key)
+    g.image_manager = ImageManager(g.openai_client)
+            
 
 @images_bp.route('/images', methods=['GET', 'POST', 'DELETE', 'PUT', 'PATCH', 'OPTIONS'])
 def images():

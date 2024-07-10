@@ -11,9 +11,12 @@ auth_check_bp = Blueprint('auth_check', __name__)
 def initialize_services():
     if request.method == 'OPTIONS':
         return ('', 204)
-    db_name = request.headers.get('dbName', 'paxxium')
-    with MongoDbClient(db_name) as db:
-        g.db = db
+    db_name = request.headers.get('dbName')
+    if not db_name:
+        return ('Database name is required', 400)
+    g.mongo_client = MongoDbClient(db_name)
+    db = g.mongo_client.connect()
+    g.db = db
 
 @auth_check_bp.route('/auth_check', methods=['POST', 'OPTIONS', 'GET'])
 def auth_check():

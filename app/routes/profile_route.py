@@ -12,16 +12,25 @@ load_dotenv()
 profile_bp = Blueprint('profile_bp', __name__)
 
 @profile_bp.before_request
+@profile_bp.before_request
 def initialize_services():
     if request.method == "OPTIONS":
         return "", 204
     db_name = request.headers.get('dbName', 'paxxium')
-    with MongoDbClient(db_name) as db:
-        g.user_service = UserService(db)
-        openai_key = g.user_service.get_keys(g.uid)
-        g.openai_client = BossAgent.get_openai_client(api_key=openai_key)
-        g.profile_service = ProfileService(db, g.openai_client)
-        g.uid = request.headers.get('uid')
+    # Create the MongoDbClient instance and store it in g
+    g.mongo_client = MongoDbClient(db_name)
+    db = g.mongo_client.connect()
+    g.user_service = UserService(db)
+    openai_key = g.user_service.get_keys(g.uid)
+    g.openai_client = BossAgent.get_openai_client(api_key=openai_key)
+    g.profile_service = ProfileService(db, g.openai_client)
+    g.uid = request.headers.get('uid')
+
+@profile_bp.after_request
+def close_mongo_connection(response):
+    if hasattr(g, 'mongo_client'):
+        g.mongo_client.close()
+    return response
 
 @profile_bp.route('/profile', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 @profile_bp.route('/profile/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
