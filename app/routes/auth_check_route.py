@@ -11,6 +11,8 @@ auth_check_bp = Blueprint('auth_check', __name__)
 def initialize_services():
     if request.method == 'OPTIONS':
         return ('', 204)
+    if request.method == 'GET':
+        return
     db_name = request.headers.get('dbName')
     if not db_name:
         return ('Database name is required', 400)

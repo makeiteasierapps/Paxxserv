@@ -17,14 +17,14 @@ def initialize_services():
     if request.method == "OPTIONS":
         return "", 204
     db_name = request.headers.get('dbName', 'paxxium')
-    # Create the MongoDbClient instance and store it in g
+    g.uid = request.headers.get('uid')
     g.mongo_client = MongoDbClient(db_name)
     db = g.mongo_client.connect()
     g.user_service = UserService(db)
     openai_key = g.user_service.get_keys(g.uid)
     g.openai_client = BossAgent.get_openai_client(api_key=openai_key)
     g.profile_service = ProfileService(db, g.openai_client)
-    g.uid = request.headers.get('uid')
+    
 
 @profile_bp.after_request
 def close_mongo_connection(response):
