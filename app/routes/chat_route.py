@@ -21,9 +21,10 @@ def initialize_services():
     if not db_name:
         return jsonify({"error": "dbName is required in the headers"}), 400
     g.uid = request.headers.get('userId')
-    with MongoDbClient(db_name) as db:
-        g.chat_service = ChatService(db)
-        g.user_service = UserService(db)
+    g.mongo_client = MongoDbClient(db_name)
+    db = g.mongo_client.connect()
+    g.chat_service = ChatService(db)
+    g.user_service = UserService(db)
         
 @socketio.on('connect')
 def handle_connect():
@@ -126,10 +127,11 @@ def handle_chat_message(data):
         return jsonify({"error": "dbName is required in the headers"}), 400
     
     if save_to_db:
-        with MongoDbClient(db_name) as db:
-            chat_service = ChatService(db)
-            user_service = UserService(db)
-            openai_key = user_service.get_keys(uid)
+        mongo_client = MongoDbClient(db_name)
+        db = mongo_client.connect()
+        chat_service = ChatService(db)
+        user_service = UserService(db)
+        openai_key = user_service.get_keys(uid)
 
         chat_service.create_message(chat_id, 'user', user_message)
         def save_agent_message(chat_id, message):
@@ -152,8 +154,9 @@ def handle_chat_message(data):
                 system_message = boss_agent.prepare_vector_response(results, system_prompt)
     else:
         boss_agent = BossAgent(openai_key=openai_key, model='gpt-4o')
-        with MongoDbClient(db_name) as db:
-            chat_service = ChatService(db)
+        mongo_client = MongoDbClient(db_name)
+        db = mongo_client.connect()
+        chat_service = ChatService(db)
         if create_vector_pipeline:
             query_pipeline = boss_agent.create_vector_pipeline(user_message, data['projectId'])
             results = chat_service.query_snapshots(query_pipeline)

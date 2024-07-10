@@ -14,9 +14,16 @@ def initialize_services():
         return ("", 204)
     db_name = request.headers.get('dbName', 'paxxium')
     g.uid = request.headers.get('uid')
-    with MongoDbClient(db_name) as db:
-        g.project_services = ProjectService(db)
-    
+    g.mongo_client = MongoDbClient(db_name)
+    db = g.mongo_client.connect()
+    g.project_services = ProjectService(db)
+
+@projects_bp.after_request
+def close_mongo_connection(response):
+    if hasattr(g, 'mongo_client'):
+        g.mongo_client.close()
+    return response
+
 @projects_bp.route('/projects', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 @projects_bp.route('/projects/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 def projects(subpath):

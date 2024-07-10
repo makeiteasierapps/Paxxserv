@@ -12,8 +12,15 @@ def initialize_services():
     if request.method == 'OPTIONS':
         return ('', 204)
     db_name = request.headers.get('dbName', 'paxxium')
-    with MongoDbClient(db_name) as db:
-        g.moment_service = MomentService(db)
+    g.mongo_client = MongoDbClient(db_name)
+    db = g.mongo_client.connect()
+    g.moment_service = MomentService(db)
+
+@moment_bp.after_request
+def close_mongo_connection(response):
+    if hasattr(g, 'mongo_client'):
+        g.mongo_client.close()
+    return response
 
 @moment_bp.route('/moments', methods=['GET'])
 def handle_fetch_moments():
