@@ -1,9 +1,5 @@
-import os
 import uuid
-import base64
 from .MongoDbClient import MongoDbClient
-from dotenv import load_dotenv
-from google.cloud import kms
 from firebase_admin import storage
 
 class UserService:
@@ -14,63 +10,6 @@ class UserService:
     def get_keys(self, uid):
         user_doc = self.db['users'].find_one({'_id': uid}, {'open_key': 1})
         return user_doc['open_key']
-
-    @staticmethod
-    def crc32c(data: bytes) -> int:
-        """
-        Calculates the CRC32C checksum of the provided data.
-
-        Args:
-            data: the bytes over which the checksum should be calculated.
-
-        Returns:
-            An int representing the CRC32C checksum of the provided bytes.
-        """
-        import crcmod  # type: ignore
-        import six  # type: ignore
-
-        crc32c_fun = crcmod.predefined.mkPredefinedCrcFun("crc-32c")
-        
-        return crc32c_fun(six.ensure_binary(data))
-
-    def encrypt(self, input_str):
-        load_dotenv()
-        os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-
-        # Convert the input string to bytes
-        plaintext_bytes = input_str.encode('utf-8')
-        plaintext_crc32c = UserService.crc32c(plaintext_bytes)
-
-        # Use the KMS API to encrypt the data.
-        kms_client = kms.KeyManagementServiceClient()
-        kms_key_name = os.environ.get("KMS_KEY_NAME")
-        encrypt_response = kms_client.encrypt(request={'name': kms_key_name, 'plaintext': plaintext_bytes, 'plaintext_crc32c': plaintext_crc32c})
-      
-        # Integrity verification on encrypt_response.
-        if not encrypt_response.verified_plaintext_crc32c:
-            raise Exception("The request sent to the server was corrupted in-transit.")
-        if not encrypt_response.ciphertext_crc32c == UserService.crc32c(encrypt_response.ciphertext):
-            raise Exception("The response received from the server was corrupted in-transit.")
-
-        # Parse it to a type that firebase likes, plus make decrypting easier
-        ciphertext = encrypt_response.ciphertext
-        ciphertext_str = base64.b64encode(ciphertext).decode('utf-8')
-
-        return ciphertext_str
-
-    def decrypt(self, key):
-        load_dotenv()
-        os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-        
-        kms_client = kms.KeyManagementServiceClient()
-        kms_key_name = os.environ.get("KMS_KEY_NAME")
-
-        # Decode the base64-encoded key to bytes
-        ciphertext_bytes = base64.b64decode(key)
-        decrypted_key_response = kms_client.decrypt(request={'name': kms_key_name, 'ciphertext': ciphertext_bytes})
-        decrypted_key = decrypted_key_response.plaintext.decode('utf-8')
-
-        return decrypted_key
 
     def get_profile(self, uid):
         user_doc = self.db['users'].find_one({'_id': uid}, {'first_name': 1, 'last_name': 1, 'username': 1, 'avatar_url': 1, 'analysis': 1})
@@ -142,9 +81,6 @@ class UserService:
     def update_user_profile(self, uid, updates):
         users_collection = self.db['users']  # Access the 'users' collection
        
-        if 'open_key' in updates:
-            updates['open_key'] = self.encrypt(updates['open_key'])
-
         if 'news_topics' in updates:
             news_topics_list = [topic.lower().strip() for topic in updates['news_topics']]
             updates['news_topics'] = {"$addToSet": {"news_topics": {"$each": news_topics_list}}}

@@ -23,10 +23,8 @@ def initialize_services():
 def images():
     if request.method == "POST":
         image_request = request.get_json()
-        encrypted_openai_key = g.user_service.get_keys(g.uid)
-        openai_key = g.user_service.decrypt(encrypted_openai_key)
+        openai_key = = g.user_service.get_keys(g.uid)
         image_agent = BossAgent(openai_key=openai_key)
-    
         image_url = image_agent.generate_image(image_request)
         return (image_url, 200)
     

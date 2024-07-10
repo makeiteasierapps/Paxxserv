@@ -30,4 +30,3 @@ sudo ufw allow 3033
 # Reload systemd and restart the service
 sudo systemctl daemon-reload
 sudo systemctl restart paxxserv.service
-sudo systemctl status paxxserv.service

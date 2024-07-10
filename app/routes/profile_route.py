@@ -38,8 +38,7 @@ def profile(subpath):
         return jsonify({'response': 'User profile updated successfully'}), 200
     
     if subpath == 'analyze':
-        encrypted_openai_key = g.user_service.get_keys(g.uid)
-        openai_key = g.user_service.decrypt(encrypted_openai_key)
+        openai_key = g.user_service.get_keys(g.uid)
         profile_agent = BossAgent(openai_key=openai_key, model='gpt-4o')
         prompt = g.user_service.prepare_analysis_prompt(g.uid)
         response = profile_agent.pass_to_profile_agent(prompt)

@@ -6,7 +6,6 @@ pymongo[srv]
 flask-socketio
 flask-cors
 firebase-admin
-google-cloud-kms
 newspaper3k
 crcmod
 lxml-html-clean
