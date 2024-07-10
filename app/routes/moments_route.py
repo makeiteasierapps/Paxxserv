@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 from flask import  Blueprint, request, jsonify, g
 from app.agents.BossAgent import BossAgent
+from app.agents.ContentProcessor import ContentProcessor
 from app.services.MomentService import MomentService
 from app.services.MongoDbClient import MongoDbClient
 
@@ -35,9 +36,9 @@ def handle_add_moment():
     """
     This function handles the addition of a new moment.
     """
-    boss_agent = BossAgent()
+    content_processor = ContentProcessor(model='gpt-4o')
     new_moment = request.json['newMoment']
-    new_moment = {**new_moment, **boss_agent.extract_content(new_moment)}
+    new_moment = {**new_moment, **content_processor.extract_content(new_moment)}
 
     # Add the moment to the database
     new_moment = g.moment_service.add_moment(new_moment)
@@ -45,7 +46,7 @@ def handle_add_moment():
     combined_content = f"Transcript: {new_moment['transcript']}\nAction Items:\n" + "\n".join(new_moment['actionItems']) + f"\nSummary: {new_moment['summary']}"
     snapshot_data = new_moment.copy()
     # Create and add embeddings to the snapshot
-    snapshot_data['embeddings'] = boss_agent.embed_content(combined_content)
+    snapshot_data['embeddings'] = BossAgent.embed_content(combined_content)
     # Add the snapshot to the database
     g.moment_service.create_snapshot(snapshot_data)
 
@@ -57,22 +58,22 @@ def handle_add_moment():
 
 @moment_bp.route('/moments', methods=['PUT'])
 def handle_update_moment():
-    boss_agent = BossAgent()
+    content_processor = ContentProcessor(model='gpt-4o')
     current_moment = request.json['moment']
     moment_id = current_moment['momentId']
-    current_snapshot = {**current_moment, **boss_agent.extract_content(current_moment)}
+    current_snapshot = {**current_moment, **content_processor.extract_content(current_moment)}
     current_snapshot['momentId'] = moment_id
     previous_snapshot = g.moment_service.get_previous_snapshot(moment_id)
 
     # Combine and embed the current snapshot
     combined_content = f"Transcript: {current_moment['transcript']}\nAction Items:\n" + "\n".join(current_snapshot['actionItems']) + f"\nSummary: {current_snapshot['summary']}"
-    current_snapshot['embeddings'] = boss_agent.embed_content(combined_content)
+    current_snapshot['embeddings'] = BossAgent.embed_content(combined_content)
     
     # Create snapshot in the db
     g.moment_service.create_snapshot(current_snapshot)
 
     # diff the current snapshot with the previous snapshot
-    new_snapshot = boss_agent.diff_snapshots(previous_snapshot, current_snapshot)
+    new_snapshot = content_processor.diff_snapshots(previous_snapshot, current_snapshot)
     new_snapshot.update({
         'momentId': moment_id,
         'date': current_moment['date'],
