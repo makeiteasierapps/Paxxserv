@@ -2,6 +2,7 @@ from flask import Blueprint
 from dotenv import load_dotenv
 from flask import jsonify, request, g
 from app.services.ProjectService import ProjectService
+from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
 
@@ -13,7 +14,8 @@ def initialize_services():
         return ("", 204)
     db_name = request.headers.get('dbName', 'paxxium')
     g.uid = request.headers.get('uid')
-    g.project_services = ProjectService(db_name=db_name)
+    with MongoDbClient(db_name) as db:
+        g.project_services = ProjectService(db)
     
 @projects_bp.route('/projects', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 @projects_bp.route('/projects/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])

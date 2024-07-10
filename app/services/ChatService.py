@@ -1,11 +1,9 @@
 from datetime import datetime
 from bson import ObjectId
-from .MongoDbClient import MongoDbClient
 
 class ChatService:
-    def __init__(self, db_name):
-        self.db_client = MongoDbClient(db_name)
-        self.db = self.db_client.connect()
+    def __init__(self, db):
+        self.db = db
         
     def create_chat_in_db(self, uid, chat_name, agent_model, system_prompt=None, chat_constants=None, use_profile_data=False):
         new_chat = {
@@ -108,6 +106,3 @@ class ChatService:
     def query_snapshots(self, pipeline):
         # need to pass in the collection name
         return list(self.db["chunks"].aggregate(pipeline))
-
-    def __del__(self):
-        self.db_client.close()

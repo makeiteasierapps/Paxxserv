@@ -6,6 +6,7 @@ from app import socketio
 from app.services.ChatService import ChatService
 from app.services.UserService import UserService
 from app.agents.BossAgent import BossAgent
+from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
 
@@ -15,14 +16,15 @@ chat_bp = Blueprint('chat', __name__)
 def initialize_services():
     if request.method == 'OPTIONS':
         return ("", 204)
+    
     db_name = request.headers.get('dbName')
     if not db_name:
         return jsonify({"error": "dbName is required in the headers"}), 400
-    g.chat_service = ChatService(db_name=db_name)
-    g.user_service = UserService(db_name=db_name)
     g.uid = request.headers.get('userId')
-    
-
+    with MongoDbClient(db_name) as db:
+        g.chat_service = ChatService(db)
+        g.user_service = UserService(db)
+        
 @socketio.on('connect')
 def handle_connect():
     print(f"Client connected: {request.sid}")
@@ -124,9 +126,10 @@ def handle_chat_message(data):
         return jsonify({"error": "dbName is required in the headers"}), 400
     
     if save_to_db:
-        chat_service = ChatService(db_name=db_name)
-        user_service = UserService(db_name=db_name)
-        openai_key = user_service.get_keys(uid)
+        with MongoDbClient(db_name) as db:
+            chat_service = ChatService(db)
+            user_service = UserService(db)
+            openai_key = user_service.get_keys(uid)
 
         chat_service.create_message(chat_id, 'user', user_message)
         def save_agent_message(chat_id, message):
@@ -149,7 +152,8 @@ def handle_chat_message(data):
                 system_message = boss_agent.prepare_vector_response(results, system_prompt)
     else:
         boss_agent = BossAgent(openai_key=openai_key, model='gpt-4o')
-        chat_service = ChatService(db_name=db_name)
+        with MongoDbClient(db_name) as db:
+            chat_service = ChatService(db)
         if create_vector_pipeline:
             query_pipeline = boss_agent.create_vector_pipeline(user_message, data['projectId'])
             results = chat_service.query_snapshots(query_pipeline)

@@ -12,8 +12,8 @@ def initialize_services():
     if request.method == 'OPTIONS':
         return ('', 204)
     db_name = request.headers.get('dbName', 'paxxium')
-    db_client = MongoDbClient(db_name=db_name)
-    g.db = db_client.connect()
+    with MongoDbClient(db_name) as db:
+        g.db = db
 
 @auth_check_bp.route('/auth_check', methods=['POST', 'OPTIONS', 'GET'])
 def auth_check():

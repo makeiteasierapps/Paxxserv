@@ -1,10 +1,9 @@
 from bson.objectid import ObjectId
-from .MongoDbClient import MongoDbClient
 
+# None of this is user specific
 class MomentService:
-    def __init__(self, db_name):
-        self.db_client = MongoDbClient(db_name)
-        self.db = self.db_client.connect()
+    def __init__(self, db):
+        self.db = db
 
     def get_all_moments(self):
         moments_collection = self.db['moments']
@@ -66,6 +65,4 @@ class MomentService:
             result = moments_collection.delete_one({'_id': ObjectId(moment_id)})
             snapshots_collection.delete_many({'momentId': moment_id})
             return result.deleted_count
-    
-    def __del__(self):
-        self.db_client.close()
+

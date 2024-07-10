@@ -4,6 +4,8 @@ from flask import request, Blueprint, g, jsonify
 import requests
 from app.agents.BossAgent import BossAgent
 from app.services.UserService import UserService
+from app.services.ImageManager import ImageManager
+from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
 
@@ -16,16 +18,19 @@ def initialize_services():
     db_name = request.headers.get('dbName')
     if not db_name:
         return jsonify({"error": "dbName is required in the headers"}), 400
-    g.user_service = UserService(db_name=db_name)
     g.uid = request.headers.get('uid')
+    with MongoDbClient(db_name) as db:
+        g.user_service = UserService(db)
+        openai_key = g.user_service.get_keys(g.uid)
+        g.openai_client = BossAgent.get_openai_client(api_key=openai_key)
+        g.image_manager = ImageManager(g.openai_client)
+        
 
 @images_bp.route('/images', methods=['GET', 'POST', 'DELETE', 'PUT', 'PATCH', 'OPTIONS'])
 def images():
     if request.method == "POST":
         image_request = request.get_json()
-        openai_key = = g.user_service.get_keys(g.uid)
-        image_agent = BossAgent(openai_key=openai_key)
-        image_url = image_agent.generate_image(image_request)
+        image_url = g.image_manager.generate_image(image_request)
         return (image_url, 200)
     
     if request.method == "GET":
