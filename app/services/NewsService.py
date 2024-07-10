@@ -1,6 +1,7 @@
 import os
 from app.agents.BossAgent import BossAgent
 from .MongoDbClient import MongoDbClient
+from app.services.UserService import UserService
 from dotenv import load_dotenv
 import requests
 from newspaper import Article
