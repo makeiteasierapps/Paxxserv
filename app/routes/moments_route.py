@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 from flask import  Blueprint, request, jsonify, g
-from app.agents.BossAgent import BossAgent
+from app.agents.OpenAiClientBase import OpenAiClientBase
 from app.agents.ContentProcessor import ContentProcessor
 from app.services.MomentService import MomentService
 from app.services.MongoDbClient import MongoDbClient
@@ -16,6 +16,7 @@ def initialize_services():
     g.mongo_client = MongoDbClient(db_name)
     db = g.mongo_client.connect()
     g.moment_service = MomentService(db)
+    g.openai_client = OpenAiClientBase()
 
 @moment_bp.after_request
 def close_mongo_connection(response):
@@ -46,7 +47,7 @@ def handle_add_moment():
     combined_content = f"Transcript: {new_moment['transcript']}\nAction Items:\n" + "\n".join(new_moment['actionItems']) + f"\nSummary: {new_moment['summary']}"
     snapshot_data = new_moment.copy()
     # Create and add embeddings to the snapshot
-    snapshot_data['embeddings'] = BossAgent.embed_content(combined_content)
+    snapshot_data['embeddings'] = g.openai_client.embed_content(combined_content)
     # Add the snapshot to the database
     g.moment_service.create_snapshot(snapshot_data)
 
@@ -67,7 +68,7 @@ def handle_update_moment():
 
     # Combine and embed the current snapshot
     combined_content = f"Transcript: {current_moment['transcript']}\nAction Items:\n" + "\n".join(current_snapshot['actionItems']) + f"\nSummary: {current_snapshot['summary']}"
-    current_snapshot['embeddings'] = BossAgent.embed_content(combined_content)
+    current_snapshot['embeddings'] = g.openai_client.embed_content(combined_content)
     
     # Create snapshot in the db
     g.moment_service.create_snapshot(current_snapshot)
