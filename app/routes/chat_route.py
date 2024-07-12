@@ -131,7 +131,6 @@ def handle_chat_message(data):
         db = mongo_client.connect()
         chat_service = ChatService(db)
         user_service = UserService(db)
-        openai_key = user_service.get_keys(uid)
 
         chat_service.create_message(chat_id, 'user', user_message)
         def save_agent_message(chat_id, message):
@@ -145,15 +144,15 @@ def handle_chat_message(data):
             user_analysis = None
             if use_profile_data:
                 user_analysis = user_service.get_user_analysis(uid)
-            boss_agent = BossAgent(openai_key=openai_key, model=model, chat_constants=chat_constants, system_prompt=system_prompt, user_analysis=user_analysis)
+            boss_agent = BossAgent(db, g.uid, model=model, chat_constants=chat_constants, system_prompt=system_prompt, user_analysis=user_analysis)
         else: 
-            boss_agent = BossAgent(openai_key=openai_key, model='gpt-4o')  
+            boss_agent = BossAgent(db, g.uid, model='gpt-4o')  
         if create_vector_pipeline:
                 query_pipeline = boss_agent.create_vector_pipeline(user_message, data['projectId'])
                 results = chat_service.query_snapshots(query_pipeline)
                 system_message = boss_agent.prepare_vector_response(results, system_prompt)
     else:
-        boss_agent = BossAgent(openai_key=openai_key, model='gpt-4o')
+        boss_agent = BossAgent(db, g.uid, model='gpt-4o')
         mongo_client = MongoDbClient(db_name)
         db = mongo_client.connect()
         chat_service = ChatService(db)

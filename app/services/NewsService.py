@@ -3,15 +3,15 @@ from dotenv import load_dotenv
 import requests
 from newspaper import Article
 import uuid
+from ..agents.OpenAiClientBase import OpenAiClientBase
 
 load_dotenv()
-# We need to pass in the users openai API key
-# or a better solution would be to decouple BossAgent from NewsService
-class NewsService:
-    def __init__(self, db, uid, openai_client):
+
+class NewsService(OpenAiClientBase):
+    def __init__(self, db, uid):
+        super().__init__(db, uid)
         self.uid = uid
         self.db = db
-        self.openai_client = openai_client
         self.apikey = os.getenv('GNEWS_API_KEY')
 
     def pass_to_news_agent(self, article_to_summarize, model='gpt-3.5-turbo'):

@@ -5,10 +5,6 @@ class UserService:
     def __init__(self, db):
         self.db = db
 
-    def get_keys(self, uid):
-        user_doc = self.db['users'].find_one({'_id': uid}, {'open_key': 1})
-        return user_doc['open_key']
-
     def get_profile(self, uid):
         user_doc = self.db['users'].find_one({'_id': uid}, {'first_name': 1, 'last_name': 1, 'username': 1, 'avatar_url': 1, 'analysis': 1})
         
