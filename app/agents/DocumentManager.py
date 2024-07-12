@@ -23,8 +23,7 @@ class DocumentManager(OpenAiClientBase):
     def embed_chunks(self, chunks):
         encoded_chunks = []
         for chunk in chunks:
-            response = self.embed_content(chunk.text)
-            embeddings = response.data[0].embedding
+            embeddings = self.embed_content(chunk.text)
             encoded_chunk = KBEncodedDocChunk(
                 id=chunk.id,
                 text=chunk.text,
