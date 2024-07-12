@@ -1,5 +1,6 @@
+import os
 from flask import Blueprint, Response, send_file, request
-from app.agents.BossAgent import BossAgent
+from app.agents.OpenAiClientBase import OpenAiClientBase
 
 sam_bp = Blueprint('sam', __name__)
 
@@ -13,7 +14,27 @@ def handle_socketio_options():
 @sam_bp.route('/sam', methods=['POST'])
 def handle_new_message():
     new_message = request.json['newMessage']
-    boss_agent = BossAgent(model='gpt-4o')
-    get_text_response = boss_agent.get_full_response(new_message)
-    boss_agent.stream_audio_response(get_text_response)
+    openai_client = OpenAiClientBase()
+    messages = [{
+                "role": "user",
+                "content": new_message,
+            }]
+    text_response = openai_client.pass_to_openai(messages, model='gpt-4o')
+    file_path = 'app/audioFiles/audio.mp3'
+        
+    # Delete the existing file if it exists
+    if os.path.exists(file_path):
+        os.remove(file_path)
+    
+    response = openai_client.get_audio_speech(
+        model="tts-1",
+        voice="nova",
+        message=text_response,
+    )
+
+    response.stream_to_file(file_path)
+
+    # for chunk in response.iter_bytes(chunk_size=4096):
+    #     if chunk:
+    #         yield chunk
     return send_file('audioFiles/audio.mp3', mimetype='audio/mpeg')

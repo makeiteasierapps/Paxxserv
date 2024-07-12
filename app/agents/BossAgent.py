@@ -1,4 +1,3 @@
-import os
 import tiktoken
 from flask_socketio import emit
 from app.agents.OpenAiClientBase import OpenAiClientBase
@@ -12,25 +11,54 @@ class BossAgent(OpenAiClientBase):
         self.chat_constants = chat_constants
         self.user_analysis = user_analysis
     
-    # rename to handle streamingResponse and make every step its own function
-    def pass_to_boss_agent(self, chat_id, new_chat_history, save_callback=None):
-        response = self.openai_client.chat.completions.create(
-            model=self.model,
-            messages=new_chat_history,
-            stream=True,
-        )
+    def handle_streaming_response(self, chat_id, new_chat_history, save_callback=None):
+        response = self.pass_to_openai(new_chat_history, model=self.model, stream=True)
+        response_chunks = self.process_streaming_response(chat_id, response)
+        collapsed_response = self.collapse_response_chunks(response_chunks)
+        self.send_end_of_stream_notification(chat_id, response_chunks)
+        if save_callback:
+            save_callback(chat_id, collapsed_response)
+    
+    def process_streaming_response(self, chat_id, response):
         response_chunks = []
-        inside_code_block = False
-        language = None
-        ignore_next_token = False
+        stream_state = {'inside_code_block': False, 'language': None, 'ignore_next_token': False}
 
         for chunk in response:
             response_chunk = chunk.choices[0].delta.content
             if response_chunk is not None:
-                response_chunks, inside_code_block, language, ignore_next_token = self.process_response_chunk(
-                    chat_id, response_chunk, response_chunks, inside_code_block, language, ignore_next_token
-                )
-# return response chunks and start new function with below code
+                self.process_response_chunk(chat_id, response_chunk, response_chunks, stream_state)
+        
+        return response_chunks
+
+    def process_response_chunk(self, chat_id, response_chunk, response_chunks, stream_state):
+        if stream_state['ignore_next_token']:
+            stream_state['ignore_next_token'] = False
+            stream_state['language'] = None
+            return
+
+        if response_chunk == '```':
+            stream_state['inside_code_block'] = True
+            stream_state['ignore_next_token'] = True
+        elif response_chunk == '``' and stream_state['language'] != 'markdown':
+            stream_state['inside_code_block'] = False
+            stream_state['ignore_next_token'] = True
+        else:
+            self.handle_chunk_content(chat_id, response_chunk, response_chunks, stream_state)
+    
+    def handle_chunk_content(self, chat_id, response_chunk, response_chunks, stream_state):
+        if stream_state['inside_code_block'] and stream_state['language'] is None:
+            stream_state['language'] = response_chunk.strip()
+            if stream_state['language'] == 'markdown':
+                stream_state['inside_code_block'] = False
+                stream_state['language'] = None
+                return
+
+        formatted_message = self.format_stream_message(response_chunk, stream_state['inside_code_block'], stream_state['language'])
+        formatted_message['room'] = chat_id
+        response_chunks.append(formatted_message)
+        emit('chat_response', formatted_message, room=chat_id)
+
+    def collapse_response_chunks(self, response_chunks):
         collapsed_response = []
         if response_chunks:
             current_message = response_chunks[0]
@@ -41,8 +69,9 @@ class BossAgent(OpenAiClientBase):
                     collapsed_response.append(current_message)
                     current_message = chunk
             collapsed_response.append(current_message)
+        return collapsed_response
 
-        # Notify the client that the stream is over
+    def send_end_of_stream_notification(self, chat_id, response_chunks):
         end_stream_obj = {
             'message_from': 'agent',
             'content': response_chunks,
@@ -50,35 +79,7 @@ class BossAgent(OpenAiClientBase):
             'room': chat_id
         }
         emit('chat_response', end_stream_obj, room=chat_id)
-        if save_callback:
-            save_callback(chat_id, collapsed_response)
 
-    def process_response_chunk(self, chat_id, response_chunk, response_chunks, inside_code_block, language, ignore_next_token):
-        if ignore_next_token:
-            ignore_next_token = False
-            language = None
-            return response_chunks, inside_code_block, language, ignore_next_token
-
-        if response_chunk == '```':
-            inside_code_block = True
-        elif response_chunk == '``' and language != 'markdown':
-            inside_code_block = False
-            ignore_next_token = True
-        else:
-            if inside_code_block and language is None:
-                language = response_chunk.strip()
-                if language == 'markdown':
-                    inside_code_block = False
-                    response_chunk = ''
-                    language = None
-            else:
-                formatted_message = self.format_stream_message(response_chunk, inside_code_block, language)
-                formatted_message['room'] = chat_id
-                response_chunks.append(formatted_message)
-                emit('chat_response', formatted_message, room=chat_id)
-        
-        return response_chunks, inside_code_block, language, ignore_next_token
-    
     def format_stream_message(self, message, inside_code_block, language):
         if inside_code_block:
             return {
@@ -97,37 +98,8 @@ class BossAgent(OpenAiClientBase):
         if system_message:
             new_chat_history.insert(0, system_message)
         
-        self.pass_to_boss_agent(chat_id, new_chat_history, save_callback)
-    
-    def get_full_response(self, message):
-        response = self.openai_client.chat.completions.create(
-            model=self.model,
-            messages=[{
-                "role": "user",
-                "content": message,
-            }],
-        )
-        return response.choices[0].message.content
-    
-    def stream_audio_response(self, message):
-        file_path = 'app/audioFiles/audio.mp3'
-        
-        # Delete the existing file if it exists
-        if os.path.exists(file_path):
-            os.remove(file_path)
-        
-        response = self.openai_client.audio.speech.create(
-            model="tts-1",
-            voice="nova",
-            input=message,
-        )
-
-        response.stream_to_file(file_path)
-
-        # for chunk in response.iter_bytes(chunk_size=4096):
-        #     if chunk:
-        #         yield chunk
- 
+        self.handle_streaming_response(chat_id, new_chat_history, save_callback)
+     
     def manage_chat(self, chat_history, new_user_message, image_url=None):
         """
         Takes a chat object extracts x amount of tokens and returns a message

@@ -9,7 +9,7 @@ class OpenAiClientBase:
         self.openai_client = self._get_openai_client()
 
     def _get_openai_client(self):
-        if not self.db or not self.uid:
+        if self.db is None or self.uid is None:
             api_key = self._load_openai_key()
         else:
             api_key = self._get_user_api_key()
@@ -30,14 +30,21 @@ class OpenAiClientBase:
         )
         return response.data[0].embedding
     
-    def pass_to_openai(self, messages, model="gpt-4o", json=False):
+    def pass_to_openai(self, messages, model="gpt-4o", json=False, stream=False):
         kwargs = {
             "messages": messages,
             "model": model,
+            "stream": stream,
         }
         if json:
             kwargs["response_format"] = {"type": "json_object"}
         response = self.openai_client.chat.completions.create(**kwargs)
-        return response.choices[0].message.content if not json else response.choices[0].message.content
+        return response.choices[0].message.content if not stream else response
             
-    
+    def get_audio_speech(self, message, model="tts-1", voice="nova"):
+        response = self.openai_client.audio.speech.create(
+            model=model,
+            voice=voice,
+            input=message,
+        )
+        return response
