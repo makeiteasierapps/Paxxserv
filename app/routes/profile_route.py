@@ -1,8 +1,8 @@
 import json
 from flask import Blueprint, request, jsonify, g
 from dotenv import load_dotenv
-from app.services.UserService import UserService
 from app.services.ProfileService import ProfileService
+from app.services.UserService import UserService
 from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
@@ -18,9 +18,8 @@ def initialize_services():
     g.uid = request.headers.get('uid')
     g.mongo_client = MongoDbClient(db_name)
     db = g.mongo_client.connect()
-    g.user_service = UserService(db)
     g.profile_service = ProfileService(db, g.uid)
-    
+    g.user_service = UserService(db)
 
 @profile_bp.after_request
 def close_mongo_connection(response):
@@ -32,32 +31,32 @@ def close_mongo_connection(response):
 @profile_bp.route('/profile/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
 def profile(subpath):
     if request.method == 'GET' and subpath == '':
-        user_profile = g.user_service.get_profile(g.uid)
+        user_profile = g.profile_service.get_profile(g.uid)
         return jsonify(user_profile), 200
 
     if subpath == 'answers':
         if request.method == 'POST':
             data = request.get_json()
-            g.user_service.update_profile_answers(g.uid, data)
+            g.profile_service.update_profile_answers(g.uid, data)
             return jsonify({'response': 'Profile questions/answers updated successfully'}), 200
-        profile_data = g.user_service.load_profile_answers(g.uid)
+        profile_data = g.profile_service.load_profile_answers(g.uid)
         return jsonify(profile_data), 200
 
     if subpath == 'user':
         data = request.get_json()
-        g.user_service.update_user_profile(g.uid, data)
+        g.profile_service.update_user_profile(g.uid, data)
         return jsonify({'response': 'User profile updated successfully'}), 200
     
     if subpath == 'analyze':
-        prompt = g.user_service.prepare_analysis_prompt(g.uid)
-        response = g.profile_service.get_user_analysis(prompt)
+        prompt = g.profile_service.prepare_analysis_prompt(g.uid)
+        response = g.profile_service.analyze_user_profile(prompt)
         analysis_obj = json.loads(response)
-        g.user_service.update_user_profile(g.uid, analysis_obj.copy())
+        g.profile_service.update_user_profile(g.uid, analysis_obj.copy())
         return jsonify(analysis_obj), 200
 
     if subpath in ('update_avatar', 'profile/update_avatar'):
         file = request.files['avatar']
-        avatar_url = g.user_service.upload_profile_image_to_firebase_storage(file, g.uid)
+        avatar_url = g.user_service.update_user_avatar(file, g.uid)
         return jsonify({'avatar_url': avatar_url}), 200
 
     return 'Not Found', 404
