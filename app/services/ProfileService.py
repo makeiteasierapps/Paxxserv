@@ -3,7 +3,7 @@ from ..agents.OpenAiClientBase import OpenAiClientBase
 class ProfileService(OpenAiClientBase):
     
     # Refactor this to use dspy, its not always outputing the json in the correct format
-    def get_user_analysis(self, message):
+    def analyze_user_profile(self, message):
         messages=[
                 {
                     "role": "system",
@@ -25,3 +25,92 @@ class ProfileService(OpenAiClientBase):
             
 
         return response
+    
+    def get_profile(self, uid):
+        user_doc = self.db['users'].find_one({'_id': uid}, {'first_name': 1, 'last_name': 1, 'username': 1, 'avatar_url': 1, 'analysis': 1})
+        
+        if user_doc:
+            user_doc.pop('_id')
+        
+        return user_doc
+    
+    def get_user_profile(self, uid):
+        user_doc = self.db['users'].find_one({'_id': uid}, {'analysis': 1})
+        
+        return user_doc
+
+    @staticmethod
+    def extract_data_for_prompt(answers):
+        """ 
+        Extracts the data from the answers dictionary and formats it for the prompt
+        """
+        prompt = ''
+        for category, questions in answers.items():
+            for question, answer in questions.items():
+                prompt += f'{category}: {question} - Answer: {answer}\n'
+        
+        return prompt
+    
+    def prepare_analysis_prompt(self, uid):
+        """
+        Generates a prompt to analyze
+        """
+        
+        q_a = self.load_profile_answers(uid)
+        prompt = ProfileService.extract_data_for_prompt(q_a)
+
+        return prompt
+        
+    def update_profile_answers(self, uid, data):
+        """
+        Update the question/answer map in the user's profile for MongoDB.
+        Assumes 'profile' is a separate collection with 'uid' as a reference.
+        """
+
+        # Find the profile document by user ID reference
+        profile_doc = self.db['profile'].find_one({'uid': uid})
+
+        if profile_doc:
+            # If the document exists, update it
+            self.db['profile'].update_one({'uid': uid}, {'$set': {'questions': data}})
+        else:
+            # If no document exists for this user, create one
+            self.db['profile'].insert_one({'uid': uid, 'questions': data})
+
+        return {'message': 'User question/answers updated'}, 200
+    
+    def load_profile_answers(self, uid):
+        """
+        Fetches the question/answers map from the user's profile in MongoDB.
+        Assumes 'profile' is a separate collection with 'uid' as a reference.
+        """
+
+        # Find the profile document by user ID reference
+        profile_doc = self.db['profile'].find_one({'uid': uid}, {'questions': 1})
+
+        if profile_doc and 'questions' in profile_doc:
+            return profile_doc['questions']
+        
+        return {}
+    
+    def update_user_profile(self, uid, updates):
+        users_collection = self.db['users']  # Access the 'users' collection
+       
+        if 'news_topics' in updates:
+            news_topics_list = [topic.lower().strip() for topic in updates['news_topics']]
+            updates['news_topics'] = {"$addToSet": {"news_topics": {"$each": news_topics_list}}}
+
+        user_doc = users_collection.find_one({"_id": uid})
+        if user_doc:
+            # Update existing user
+            if 'news_topics' in updates:
+                # Special handling for news_topics to use $addToSet for array elements
+                news_topics_update = updates.pop('news_topics')
+                users_collection.update_one({"_id": uid}, {"$set": updates, **news_topics_update})
+            else:
+                users_collection.update_one({"_id": uid}, {"$set": updates})
+        else:
+            # Create new user
+            updates['_id'] = uid  # Ensure the document has the UID as its _id
+            users_collection.insert_one(updates)
+  

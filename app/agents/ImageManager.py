@@ -1,9 +1,6 @@
 from .OpenAiClientBase import OpenAiClientBase
 
-class ImageManager(OpenAiClientBase):
-    def __init__(self, db, uid):
-        super().__init__(db, uid)
-        
+class ImageManager(OpenAiClientBase):    
     def generate_image(self, request):
             prompt = request['prompt']
             size=request['size'].lower()

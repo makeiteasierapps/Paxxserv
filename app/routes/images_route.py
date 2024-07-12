@@ -2,7 +2,7 @@ import io
 from dotenv import load_dotenv
 from flask import request, Blueprint, g, jsonify
 import requests
-from app.services.UserService import UserService
+from app.services.FirebaseStoreageService import FirebaseStorageService
 from app.agents.ImageManager import ImageManager
 from app.services.MongoDbClient import MongoDbClient
 
@@ -20,7 +20,6 @@ def initialize_services():
     g.uid = request.headers.get('uid')
     g.mongo_client = MongoDbClient(db_name)
     db = g.mongo_client.connect()
-    g.user_service = UserService(db)
     g.image_manager = ImageManager(db, g.uid)
             
 
@@ -32,12 +31,13 @@ def images():
         return (image_url, 200)
     
     if request.method == "GET":
-        images_list = g.user_service.fetch_all_from_dalle_images(g.uid)
+        images_list = FirebaseStorageService.fetch_all_images(g.uid, 'dalle_images')
         return (images_list, 200)
     
     if request.method == "DELETE":
-        path = request.get_json()
-        g.user_service.delete_generated_image_from_firebase_storage(path)
+        data = request.get_json()
+        path = data.get('path')
+        FirebaseStorageService.delete_image(path)
         return ({'message': 'Image deleted successfully'}, 200)
 
 @images_bp.route('/images/save', methods=['POST'])
@@ -49,5 +49,5 @@ def save_image():
         return ({'error': 'Failed to fetch image'}, 400)
     image_data = response.content
     image_blob = io.BytesIO(image_data)
-    image_url = g.user_service.upload_generated_image_to_firebase_storage(image_blob, g.uid)
+    image_url = FirebaseStorageService.upload_file(image_blob, g.uid, 'dalle_images')
     return (image_url, 200)
