@@ -1,14 +1,10 @@
-class ProfileService:
-    def __init__(self, db, openai_client):
-        self.db = db
-        self.openai_client = openai_client
-        self.model = 'gpt-4o'
+from ..agents.OpenAiClientBase import OpenAiClientBase
 
+class ProfileService(OpenAiClientBase):
+    
     # Refactor this to use dspy, its not always outputing the json in the correct format
-    def pass_to_profile_agent(self, message):
-        response = self.openai_client.chat.completions.create(
-            model=self.model,
-            messages=[
+    def get_user_analysis(self, message):
+        messages=[
                 {
                     "role": "system",
                     "content": '''
@@ -23,7 +19,9 @@ class ProfileService:
                 'content': f'''{message}''',
                 }
                 
-            ],
-            response_format={ "type": "json_object" },
-        )
-        return response.choices[0].message.content
+            ]
+        
+        response = self.pass_to_openai(messages, json=True)
+            
+
+        return response

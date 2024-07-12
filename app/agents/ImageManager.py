@@ -1,7 +1,9 @@
-class ImageManager:
-    def __init__(self, openai_client):
-        self.openai_client = openai_client
+from .OpenAiClientBase import OpenAiClientBase
 
+class ImageManager(OpenAiClientBase):
+    def __init__(self, db, uid):
+        super().__init__(db, uid)
+        
     def generate_image(self, request):
             prompt = request['prompt']
             size=request['size'].lower()

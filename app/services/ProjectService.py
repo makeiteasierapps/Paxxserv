@@ -1,14 +1,9 @@
-import uuid
 import time
 from bson import ObjectId
 from datetime import datetime
 from dotenv import load_dotenv
-from openai import OpenAI
 from canopy.tokenizer import Tokenizer
-from canopy.models.data_models import Document
-from canopy.knowledge_base.models import KBEncodedDocChunk
-from canopy.knowledge_base.chunker.recursive_character import RecursiveCharacterChunker
-
+from app.agents.DocumentManager import DocumentManager
 from app.utils.ContentScraper import ContentScraper
 
 load_dotenv()
@@ -16,8 +11,10 @@ Tokenizer.initialize()
 tokenizer = Tokenizer()
 
 class ProjectService:
-    def __init__(self, db):
+    def __init__(self, db, uid):
+        self.document_manager = DocumentManager(db, uid)
         self.db = db
+        self.uid = uid
 
     def get_projects(self, uid):
         projects_cursor = self.db['projects'].find({'uid': uid})
@@ -45,58 +42,6 @@ class ProjectService:
         self.db['project_docs'].delete_one({'_id': ObjectId(doc_id)})
         self.db['chunks'].delete_many({'doc_id': doc_id})
 
-    def chunkify(self, source, doc=None, chunks=None):
-        if chunks is None:
-            doc_id = str(uuid.uuid4())
-            chunker = RecursiveCharacterChunker(chunk_size=450)
-            chunks = chunker.chunk_single_document(Document(id=doc_id, text=doc, source=source))
-        else:
-            chunks = [Document(id=chunk['id'], text=chunk['text'], source=source) for chunk in chunks]
-        return chunks
-    
-    def embed_chunks(self, chunks):
-        client = OpenAI()
-        encoded_chunks = []
-        for chunk in chunks:
-            response = client.embeddings.create(input=chunk.text, model='text-embedding-3-small')
-            embeddings = response.data[0].embedding
-            encoded_chunk = KBEncodedDocChunk(
-                id=chunk.id,
-                text=chunk.text,
-                document_id=chunk.id,
-                values=embeddings,
-                metadata=chunk.metadata if hasattr(chunk, 'metadata') else {},
-                source=chunk.source if hasattr(chunk, 'source') else None
-            )
-            
-            record = encoded_chunk.to_db_record()
-            encoded_chunks.append(record)
-        return encoded_chunks
-
-    def summarize_content(self, content):
-        token_count = tokenizer.token_count(content)
-        if token_count > 10000:
-            # Summarize each chunk individually
-            return "Content is too long to summarize."
-        client = OpenAI()
-        response = client.chat.completions.create(
-            model='gpt-3.5-turbo',
-            messages=[
-                {
-                    'role': 'system', 
-                    'content': 'You are a helpful assistant that summarizes the content of a document.'
-                },
-                {
-                    'role': 'user',
-                    'content': f'''
-                    Please provide a detailed summary of the following document:
-                    {content}
-                    '''
-                }
-            ]
-        )
-        return response.choices[0].message.content
-    
     def crawl_site(self, url, project_id, visited=None):
         if visited is None:
             visited = set()
@@ -131,9 +76,9 @@ class ProjectService:
         if len(content) < 100:
             return None, None 
 
-        chunks = self.chunkify(content, url)
-        chunks_with_embeddings = self.embed_chunks(chunks)
-        content_summary = self.summarize_content(content)
+        chunks = self.document_manager.chunkify(content, url)
+        chunks_with_embeddings = self.document_manager.embed_chunks(chunks)
+        content_summary = self.document_manager.summarize_content(content)
 
         normalized_url = self.normalize_url(url)
 
@@ -196,9 +141,9 @@ class ProjectService:
         file_name = file.filename
 
         # Chunkify the extracted text
-        chunks = self.chunkify(text, file_name)
+        chunks = self.document_manager.chunkify(text, file_name)
         # Embed the chunks
-        embeddings = self.embed_chunks(chunks)
+        embeddings = self.document_manager.embed_chunks(chunks)
 
         # Insert the project_doc without the chunks to get the doc_id
         project_doc = {
@@ -307,9 +252,9 @@ class ProjectService:
         if existing_doc and 'chunks' in existing_doc:
             self.db['chunks'].delete_many({'_id': {'$in': existing_doc['chunks']}})
         updated_highlights = [{**highlight, 'id': doc_id} for highlight in highlights]
-        chunks = self.chunkify(chunks=updated_highlights, source='user')
-        chunks_with_embeddings = self.embed_chunks(chunks)
-        content_summary = self.summarize_content(doc)
+        chunks = self.document_manager.chunkify(chunks=updated_highlights, source='user')
+        chunks_with_embeddings = self.document_manager.embed_chunks(chunks)
+        content_summary = self.document_manager.summarize_content(doc)
         
         chunk_ids = []
         for chunk in chunks_with_embeddings:

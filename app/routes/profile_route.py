@@ -1,10 +1,8 @@
-import os
 import json
 from flask import Blueprint, request, jsonify, g
 from dotenv import load_dotenv
 from app.services.UserService import UserService
 from app.services.ProfileService import ProfileService
-from app.agents.BossAgent import BossAgent
 from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
@@ -21,9 +19,7 @@ def initialize_services():
     g.mongo_client = MongoDbClient(db_name)
     db = g.mongo_client.connect()
     g.user_service = UserService(db)
-    openai_key = g.user_service.get_keys(g.uid)
-    g.openai_client = BossAgent.get_openai_client(api_key=openai_key)
-    g.profile_service = ProfileService(db, g.openai_client)
+    g.profile_service = ProfileService(db, g.uid)
     
 
 @profile_bp.after_request
@@ -54,7 +50,7 @@ def profile(subpath):
     
     if subpath == 'analyze':
         prompt = g.user_service.prepare_analysis_prompt(g.uid)
-        response = g.profile_service.pass_to_profile_agent(prompt)
+        response = g.profile_service.get_user_analysis(prompt)
         analysis_obj = json.loads(response)
         g.user_service.update_user_profile(g.uid, analysis_obj.copy())
         return jsonify(analysis_obj), 200

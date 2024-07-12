@@ -1,39 +1,18 @@
 import os
 import tiktoken
-from openai import OpenAI
-from dotenv import load_dotenv
 from flask_socketio import emit
+from app.agents.OpenAiClientBase import OpenAiClientBase
 
-class BossAgent:
-    def __init__(self, openai_key=None, model='gpt-3.5-turbo', system_prompt="You are a friendly but genuine AI Agent. Don't be annoyingly nice, but don't be rude either.", chat_constants=None, user_analysis=None):
+class BossAgent(OpenAiClientBase):
+    def __init__(self, db, uid, model='gpt-3.5-turbo', system_prompt="You are a friendly but genuine AI Agent. Don't be annoyingly nice, but don't be rude either.", chat_constants=None, user_analysis=None):
+        super().__init__(db, uid)
         self.is_initialized = True
-        self.openai_key = openai_key or self._load_openai_key()
         self.model = model
-        self.openai_client = OpenAI(api_key=self.openai_key)
         self.system_prompt = system_prompt
         self.chat_constants = chat_constants
         self.user_analysis = user_analysis
     
-    @staticmethod
-    def get_openai_client(api_key=None):
-        if api_key is None:
-            api_key = BossAgent._load_openai_key()
-        return OpenAI(api_key=api_key)
-
-    @staticmethod
-    def _load_openai_key():
-        load_dotenv()
-        return os.getenv('OPENAI_API_KEY')
-
-    @staticmethod
-    def embed_content(content):
-        client = BossAgent.get_openai_client()
-        response = client.embeddings.create(
-            input=content,
-            model="text-embedding-3-small",
-        )
-        return response.data[0].embedding
-    
+    # rename to handle streamingResponse and make every step its own function
     def pass_to_boss_agent(self, chat_id, new_chat_history, save_callback=None):
         response = self.openai_client.chat.completions.create(
             model=self.model,
@@ -51,7 +30,7 @@ class BossAgent:
                 response_chunks, inside_code_block, language, ignore_next_token = self.process_response_chunk(
                     chat_id, response_chunk, response_chunks, inside_code_block, language, ignore_next_token
                 )
-
+# return response chunks and start new function with below code
         collapsed_response = []
         if response_chunks:
             current_message = response_chunks[0]

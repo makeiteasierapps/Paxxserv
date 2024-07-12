@@ -3,7 +3,6 @@ from flask import Blueprint, request, g
 from dotenv import load_dotenv
 from app.services.NewsService import NewsService
 from app.services.UserService import UserService
-from app.agents.BossAgent import BossAgent
 from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
@@ -20,9 +19,7 @@ def initialize_services():
     g.mongo_client = MongoDbClient(db_name)
     db = g.mongo_client.connect()
     g.user_service = UserService(db)
-    openai_key = g.user_service.get_keys(g.uid)
-    g.openai_client = BossAgent.get_openai_client(api_key=openai_key)
-    g.news_service = NewsService(db, g.uid, g.openai_client)
+    g.news_service = NewsService(db, g.uid)
 
 @news_bp.after_request
 def close_mongo_connection(response):

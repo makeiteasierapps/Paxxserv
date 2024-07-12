@@ -2,9 +2,8 @@ import io
 from dotenv import load_dotenv
 from flask import request, Blueprint, g, jsonify
 import requests
-from app.agents.BossAgent import BossAgent
 from app.services.UserService import UserService
-from app.services.ImageManager import ImageManager
+from app.agents.ImageManager import ImageManager
 from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
@@ -22,9 +21,7 @@ def initialize_services():
     g.mongo_client = MongoDbClient(db_name)
     db = g.mongo_client.connect()
     g.user_service = UserService(db)
-    openai_key = g.user_service.get_keys(g.uid)
-    g.openai_client = BossAgent.get_openai_client(api_key=openai_key)
-    g.image_manager = ImageManager(g.openai_client)
+    g.image_manager = ImageManager(db, g.uid)
             
 
 @images_bp.route('/images', methods=['GET', 'POST', 'DELETE', 'PUT', 'PATCH', 'OPTIONS'])
