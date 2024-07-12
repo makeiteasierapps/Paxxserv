@@ -144,18 +144,18 @@ def handle_chat_message(data):
             user_analysis = None
             if use_profile_data:
                 user_analysis = user_service.get_user_analysis(uid)
-            boss_agent = BossAgent(db, uid, model=model, chat_constants=chat_constants, system_prompt=system_prompt, user_analysis=user_analysis)
+            boss_agent = BossAgent(model=model, chat_constants=chat_constants, system_prompt=system_prompt, user_analysis=user_analysis, db=db, uid=uid)
         else: 
-            boss_agent = BossAgent(db, uid, model='gpt-4o')  
+            boss_agent = BossAgent(model='gpt-4o', db=db, uid=uid)  
         if create_vector_pipeline:
                 query_pipeline = boss_agent.create_vector_pipeline(user_message, data['projectId'])
                 results = chat_service.query_snapshots(query_pipeline)
                 system_message = boss_agent.prepare_vector_response(results, system_prompt)
     else:
-        boss_agent = BossAgent(db, uid, model='gpt-4o')
         mongo_client = MongoDbClient(db_name)
         db = mongo_client.connect()
         chat_service = ChatService(db)
+        boss_agent = BossAgent(model='gpt-4o', db=db, uid=uid)
         if create_vector_pipeline:
             query_pipeline = boss_agent.create_vector_pipeline(user_message, data['projectId'])
             results = chat_service.query_snapshots(query_pipeline)
