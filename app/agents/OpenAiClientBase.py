@@ -5,14 +5,15 @@ import os
 class OpenAiClientBase:
     def __init__(self, db, uid):
         self.db = db
-        self.openai_client = self._get_openai_client(uid)
+        self.uid = uid
+        self.openai_client = self._get_openai_client()
 
-    def _get_openai_client(self, uid):
-        api_key = self._get_user_api_key(uid)
+    def _get_openai_client(self):
+        api_key = self._get_user_api_key()
         return OpenAI(api_key=api_key)
 
-    def _get_user_api_key(self, uid):
-        user_doc = self.db['users'].find_one({'_id': uid}, {'open_key': 1})
+    def _get_user_api_key(self):
+        user_doc = self.db['users'].find_one({'_id': self.uid}, {'open_key': 1})
         return user_doc['open_key']
     
     def embed_content(self, content, model="text-embedding-3-small"):

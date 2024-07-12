@@ -12,11 +12,12 @@ projects_bp = Blueprint('projects_bp', __name__)
 def initialize_services():
     if request.method == "OPTIONS":
         return ("", 204)
-    db_name = request.headers.get('dbName', 'paxxium')
+    db_name = request.headers.get('dbName')
     g.uid = request.headers.get('uid')
     g.mongo_client = MongoDbClient(db_name)
     db = g.mongo_client.connect()
-    g.project_services = ProjectService(db)
+    print(g.uid)
+    g.project_services = ProjectService(db, g.uid)
 
 @projects_bp.after_request
 def close_mongo_connection(response):
