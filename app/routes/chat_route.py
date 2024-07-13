@@ -4,7 +4,8 @@ from flask import Blueprint, request, Response, g, jsonify
 from flask_socketio import join_room
 from app import socketio
 from app.services.ChatService import ChatService
-from app.services.UserService import UserService
+from app.services.FirebaseStoreageService import FirebaseStorageService as firebase_storage
+from app.services.ProfileService import ProfileService
 from app.agents.BossAgent import BossAgent
 from app.services.MongoDbClient import MongoDbClient
 
@@ -24,7 +25,6 @@ def initialize_services():
     g.mongo_client = MongoDbClient(db_name)
     db = g.mongo_client.connect()
     g.chat_service = ChatService(db)
-    g.user_service = UserService(db)
         
 @socketio.on('connect')
 def handle_connect():
@@ -91,7 +91,7 @@ def chat(subpath):
 
 @chat_bp.route('/messages', defaults={'subpath': ''}, methods=['DELETE', 'POST'])
 @chat_bp.route('/messages/<path:subpath>', methods=['DELETE', 'POST'])
-def handle_delete_all_messages(subpath):
+def handle_messages(subpath):
     if request.method == 'DELETE' and subpath == '':
         chat_id = request.json.get('chatId')
         g.chat_service.delete_all_messages(chat_id)
@@ -100,7 +100,7 @@ def handle_delete_all_messages(subpath):
     if subpath == 'utils':
         uid = request.headers.get('userId')
         file = request.files['image']
-        file_url = g.user_service.upload_file_to_firebase_storage(file, uid)
+        file_url = firebase_storage.upload_file(file, uid, 'gpt-vision')
         return (json.dumps({'fileUrl': file_url}), 200)
     
 # SOCKET EVENTS
@@ -130,7 +130,7 @@ def handle_chat_message(data):
         mongo_client = MongoDbClient(db_name)
         db = mongo_client.connect()
         chat_service = ChatService(db)
-        user_service = UserService(db)
+        profile_service = ProfileService(db)
 
         chat_service.create_message(chat_id, 'user', user_message)
         def save_agent_message(chat_id, message):
@@ -143,7 +143,7 @@ def handle_chat_message(data):
             system_prompt = chat_settings.get('systemPrompt')
             user_analysis = None
             if use_profile_data:
-                user_analysis = user_service.get_user_analysis(uid)
+                user_analysis = profile_service.analyze_user_profile(uid)
             boss_agent = BossAgent(model=model, chat_constants=chat_constants, system_prompt=system_prompt, user_analysis=user_analysis, db=db, uid=uid)
         else: 
             boss_agent = BossAgent(model='gpt-4o', db=db, uid=uid)  
