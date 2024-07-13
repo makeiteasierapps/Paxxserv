@@ -38,10 +38,11 @@ class BossAgent(OpenAiClientBase):
 
         if response_chunk == '```':
             stream_state['inside_code_block'] = True
-            stream_state['ignore_next_token'] = True
         elif response_chunk == '``' and stream_state['language'] != 'markdown':
             stream_state['inside_code_block'] = False
             stream_state['ignore_next_token'] = True
+        elif stream_state['inside_code_block'] and stream_state['language'] is None:
+            stream_state['language'] = response_chunk.strip()
         else:
             self.handle_chunk_content(chat_id, response_chunk, response_chunks, stream_state)
     
