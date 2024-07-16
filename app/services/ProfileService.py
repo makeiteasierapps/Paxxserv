@@ -33,11 +33,6 @@ class ProfileService(OpenAiClientBase):
             user_doc.pop('_id')
         
         return user_doc
-    
-    def get_user_profile(self, uid):
-        user_doc = self.db['users'].find_one({'_id': uid}, {'analysis': 1})
-        
-        return user_doc
 
     @staticmethod
     def extract_data_for_prompt(answers):
