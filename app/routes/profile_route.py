@@ -1,15 +1,16 @@
 import json
-from flask import Blueprint, request, jsonify, g
+import traceback
+from flask import Blueprint, request, jsonify, g, Response, current_app, stream_with_context
 from dotenv import load_dotenv
 from app.services.ProfileService import ProfileService
 from app.services.UserService import UserService
 from app.services.MongoDbClient import MongoDbClient
+from app.agents.QuestionGenerator import QuestionGenerator
 
 load_dotenv()
 
 profile_bp = Blueprint('profile_bp', __name__)
 
-@profile_bp.before_request
 @profile_bp.before_request
 def initialize_services():
     if request.method == "OPTIONS":
@@ -34,6 +35,30 @@ def profile(subpath):
         user_profile = g.profile_service.get_profile(g.uid)
         return jsonify(user_profile), 200
 
+    if subpath == 'generate_questions':
+        content = request.get_json()
+        db_name = request.headers.get('dbName', 'paxxium')
+        uid = request.headers.get('uid')
+        def generate():
+            with current_app.app_context():
+                print(content['userInput'])
+                try:
+                    mongo_client = MongoDbClient(db_name)
+                    db = mongo_client.connect()
+                    question_generator = QuestionGenerator(db, uid)
+                    for result in question_generator.generate_questions(content['userInput']):
+                        yield json.dumps(result) + '\n'
+                except Exception as e:
+                    error_msg = f"Error in generate_questions: {str(e)}\n{traceback.format_exc()}"
+                    current_app.logger.error(error_msg)
+                    yield json.dumps({"error": error_msg}) + '\n'
+                finally:
+                    if 'mongo_client' in locals():
+                        mongo_client.close()
+                    yield ''  # Ensure the stream is properly closed
+        
+        return Response(stream_with_context(generate()), content_type='application/json'), 200
+    
     if subpath == 'answers':
         if request.method == 'POST':
             data = request.get_json()
