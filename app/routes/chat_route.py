@@ -137,9 +137,11 @@ def handle_chat_message(data):
             chat_service.create_message(chat_id, 'agent', message)
         
         if chat_settings:
+            print(chat_settings)
             chat_constants = chat_settings.get('chatConstants')
-            use_profile_data = chat_settings.get('useProfileData', None)
+            use_profile_data = chat_settings.get('useProfileData', False)
             model = chat_settings.get('agentModel', None)
+            print(model)
             system_prompt = chat_settings.get('systemPrompt')
             user_analysis = None
             if use_profile_data:
