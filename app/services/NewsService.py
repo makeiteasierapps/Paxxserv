@@ -14,7 +14,7 @@ class NewsService(OpenAiClientBase):
         self.db = db
         self.apikey = os.getenv('GNEWS_API_KEY')
 
-    def pass_to_news_agent(self, article_to_summarize, model='gpt-3.5-turbo'):
+    def pass_to_news_agent(self, article_to_summarize, model='gpt-4o-mini'):
         response = self.openai_client.chat.completions.create(
             model=model,
             messages=[

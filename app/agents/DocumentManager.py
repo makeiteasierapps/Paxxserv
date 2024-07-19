@@ -43,7 +43,7 @@ class DocumentManager(OpenAiClientBase):
             # Summarize each chunk individually
             return "Content is too long to summarize."
         response = self.openai_client.chat.completions.create(
-            model='gpt-3.5-turbo',
+            model='gpt-4o-mini',
             messages=[
                 {
                     'role': 'system', 

@@ -3,7 +3,7 @@ from flask_socketio import emit
 from app.agents.OpenAiClientBase import OpenAiClientBase
 
 class BossAgent(OpenAiClientBase):
-    def __init__(self, model='gpt-3.5-turbo', system_prompt="You are a friendly but genuine AI Agent. Don't be annoyingly nice, but don't be rude either.", chat_constants=None, user_analysis=None, db=None, uid=None):
+    def __init__(self, model='gpt-4o-mini', system_prompt="You are a friendly but genuine AI Agent. Don't be annoyingly nice, but don't be rude either.", chat_constants=None, user_analysis=None, db=None, uid=None):
         super().__init__(db, uid)
         self.is_initialized = True
         self.model = model
