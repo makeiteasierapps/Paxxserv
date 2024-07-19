@@ -41,12 +41,12 @@ def profile(subpath):
         uid = request.headers.get('uid')
         def generate():
             with current_app.app_context():
-                print(content['userInput'])
                 try:
                     mongo_client = MongoDbClient(db_name)
                     db = mongo_client.connect()
                     question_generator = QuestionGenerator(db, uid)
                     for result in question_generator.generate_questions(content['userInput']):
+                        print(result)
                         yield json.dumps(result) + '\n'
                 except Exception as e:
                     error_msg = f"Error in generate_questions: {str(e)}\n{traceback.format_exc()}"
