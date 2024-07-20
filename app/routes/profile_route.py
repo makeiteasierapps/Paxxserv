@@ -64,13 +64,14 @@ def profile(subpath):
             questions = g.profile_service.load_questions(g.uid)
             return jsonify(questions), 200
         
-    # if subpath == 'answers':
-    #     if request.method == 'POST':
-    #         data = request.get_json()
-    #         g.profile_service.update_profile_answers(g.uid, data)
-    #         return jsonify({'response': 'Profile questions/answers updated successfully'}), 200
-    #     profile_data = g.profile_service.load_profile_answers(g.uid)
-    #     return jsonify(profile_data), 200
+    if subpath == 'answers':
+        if request.method == 'POST':
+            data = request.get_json()
+            print(data)
+            question_id = data['questionId']
+            answer = data['answer']
+            g.profile_service.update_profile_answer(question_id, answer)
+            return jsonify({'response': 'Profile questions/answers updated successfully'}), 200
 
     if subpath == 'user':
         data = request.get_json()
