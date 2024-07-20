@@ -59,13 +59,18 @@ def profile(subpath):
         
         return Response(stream_with_context(generate()), content_type='application/json'), 200
     
-    if subpath == 'answers':
-        if request.method == 'POST':
-            data = request.get_json()
-            g.profile_service.update_profile_answers(g.uid, data)
-            return jsonify({'response': 'Profile questions/answers updated successfully'}), 200
-        profile_data = g.profile_service.load_profile_answers(g.uid)
-        return jsonify(profile_data), 200
+    if subpath == 'questions':
+        if request.method == 'GET':
+            questions = g.profile_service.load_questions(g.uid)
+            return jsonify(questions), 200
+        
+    # if subpath == 'answers':
+    #     if request.method == 'POST':
+    #         data = request.get_json()
+    #         g.profile_service.update_profile_answers(g.uid, data)
+    #         return jsonify({'response': 'Profile questions/answers updated successfully'}), 200
+    #     profile_data = g.profile_service.load_profile_answers(g.uid)
+    #     return jsonify(profile_data), 200
 
     if subpath == 'user':
         data = request.get_json()
