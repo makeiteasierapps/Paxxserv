@@ -56,23 +56,18 @@ class ProfileService(OpenAiClientBase):
 
         return prompt
         
-    def update_profile_answers(self, uid, data):
+    def update_profile_answer(self, question_id, answer):
         """
-        Update the question/answer map in the user's profile for MongoDB.
+        Update a single answer in the user's profile for MongoDB.
         Assumes 'profile' is a separate collection with 'uid' as a reference.
         """
 
-        # Find the profile document by user ID reference
-        profile_doc = self.db['profile'].find_one({'uid': uid})
+        self.db['questions'].update_one(
+            {'uid': self.uid, 'questions._id': question_id},
+            {'$set': {'questions.$.answer': answer}}
+        )
 
-        if profile_doc:
-            # If the document exists, update it
-            self.db['profile'].update_one({'uid': uid}, {'$set': {'questions': data}})
-        else:
-            # If no document exists for this user, create one
-            self.db['profile'].insert_one({'uid': uid, 'questions': data})
-
-        return {'message': 'User question/answers updated'}, 200
+        return {'message': 'User answer updated'}, 200
     
     def load_questions(self, uid):
         """
