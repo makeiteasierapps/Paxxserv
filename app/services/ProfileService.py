@@ -51,7 +51,7 @@ class ProfileService(OpenAiClientBase):
         Generates a prompt to analyze
         """
         
-        q_a = self.load_profile_answers(uid)
+        q_a = self.load_questions(uid)
         prompt = ProfileService.extract_data_for_prompt(q_a)
 
         return prompt
@@ -74,19 +74,21 @@ class ProfileService(OpenAiClientBase):
 
         return {'message': 'User question/answers updated'}, 200
     
-    def load_profile_answers(self, uid):
+    def load_questions(self, uid):
         """
         Fetches the question/answers map from the user's profile in MongoDB.
         Assumes 'profile' is a separate collection with 'uid' as a reference.
         """
 
         # Find the profile document by user ID reference
-        profile_doc = self.db['profile'].find_one({'uid': uid}, {'questions': 1})
+        question_docs = self.db['questions'].find({'uid': uid})
 
-        if profile_doc and 'questions' in profile_doc:
-            return profile_doc['questions']
-        
-        return {}
+        questions_array = []
+        for question_doc in question_docs:
+            question_doc['_id'] = str(question_doc['_id'])
+            questions_array.append(question_doc)
+
+        return questions_array
     
     def update_user_profile(self, uid, updates):
         users_collection = self.db['users']  # Access the 'users' collection
