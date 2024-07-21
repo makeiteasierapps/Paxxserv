@@ -46,17 +46,17 @@ class ProfileService(OpenAiClientBase):
     def update_user_profile(self, uid, updates):
         users_collection = self.db['users']  # Access the 'users' collection
        
-        if 'news_topics' in updates:
-            news_topics_list = [topic.lower().strip() for topic in updates['news_topics']]
-            updates['news_topics'] = {"$addToSet": {"news_topics": {"$each": news_topics_list}}}
+        if 'topics' in updates:
+            topics_list = [topic.lower().strip() for topic in updates['topics']]
+            updates['topics'] = {"$addToSet": {"topics": {"$each": topics_list}}}
 
         user_doc = users_collection.find_one({"_id": uid})
         if user_doc:
             # Update existing user
-            if 'news_topics' in updates:
-                # Special handling for news_topics to use $addToSet for array elements
-                news_topics_update = updates.pop('news_topics')
-                users_collection.update_one({"_id": uid}, {"$set": updates, **news_topics_update})
+            if 'topics' in updates:
+                # Special handling for topics to use $addToSet for array elements
+                topics = updates.pop('topics')
+                users_collection.update_one({"_id": uid}, {"$set": updates, **topics})
             else:
                 users_collection.update_one({"_id": uid}, {"$set": updates})
         else:

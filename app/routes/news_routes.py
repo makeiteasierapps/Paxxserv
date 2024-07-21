@@ -59,11 +59,11 @@ def news():
 @news_bp.route('/ai-fetch-news', methods=['GET', 'OPTIONS'])
 def ai_fetch_news():
     if request.method == 'GET':
-        news_topics = g.news_service.get_user_news_topics()
-        if not news_topics:
-            return ({"message": "No news topics found, please answer some questions in the profile section and analyze"}, 404)
+        topics = g.news_service.get_user_topics()
+        if not topics:
+            return ({"message": "No topics found, please answer some questions in the profile section and analyze"}, 404)
         
-        random_topic = random.choice(news_topics)
+        random_topic = random.choice(topics)
         urls = g.news_service.get_article_urls(random_topic)
         
         news_data = g.news_service.summarize_articles(urls)
