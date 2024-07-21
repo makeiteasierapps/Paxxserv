@@ -1,31 +1,7 @@
 from ..agents.OpenAiClientBase import OpenAiClientBase
 
 class ProfileService(OpenAiClientBase):
-    
-    # Refactor this to use dspy, its not always outputing the json in the correct format
-    def analyze_user_profile(self, message):
-        messages=[
-                {
-                    "role": "system",
-                    "content": '''
-                    You are an expert in identify the personality traits of your user.
-                    Your response must be in json format with the following structure:
-                        - analysis: provide a personality analysis of the user based on their answers to the questions. Do not simply summarize the answers, but provide a unique analysis of the user.
-                        - news_topics: Should be a list of queries that are one or two words and be a good query parameter for calling a news API. Your topics should be derived from your analyis. Example formats: 2 words - Rock climbing - 1 word -AI
-                        '''
-                    },
-                    {
-                'role': 'user',
-                'content': f'''{message}''',
-                }
-                
-            ]
-        
-        response = self.pass_to_openai(messages, json=True)
-            
 
-        return response
-    
     def get_profile(self, uid):
         user_doc = self.db['users'].find_one({'_id': uid}, {'first_name': 1, 'last_name': 1, 'username': 1, 'avatar_url': 1, 'analysis': 1})
         
@@ -34,28 +10,26 @@ class ProfileService(OpenAiClientBase):
         
         return user_doc
 
-    @staticmethod
-    def extract_data_for_prompt(answers):
-        """ 
-        Extracts the data from the answers dictionary and formats it for the prompt
+    def load_questions(self, uid, fetch_answered=False):
         """
-        prompt = ''
-        for category, questions in answers.items():
-            for question, answer in questions.items():
-                prompt += f'{category}: {question} - Answer: {answer}\n'
-        
-        return prompt
-    
-    def prepare_analysis_prompt(self, uid):
+        Fetches the question/answers map from the user's profile in MongoDB.
+        Assumes 'profile' is a separate collection with 'uid' as a reference.
+        If fetchAnswered is True, only returns answered questions.
         """
-        Generates a prompt to analyze
-        """
-        
-        q_a = self.load_questions(uid)
-        prompt = ProfileService.extract_data_for_prompt(q_a)
 
-        return prompt
-        
+        question_docs = self.db['questions'].find({'uid': uid})
+
+        questions_array = []
+        for question_doc in question_docs:
+            question_doc['_id'] = str(question_doc['_id'])
+            if fetch_answered:
+                question_doc['questions'] = [q for q in question_doc['questions'] if q.get('answer') is not None]
+                if not question_doc['questions']:
+                    continue
+            questions_array.append(question_doc)
+
+        return questions_array
+    
     def update_profile_answer(self, question_id, answer):
         """
         Update a single answer in the user's profile for MongoDB.
@@ -68,22 +42,6 @@ class ProfileService(OpenAiClientBase):
         )
 
         return {'message': 'User answer updated'}, 200
-    
-    def load_questions(self, uid):
-        """
-        Fetches the question/answers map from the user's profile in MongoDB.
-        Assumes 'profile' is a separate collection with 'uid' as a reference.
-        """
-
-        # Find the profile document by user ID reference
-        question_docs = self.db['questions'].find({'uid': uid})
-
-        questions_array = []
-        for question_doc in question_docs:
-            question_doc['_id'] = str(question_doc['_id'])
-            questions_array.append(question_doc)
-
-        return questions_array
     
     def update_user_profile(self, uid, updates):
         users_collection = self.db['users']  # Access the 'users' collection

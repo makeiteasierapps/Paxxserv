@@ -6,6 +6,7 @@ from app.services.ProfileService import ProfileService
 from app.services.UserService import UserService
 from app.services.MongoDbClient import MongoDbClient
 from app.agents.QuestionGenerator import QuestionGenerator
+from app.agents.AnalyzeUser import AnalyzeUser
 
 load_dotenv()
 
@@ -21,6 +22,7 @@ def initialize_services():
     db = g.mongo_client.connect()
     g.profile_service = ProfileService(db, g.uid)
     g.user_service = UserService(db)
+    g.analyze_user = AnalyzeUser(db, g.uid)
 
 @profile_bp.after_request
 def close_mongo_connection(response):
@@ -39,6 +41,9 @@ def profile(subpath):
         content = request.get_json()
         db_name = request.headers.get('dbName', 'paxxium')
         uid = request.headers.get('uid')
+        mongo_client = MongoDbClient(db_name)
+        db = mongo_client.connect()
+        db['users'].update_one({'_id': uid}, {'$set': {'userintro': content['userInput']}})
         def generate():
             with current_app.app_context():
                 try:
@@ -46,7 +51,6 @@ def profile(subpath):
                     db = mongo_client.connect()
                     question_generator = QuestionGenerator(db, uid)
                     for result in question_generator.generate_questions(content['userInput']):
-                        print(result)
                         yield json.dumps(result) + '\n'
                 except Exception as e:
                     error_msg = f"Error in generate_questions: {str(e)}\n{traceback.format_exc()}"
@@ -67,7 +71,6 @@ def profile(subpath):
     if subpath == 'answers':
         if request.method == 'POST':
             data = request.get_json()
-            print(data)
             question_id = data['questionId']
             answer = data['answer']
             g.profile_service.update_profile_answer(question_id, answer)
@@ -79,11 +82,12 @@ def profile(subpath):
         return jsonify({'response': 'User profile updated successfully'}), 200
     
     if subpath == 'analyze':
-        prompt = g.profile_service.prepare_analysis_prompt(g.uid)
-        response = g.profile_service.analyze_user_profile(prompt)
-        analysis_obj = json.loads(response)
-        g.profile_service.update_user_profile(g.uid, analysis_obj.copy())
-        return jsonify(analysis_obj), 200
+        answered_questions = g.profile_service.load_questions(g.uid, fetch_answered=True)
+        response = g.analyze_user.analyze_cateogry(answered_questions)
+        # response = g.profile_service.analyze_user_profile(prompt)
+        # analysis_obj = json.loads(response)
+        # g.profile_service.update_user_profile(g.uid, analysis_obj.copy())
+        return jsonify(answered_questions), 200
 
     if subpath in ('update_avatar', 'profile/update_avatar'):
         file = request.files['avatar']
