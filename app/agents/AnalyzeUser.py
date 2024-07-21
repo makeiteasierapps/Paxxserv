@@ -10,8 +10,19 @@ from pydantic import BaseModel
 import uuid
 from bson import ObjectId
 
+class TopicsOutput(BaseModel):
+    topics: List[str]
+
 class QuestionsOutput(BaseModel):
     questions: List[str]
+
+class TopicItemsSignature(Signature):
+    """
+    Create a user anaylsis and a list of topics that will be of interes to the user based on the survey.
+    """
+    survey = InputField()
+    user_analysis: str = OutputField()
+    topics: TopicsOutput = OutputField(desc='A list of topics')
 
 class QuestionGeneratorSignature(Signature):
     """
@@ -44,12 +55,17 @@ class AnalyzeUser(OpenAiClientBase):
                     prompt = f'question: {question} \n answer: {answer}'
                     questions.append(prompt)
                 questions_string = "\n".join(questions)
-                analysis_prompt = ChainOfThought('survey -> user_analysis')
+                analysis_prompt = TypedChainOfThought(TopicItemsSignature)
                 response = analysis_prompt(survey=questions_string)
                 analyses.append(f"{category_name} analysis: {response.user_analysis}")
                 self.db['questions'].update_one(
                     {'_id': category_id}, 
-                    {'$set': {'category_analysis': response.user_analysis}}  
+                    {'$set': {'category_analysis': response.user_analysis}, '$addToSet': {'topics': {'$each': response.topics.topics}}},
+                    
+                )
+                self.db['users'].update_one(
+                    {'_id': self.uid}, 
+                    {'$addToSet': {'topics': {'$each': response.topics.topics}}}  
                 )
             combined_analysis = "\n\n".join(analyses)
             full_analysis_prompt = ChainOfThought('category_analyses -> full_analysis')

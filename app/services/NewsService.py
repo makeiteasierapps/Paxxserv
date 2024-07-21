@@ -128,10 +128,10 @@ class NewsService(OpenAiClientBase):
 
         return all_news
 
-    def get_user_news_topics(self):
+    def get_user_topics(self):
         user_document = self.db['users'].find_one({'_id': self.uid})
         if user_document:
-            return user_document.get('news_topics', [])
+            return user_document.get('topics', [])
         return []
 
     def mark_is_read(self, doc_id):
