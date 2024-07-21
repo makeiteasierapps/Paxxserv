@@ -87,7 +87,7 @@ def profile(subpath):
         # response = g.profile_service.analyze_user_profile(prompt)
         # analysis_obj = json.loads(response)
         # g.profile_service.update_user_profile(g.uid, analysis_obj.copy())
-        return jsonify(answered_questions), 200
+        return jsonify(response), 200
 
     if subpath in ('update_avatar', 'profile/update_avatar'):
         file = request.files['avatar']
