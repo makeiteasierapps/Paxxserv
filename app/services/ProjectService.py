@@ -4,7 +4,6 @@ from datetime import datetime
 from dotenv import load_dotenv
 from canopy.tokenizer import Tokenizer
 from app.agents.DocumentManager import DocumentManager
-from app.utils.ContentScraper import ContentScraper
 
 load_dotenv()
 Tokenizer.initialize()
@@ -42,44 +41,10 @@ class ProjectService:
         self.db['project_docs'].delete_one({'_id': ObjectId(doc_id)})
         self.db['chunks'].delete_many({'doc_id': doc_id})
 
-    def crawl_site(self, url, project_id, visited=None):
-        if visited is None:
-            visited = set()
-
-        content_scraper = ContentScraper(url)
-        links = content_scraper.extract_links()
-        site_docs = []
-        all_contents = [] # Only used for testing Colbert
-
-        for link in links:
-            if link not in visited:
-                visited.add(link)
-                time.sleep(1)
-                scraped_doc, content = self.scrape_url(link, project_id)
-                if scraped_doc:
-                    site_docs.append(scraped_doc)
-                    if content:
-                        all_contents.append(content)  # Add content to the list for batch update
-                site_docs.extend(self.crawl_site(link, project_id, visited))
-
-        # Batch update the Colbert index with all contents after crawling is done
-        # if all_contents:
-        #     response = requests.post('http://34.132.147.230:5000/update_index', json={'projectId': project_id, 'name': name, 'documents': all_contents})
-        #     print(response.json())
-
-        return site_docs
-
-    def scrape_url(self, url, project_id):
-        content_scraper = ContentScraper(url)
-        content = content_scraper.extract_content()
-
-        if len(content) < 100:
-            return None, None 
-
-        chunks = self.document_manager.chunkify(content, url)
+    def chunk_embed_url(self, content, url, project_id):
+        chunks = self.document_manager.chunkify(url, content)
         chunks_with_embeddings = self.document_manager.embed_chunks(chunks)
         content_summary = self.document_manager.summarize_content(content)
-
         normalized_url = self.normalize_url(url)
 
         project_doc = {
@@ -91,6 +56,7 @@ class ProjectService:
             'source': normalized_url,
             'summary': content_summary
         }
+        
         inserted_doc = self.db['project_docs'].insert_one(project_doc)
         doc_id = inserted_doc.inserted_id
 
@@ -113,13 +79,12 @@ class ProjectService:
         self.db['project_docs'].update_one({'_id': doc_id}, {'$set': {'chunks': chunk_ids}})
 
         updated_doc = self.db['project_docs'].find_one({'_id': doc_id})
+        
         if '_id' in updated_doc:
             updated_doc['id'] = str(updated_doc['_id'])
             updated_doc.pop('_id', None)
         if 'chunks' in updated_doc:
             updated_doc['chunks'] = [str(chunk_id) for chunk_id in updated_doc['chunks']]
-
-        return updated_doc, content 
         
     def normalize_url(self, url):
         # Example normalization process
@@ -135,7 +100,7 @@ class ProjectService:
         return url
 
     def extract_pdf(self, file, project_id):
-        text = ContentScraper.extract_text_from_pdf(file)
+        text = 'placeholder'
         num_tokens = tokenizer.token_count(text)
 
         file_name = file.filename

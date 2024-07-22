@@ -48,32 +48,6 @@ def projects(subpath):
         g.project_services.delete_project_by_id(project_id)
         return jsonify({'message': 'Project deleted'}), 200
     
-    if subpath == "scrape":
-        data = request.get_json()
-        crawl_entire_site = data.get('crawlEntireSite')
-    
-        if crawl_entire_site:
-            urls = data.get('urls')
-            project_id = data.get('projectId')
-            name = data.get('projectName')
-            if not urls:
-                return jsonify({'message': 'URL is required'}), 400
-            new_docs = g.project_services.crawl_site(urls[0], project_id)
-            return jsonify({'docs': new_docs}), 200
-    
-        urls = data.get('urls')
-        project_id = data.get('projectId')
-        name = data.get('projectName')
-    
-        if not urls or not isinstance(urls, list) or not all(urls):
-            return jsonify({'message': 'URLs are required and must be a non-empty list'}), 400
-
-        docs = []
-        for url in urls:
-            new_doc = g.project_services.scrape_url(url, project_id)
-            docs.append(new_doc)
-
-        return jsonify({'docs': docs}), 200,
 
     if subpath == "extract":
         file = request.files.get('file')
@@ -106,6 +80,19 @@ def projects(subpath):
         
         documents = g.project_services.get_docs_by_projectId(project_id)
         return jsonify({'documents': documents}), 200
+    
+    if request.method == "POST" and subpath == "documents":
+        data = request.get_json()
+        project_id = data.get('projectId')
+        name = data.get('projectName')
+        document = data.get('document')
+        content = document['content']
+        for url_content in content:
+            metadata = url_content.get('metadata')
+            markdown = url_content.get('markdown')
+            url = metadata.get('sourceURL')
+            g.project_services.chunk_embed_url(markdown, url, project_id)
+        return jsonify({'message': 'URL scraped and embedded'}), 200
     
     if request.method == "DELETE" and subpath == "documents":
         data = request.get_json()

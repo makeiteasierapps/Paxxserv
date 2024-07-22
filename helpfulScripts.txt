@@ -20,8 +20,6 @@ sudo systemctl status paxxserv.service
 
 # Check network configuration
 sudo netstat -tuln | grep 3033
-# or
-sudo ss -tuln | grep 3033
 
 # Check firewall rules
 sudo ufw status
