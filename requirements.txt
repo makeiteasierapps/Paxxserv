@@ -11,6 +11,4 @@ crcmod
 lxml-html-clean
 requests
 canopy-sdk
-selenium
-beautifulsoup4
 pymupdf
