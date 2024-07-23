@@ -15,6 +15,7 @@ class ProjectService:
         self.db = db
         self.uid = uid
 
+# PROJECT CRUD
     def get_projects(self, uid):
         projects_cursor = self.db['projects'].find({'uid': uid})
         project_list = [{'id': str(project['_id']), **project} for project in projects_cursor]
@@ -41,6 +42,73 @@ class ProjectService:
         self.db['project_docs'].delete_one({'_id': ObjectId(doc_id)})
         self.db['chunks'].delete_many({'doc_id': doc_id})
 
+    def create_new_project(self, uid, name, objective):
+        project_details = {
+                'name': name,
+                'uid': uid,
+                'objective': objective,
+                'documents': [],
+                'urls': [],
+                'created_at': datetime.utcnow()
+            }
+        new_project = self.db['projects'].insert_one(project_details)
+        # Convert the '_id' to 'id' and remove '_id' from the dictionary
+        project_id = str(new_project.inserted_id)
+        project_details['id'] = project_id
+        del project_details['_id']
+
+        new_chat = {
+            'uid': uid,
+            'chat_name': name,
+            'agent_model': 'GPT-4',
+            'system_prompt': '',
+            'chat_constants': '',
+            'use_profile_data': False,
+            'is_open': False,
+            'project_id': project_id, 
+            'created_at': datetime.utcnow()
+        }
+
+        # Let MongoDB generate the chat_id
+        result = self.db['chats'].insert_one(new_chat)
+        new_chat['chatId'] = str(result.inserted_id)
+        del new_chat['_id']
+
+        return project_details, new_chat
+
+    def save_text_doc(self, project_id, text, highlights=None, doc_id=None, category=None):
+        new_doc = {
+            'project_id': project_id,
+            'content': text,
+            'category': category,
+            'highlights': highlights,
+            'type': 'text'
+        }
+        if doc_id:
+            result = self.db['project_docs'].update_one({'_id': ObjectId(doc_id)}, {'$set': new_doc})
+            if result.matched_count > 0:
+                return doc_id
+            else:
+                return 'not_found'
+        else:
+            result = self.db['project_docs'].insert_one(new_doc)
+            new_doc_id = str(result.inserted_id)
+            return new_doc_id
+
+    def get_text_docs(self, project_id):
+        docs_cursor = self.db['project_docs'].find({'project_id': project_id, 'type': 'text'})
+        docs_list = []
+        for doc in docs_cursor:
+            doc['id'] = str(doc['_id'])
+            doc.pop('_id', None)
+            doc.pop('chunks', None)
+            docs_list.append(doc)
+        if docs_list:
+            return docs_list
+        else:
+            return []
+        
+# PROJECT DOCUMENT MANAGEMENT
     def chunk_embed_url(self, content, url, project_id):
         chunks = self.document_manager.chunkify(url, content)
         chunks_with_embeddings = self.document_manager.embed_chunks(chunks)
@@ -153,72 +221,6 @@ class ProjectService:
             print(f"Error in save_embed_pdf: {e}")
             return None 
     
-    def create_new_project(self, uid, name, objective):
-        project_details = {
-                'name': name,
-                'uid': uid,
-                'objective': objective,
-                'documents': [],
-                'urls': [],
-                'created_at': datetime.utcnow()
-            }
-        new_project = self.db['projects'].insert_one(project_details)
-        # Convert the '_id' to 'id' and remove '_id' from the dictionary
-        project_id = str(new_project.inserted_id)
-        project_details['id'] = project_id
-        del project_details['_id']
-
-        new_chat = {
-            'uid': uid,
-            'chat_name': name,
-            'agent_model': 'GPT-4',
-            'system_prompt': '',
-            'chat_constants': '',
-            'use_profile_data': False,
-            'is_open': False,
-            'project_id': project_id, 
-            'created_at': datetime.utcnow()
-        }
-
-        # Let MongoDB generate the chat_id
-        result = self.db['chats'].insert_one(new_chat)
-        new_chat['chatId'] = str(result.inserted_id)
-        del new_chat['_id']
-
-        return project_details, new_chat
-
-    def save_text_doc(self, project_id, text, highlights=None, doc_id=None, category=None):
-        new_doc = {
-            'project_id': project_id,
-            'content': text,
-            'category': category,
-            'highlights': highlights,
-            'type': 'text'
-        }
-        if doc_id:
-            result = self.db['project_docs'].update_one({'_id': ObjectId(doc_id)}, {'$set': new_doc})
-            if result.matched_count > 0:
-                return doc_id
-            else:
-                return 'not_found'
-        else:
-            result = self.db['project_docs'].insert_one(new_doc)
-            new_doc_id = str(result.inserted_id)
-            return new_doc_id
-
-    def get_text_docs(self, project_id):
-        docs_cursor = self.db['project_docs'].find({'project_id': project_id, 'type': 'text'})
-        docs_list = []
-        for doc in docs_cursor:
-            doc['id'] = str(doc['_id'])
-            doc.pop('_id', None)
-            doc.pop('chunks', None)
-            docs_list.append(doc)
-        if docs_list:
-            return docs_list
-        else:
-            return []
-        
     def embed_text_doc(self, doc_id, project_id, doc, highlights, category):
         # Check if the document has existing chunks and delete them
         existing_doc = self.db['project_docs'].find_one({'_id': ObjectId(doc_id)})
