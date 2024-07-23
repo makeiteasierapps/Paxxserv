@@ -1,6 +1,7 @@
-from flask import Blueprint
+from flask import Blueprint, Response, stream_with_context
 import requests
 import os
+import time
 from dotenv import load_dotenv
 from flask import jsonify, request, g
 from app.services.ProjectService import ProjectService
@@ -62,10 +63,8 @@ def projects(subpath):
         if not file.filename.endswith('.pdf'):
             return jsonify({'message': 'File is not a PDF'}), 400
         
-        project_name = request.form.get('projectName')
         project_id = request.form.get('projectId')
-
-        headers = {'api': 'truetoself'}
+        headers = {'api': os.getenv('PAXXSERV_API')}
 
         try:
             pdf_url = firebase_storage.upload_file(file, g.uid, 'documents')
@@ -79,7 +78,8 @@ def projects(subpath):
             response.raise_for_status()
             reponse_data = response.json()
             data = reponse_data['data']
-            g.project_services.save_embed_pdf(data, project_id)
+            content = g.project_services.save_embed_pdf(data, project_id)
+            return jsonify({'content': content}), 200
         except requests.exceptions.HTTPError as http_err:
             print(f"HTTP error occurred: {http_err}") 
             return jsonify({'message': 'Failed to extract text'}), 500
@@ -89,15 +89,7 @@ def projects(subpath):
         except Exception as e:
             print(f"Error extracting text from PDF: {e}")
             return jsonify({'message': 'Failed to extract text'}), 500
-        
-    
-    if subpath == "save_pdf":
-        project_name = request.form.get('projectName')
-        project_id = request.form.get('projectId')
 
-        if not project_name:
-            return jsonify({'message': 'Project name is required'}), 400
-        
     if request.method == "GET" and subpath == "documents":
         project_id = request.headers.get('Project-ID')
         if not project_id:
@@ -107,18 +99,85 @@ def projects(subpath):
         return jsonify({'documents': documents}), 200
     
     if request.method == "POST" and subpath == "documents":
+        db_name = request.headers.get('dbName', 'paxxium')
+        uid = request.headers.get('uid')
+        mongo_client = MongoDbClient(db_name)
+        db = mongo_client.connect()
+        project_services = ProjectService(db, uid)
         data = request.get_json()
         project_id = data.get('projectId')
-        name = data.get('projectName')
-        document = data.get('document')
-        content = document['content']
-        for url_content in content:
-            metadata = url_content.get('metadata')
-            markdown = url_content.get('markdown')
-            url = metadata.get('sourceURL')
-            g.project_services.chunk_embed_url(markdown, url, project_id)
-        return jsonify({'message': 'URL scraped and embedded'}), 200
-    
+        url = data.get('url')
+        endpoint = data.get('endpoint')
+        firecrawl_url = os.getenv('FIRECRAWL_URL')
+        params = {
+                'url': url,
+                'pageOptions': {
+                    'onlyMainContent': True,
+            },
+        }
+
+        headers = {'api': os.getenv('PAXXSERV_API')}
+
+        if endpoint == 'scrape':
+            try:
+                firecrawl_response = requests.post(f"{firecrawl_url}/{endpoint}", json=params, headers=headers, timeout=10)
+                response_data = firecrawl_response.json()
+                return jsonify({'response': response_data['data']['markdown']}), 200
+            except Exception as e:
+                print(f"Error scraping site: {e}")
+                return jsonify({'error': 'Failed to scrape site'}), 500
+        else:
+            def generate():
+                
+                try:
+                    firecrawl_response = requests.post(f"{firecrawl_url}/{endpoint}", json=params, headers=headers, timeout=10)
+                    if not firecrawl_response.ok:
+                        yield f"data: {{'status': 'error', 'message': 'Failed to scrape url'}}\n\n"
+                        return
+
+                    firecrawl_data = firecrawl_response.json()
+                    yield f"data: {{'status': 'started', 'message': 'Crawl job started'}}\n\n"
+
+                    if 'jobId' in firecrawl_data:
+                        job_id = firecrawl_data['jobId']
+                        
+                        while True:
+                            status_response = requests.get(f"{firecrawl_url}/crawl/status/{job_id}", headers=headers, timeout=10)
+                            if not status_response.ok:
+                                yield f"data: {{'status': 'error', 'message': 'Failed to check {job_id} status'}}\n\n"
+                                return
+                            
+                            status_data = status_response.json()
+                            if status_data['status'] == 'completed':
+                                content = status_data['data']
+                                break
+                            elif status_data['status'] == 'failed':
+                                yield f"data: {{'status': 'error', 'message': 'Crawl job {job_id} failed'}}\n\n"
+                                return
+                            
+                            yield f"data: {{'status': 'in_progress', 'message': 'Crawling in progress...'}}\n\n"
+                            time.sleep(5)
+                    else:
+                        content = [{
+                            'markdown': firecrawl_data['data']['markdown'],
+                            'metadata': firecrawl_data['data']['metadata'],
+                        }]
+
+                    for url_content in content:
+                        metadata = url_content.get('metadata')
+                        markdown = url_content.get('markdown')
+                        source_url = metadata.get('sourceURL')
+                        project_services.chunk_embed_url(markdown, source_url, project_id)
+                        yield f"data: {{'status': 'processing', 'message': 'Processing {source_url}'}}\n\n"
+
+                    yield f"data: {{'status': 'completed', 'message': 'URL scraped and embedded', 'content': {content}}}\n\n"
+
+                except Exception as e:
+                    print(f"Error crawling site: {e}")
+                    yield f"data: {{'status': 'error', 'message': 'Failed to crawl site: {str(e)}'}}\n\n"
+
+            return Response(stream_with_context(generate()), content_type='text/event-stream')
+        
     if request.method == "DELETE" and subpath == "documents":
         data = request.get_json()
         doc_id = data.get('docId')
