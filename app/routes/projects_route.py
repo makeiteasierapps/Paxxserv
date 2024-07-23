@@ -64,7 +64,7 @@ def projects(subpath):
             return jsonify({'message': 'File is not a PDF'}), 400
         
         project_id = request.form.get('projectId')
-        headers = {'api': os.getenv('PAXXSERV_API')}
+        headers = {'api': 'truetoself'}
 
         try:
             pdf_url = firebase_storage.upload_file(file, g.uid, 'documents')
@@ -108,76 +108,66 @@ def projects(subpath):
         project_id = data.get('projectId')
         url = data.get('url')
         endpoint = data.get('endpoint')
-        firecrawl_url = os.getenv('FIRECRAWL_URL')
-        params = {
+        
+        def generate():
+            firecrawl_url = os.getenv('FIRECRAWL_URL')
+            params = {
                 'url': url,
                 'pageOptions': {
                     'onlyMainContent': True,
-            },
-        }
+                },
+            }
 
-        headers = {'api': os.getenv('PAXXSERV_API')}
-
-        if endpoint == 'scrape':
+            headers = {'api': 'truetoself'}
             try:
                 firecrawl_response = requests.post(f"{firecrawl_url}/{endpoint}", json=params, headers=headers, timeout=10)
-                response_data = firecrawl_response.json()
-                return jsonify({'response': response_data['data']['markdown']}), 200
-            except Exception as e:
-                print(f"Error scraping site: {e}")
-                return jsonify({'error': 'Failed to scrape site'}), 500
-        else:
-            def generate():
-                
-                try:
-                    firecrawl_response = requests.post(f"{firecrawl_url}/{endpoint}", json=params, headers=headers, timeout=10)
-                    if not firecrawl_response.ok:
-                        yield f"data: {{'status': 'error', 'message': 'Failed to scrape url'}}\n\n"
-                        return
+                if not firecrawl_response.ok:
+                    yield f"data: {{'status': 'error', 'message': 'Failed to scrape url'}}\n\n"
+                    return
 
-                    firecrawl_data = firecrawl_response.json()
-                    yield f"data: {{'status': 'started', 'message': 'Crawl job started'}}\n\n"
+                firecrawl_data = firecrawl_response.json()
+                yield f"data: {{'status': 'started', 'message': 'Crawl job started'}}\n\n"
 
-                    if 'jobId' in firecrawl_data:
-                        job_id = firecrawl_data['jobId']
+                if 'jobId' in firecrawl_data:
+                    job_id = firecrawl_data['jobId']
+                    
+                    while True:
+                        status_response = requests.get(f"{firecrawl_url}/crawl/status/{job_id}", headers=headers, timeout=10)
+                        if not status_response.ok:
+                            yield f"data: {{'status': 'error', 'message': 'Failed to check {job_id} status'}}\n\n"
+                            return
                         
-                        while True:
-                            status_response = requests.get(f"{firecrawl_url}/crawl/status/{job_id}", headers=headers, timeout=10)
-                            if not status_response.ok:
-                                yield f"data: {{'status': 'error', 'message': 'Failed to check {job_id} status'}}\n\n"
-                                return
-                            
-                            status_data = status_response.json()
-                            if status_data['status'] == 'completed':
-                                content = status_data['data']
-                                break
-                            elif status_data['status'] == 'failed':
-                                yield f"data: {{'status': 'error', 'message': 'Crawl job {job_id} failed'}}\n\n"
-                                return
-                            
-                            yield f"data: {{'status': 'in_progress', 'message': 'Crawling in progress...'}}\n\n"
-                            time.sleep(5)
-                    else:
-                        content = [{
-                            'markdown': firecrawl_data['data']['markdown'],
-                            'metadata': firecrawl_data['data']['metadata'],
-                        }]
+                        status_data = status_response.json()
+                        if status_data['status'] == 'completed':
+                            content = status_data['data']
+                            break
+                        elif status_data['status'] == 'failed':
+                            yield f"data: {{'status': 'error', 'message': 'Crawl job {job_id} failed'}}\n\n"
+                            return
+                        
+                        yield f"data: {{'status': 'in_progress', 'message': 'Crawling in progress...'}}\n\n"
+                        time.sleep(5)
+                else:
+                    content = [{
+                        'markdown': firecrawl_data['data']['markdown'],
+                        'metadata': firecrawl_data['data']['metadata'],
+                    }]
 
-                    for url_content in content:
-                        metadata = url_content.get('metadata')
-                        markdown = url_content.get('markdown')
-                        source_url = metadata.get('sourceURL')
-                        project_services.chunk_embed_url(markdown, source_url, project_id)
-                        yield f"data: {{'status': 'processing', 'message': 'Processing {source_url}'}}\n\n"
+                for url_content in content:
+                    metadata = url_content.get('metadata')
+                    markdown = url_content.get('markdown')
+                    source_url = metadata.get('sourceURL')
+                    project_services.chunk_embed_url(markdown, source_url, project_id)
+                    yield f"data: {{'status': 'processing', 'message': 'Processing {source_url}'}}\n\n"
 
-                    yield f"data: {{'status': 'completed', 'message': 'URL scraped and embedded', 'content': {content}}}\n\n"
+                yield f"data: {{'status': 'completed', 'message': 'URL scraped and embedded', 'content': {content}}}\n\n"
 
-                except Exception as e:
-                    print(f"Error crawling site: {e}")
-                    yield f"data: {{'status': 'error', 'message': 'Failed to crawl site: {str(e)}'}}\n\n"
+            except Exception as e:
+                print(f"Error crawling site: {e}")
+                yield f"data: {{'status': 'error', 'message': 'Failed to crawl site: {str(e)}'}}\n\n"
 
-            return Response(stream_with_context(generate()), content_type='text/event-stream')
-        
+        return Response(stream_with_context(generate()), content_type='text/event-stream')
+    
     if request.method == "DELETE" and subpath == "documents":
         data = request.get_json()
         doc_id = data.get('docId')
