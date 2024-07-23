@@ -40,8 +40,8 @@ def projects(subpath):
         name = data.get('name')
         objective = data.get('objective')
         
-        new_project_details, new_chat_details = g.project_services.create_new_project(g.uid, name, objective)
-        return jsonify({'new_project': new_project_details, 'new_chat': new_chat_details}), 200
+        new_project_details = g.project_services.create_new_project(g.uid, name, objective)
+        return jsonify({'new_project': new_project_details}), 200
     
     if request.method == "DELETE" and subpath == '':
         data = request.get_json()
@@ -51,7 +51,6 @@ def projects(subpath):
         g.project_services.delete_project_by_id(project_id)
         return jsonify({'message': 'Project deleted'}), 200
     
-
     if subpath == "extract":
         firecrawl_url = os.getenv('FIRECRAWL_URL')
         file = request.files.get('file')
