@@ -63,7 +63,7 @@ def projects(subpath):
             return jsonify({'message': 'File is not a PDF'}), 400
         
         project_id = request.form.get('projectId')
-        headers = {'api': 'truetoself'}
+        headers = {'api': os.getenv('PAXXSERV_API')}
 
         try:
             pdf_url = firebase_storage.upload_file(file, g.uid, 'documents')
@@ -117,7 +117,7 @@ def projects(subpath):
                 },
             }
 
-            headers = {'api': 'truetoself'}
+            headers = {'api': os.getenv('PAXXSERV_API')}
             try:
                 firecrawl_response = requests.post(f"{firecrawl_url}/{endpoint}", json=params, headers=headers, timeout=10)
                 if not firecrawl_response.ok:
