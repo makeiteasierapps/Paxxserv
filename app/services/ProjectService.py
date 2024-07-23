@@ -57,24 +57,7 @@ class ProjectService:
         project_details['id'] = project_id
         del project_details['_id']
 
-        new_chat = {
-            'uid': uid,
-            'chat_name': name,
-            'agent_model': 'GPT-4',
-            'system_prompt': '',
-            'chat_constants': '',
-            'use_profile_data': False,
-            'is_open': False,
-            'project_id': project_id, 
-            'created_at': datetime.utcnow()
-        }
-
-        # Let MongoDB generate the chat_id
-        result = self.db['chats'].insert_one(new_chat)
-        new_chat['chatId'] = str(result.inserted_id)
-        del new_chat['_id']
-
-        return project_details, new_chat
+        return project_details
 
     def save_text_doc(self, project_id, text, highlights=None, doc_id=None, category=None):
         new_doc = {
