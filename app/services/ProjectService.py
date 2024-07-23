@@ -1,4 +1,4 @@
-import time
+import os
 from bson import ObjectId
 from datetime import datetime
 from dotenv import load_dotenv
@@ -99,52 +99,60 @@ class ProjectService:
             url = url[:-1]
         return url
 
-    def extract_pdf(self, file, project_id):
-        text = 'placeholder'
-        num_tokens = tokenizer.token_count(text)
+    def save_embed_pdf(self, data, project_id):
+        try:
+            content = data['content']
+            source = data['metadata']['sourceURL']
+            filename = os.path.basename(source)
+            num_tokens = tokenizer.token_count(content)
 
-        file_name = file.filename
+            # Chunkify the extracted text
+            chunks = self.document_manager.chunkify(filename, content)
+            # Embed the chunks
+            embeddings = self.document_manager.embed_chunks(chunks)
 
-        # Chunkify the extracted text
-        chunks = self.document_manager.chunkify(text, file_name)
-        # Embed the chunks
-        embeddings = self.document_manager.embed_chunks(chunks)
-
-        # Insert the project_doc without the chunks to get the doc_id
-        project_doc = {
-            'type': 'pdf',
-            'chunks': [],  # Temporarily leave this empty
-            'value': text,
-            'project_id': project_id,
-            'token_count': num_tokens,
-            'source': file_name
-        }
-        inserted_doc = self.db['project_docs'].insert_one(project_doc)
-        doc_id = inserted_doc.inserted_id
-
-        # Now, insert each chunk with the doc_id included
-        chunk_ids = []
-        for chunk in embeddings:
-            # Unpack the metadata to extract 'text' and 'source' directly
-            metadata_text = chunk['metadata']['text']
-            metadata_source = chunk['metadata']['source']
-            # Prepare the chunk without the 'metadata' field but with 'text' and 'source' directly
-            chunk_to_insert = {
-                **chunk,
-                'text': metadata_text,
-                'source': metadata_source,
-                'doc_id': doc_id
+            # Insert the project_doc without the chunks to get the doc_id
+            project_doc = {
+                'type': 'pdf',
+                'chunks': [],  # Temporarily leave this empty
+                'value': content,
+                'project_id': project_id,
+                'token_count': num_tokens,
+                'source': filename
             }
-            # Remove the original 'metadata'/ id fields
-            chunk_to_insert.pop('metadata', None)
-            chunk_to_insert.pop('id', None)
-            inserted_chunk = self.db['chunks'].insert_one(chunk_to_insert)
-            chunk_ids.append(inserted_chunk.inserted_id)
+            inserted_doc = self.db['project_docs'].insert_one(project_doc)
+            doc_id = inserted_doc.inserted_id
 
-        # Finally, update the project_doc with the list of chunk_ids
-        self.db['project_docs'].update_one({'_id': doc_id}, {'$set': {'chunks': chunk_ids}})
-        return text
+            # Now, insert each chunk with the doc_id included
+            chunk_ids = []
+            for chunk in embeddings:
+                # Unpack the metadata to extract 'content' and 'source' directly
+                metadata_text = chunk['metadata']['text']
+                metadata_source = chunk['metadata']['source']
+                # Prepare the chunk without the 'metadata' field but with 'content' and 'source' directly
+                chunk_to_insert = {
+                    **chunk,
+                    'content': metadata_text,
+                    'source': metadata_source,
+                    'doc_id': doc_id
+                }
+                # Remove the original 'metadata'/ id fields
+                chunk_to_insert.pop('metadata', None)
+                chunk_to_insert.pop('id', None)
+                try:
+                    inserted_chunk = self.db['chunks'].insert_one(chunk_to_insert)
+                    chunk_ids.append(inserted_chunk.inserted_id)
+                except Exception as chunk_error:
+                    print(f"Error inserting chunk: {chunk_to_insert}, Error: {chunk_error}")
 
+            # Finally, update the project_doc with the list of chunk_ids
+            self.db['project_docs'].update_one({'_id': doc_id}, {'$set': {'chunks': chunk_ids}})
+            return content
+
+        except Exception as e:
+            print(f"Error in save_embed_pdf: {e}")
+            return None 
+    
     def create_new_project(self, uid, name, objective):
         project_details = {
                 'name': name,

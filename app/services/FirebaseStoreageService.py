@@ -28,8 +28,8 @@ class FirebaseStorageService:
     @staticmethod
     def upload_file(file, uid, folder):
         bucket = storage.bucket()
-        unique_filename = str(uuid.uuid4())
-        blob = bucket.blob(f'users/{uid}/{folder}/{unique_filename}')
+        original_filename = file.filename if file.filename else str(uuid.uuid4())
+        blob = bucket.blob(f'users/{uid}/{folder}/{original_filename}')
         content_type = file.content_type if hasattr(file, 'content_type') else 'application/octet-stream'
         file_data = file.read()
         blob.upload_from_string(file_data, content_type=content_type)

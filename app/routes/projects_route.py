@@ -1,8 +1,11 @@
 from flask import Blueprint
+import requests
+import os
 from dotenv import load_dotenv
 from flask import jsonify, request, g
 from app.services.ProjectService import ProjectService
 from app.services.MongoDbClient import MongoDbClient
+from app.services.FirebaseStoreageService import FirebaseStorageService as firebase_storage
 
 load_dotenv()
 
@@ -16,7 +19,6 @@ def initialize_services():
     g.uid = request.headers.get('uid')
     g.mongo_client = MongoDbClient(db_name)
     db = g.mongo_client.connect()
-    print(g.uid)
     g.project_services = ProjectService(db, g.uid)
 
 @projects_bp.after_request
@@ -50,29 +52,52 @@ def projects(subpath):
     
 
     if subpath == "extract":
+        firecrawl_url = os.getenv('FIRECRAWL_URL')
         file = request.files.get('file')
     
         if not file:
             return jsonify({'message': 'No file part'}), 400
 
+        # Check if the file is a PDF
+        if not file.filename.endswith('.pdf'):
+            return jsonify({'message': 'File is not a PDF'}), 400
+        
+        project_name = request.form.get('projectName')
+        project_id = request.form.get('projectId')
+
+        headers = {'api': 'truetoself'}
+
+        try:
+            pdf_url = firebase_storage.upload_file(file, g.uid, 'documents')
+        except Exception as e:
+            print(f"Error uploading pdf to storage: {e}")
+            return jsonify({'message': 'Failed to upload pdf to storage'}), 500
+        
+        try:
+            payload = {'url': pdf_url}
+            response = requests.request("POST", f"{firecrawl_url}/scrape", json=payload, headers=headers, timeout=10)
+            response.raise_for_status()
+            reponse_data = response.json()
+            data = reponse_data['data']
+            g.project_services.save_embed_pdf(data, project_id)
+        except requests.exceptions.HTTPError as http_err:
+            print(f"HTTP error occurred: {http_err}") 
+            return jsonify({'message': 'Failed to extract text'}), 500
+        except ValueError as json_err:
+            print(f"JSON decode error: {json_err}, Response: {response.text}")  
+            return jsonify({'message': 'Invalid response from server'}), 500
+        except Exception as e:
+            print(f"Error extracting text from PDF: {e}")
+            return jsonify({'message': 'Failed to extract text'}), 500
+        
+    
+    if subpath == "save_pdf":
         project_name = request.form.get('projectName')
         project_id = request.form.get('projectId')
 
         if not project_name:
             return jsonify({'message': 'Project name is required'}), 400
-
-        # Check if the file is a PDF
-        if not file.filename.endswith('.pdf'):
-            return jsonify({'message': 'File is not a PDF'}), 400
         
-        try:
-            text = g.project_services.extract_pdf(file, project_id)
-            return jsonify({'message': 'Extracted', 'text': text}), 200
-        
-        except Exception as e:
-            print(f"Error extracting text from PDF: {e}")
-            return jsonify({'message': 'Failed to extract text'}), 500
-    
     if request.method == "GET" and subpath == "documents":
         project_id = request.headers.get('Project-ID')
         if not project_id:
