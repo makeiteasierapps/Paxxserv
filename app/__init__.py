@@ -29,7 +29,7 @@ def create_app():
     from .routes.news_routes import news_bp
     from .routes.signup_route import signup_bp
     from .routes.profile_route import profile_bp
-    from .routes.projects_route import projects_bp
+    from .routes.kb_route import kb_bp
     app.register_blueprint(chat_bp)
     app.register_blueprint(sam_bp)
     app.register_blueprint(moment_bp)
@@ -38,7 +38,7 @@ def create_app():
     app.register_blueprint(profile_bp)
     app.register_blueprint(news_bp)
     app.register_blueprint(signup_bp)
-    app.register_blueprint(projects_bp)
+    app.register_blueprint(kb_bp)
 
     socketio.init_app(app)
     return app

@@ -184,7 +184,7 @@ class BossAgent(OpenAiClientBase):
         }
         return system_message
     
-    def create_vector_pipeline(self, query, project_id):
+    def create_vector_pipeline(self, query, kb_id):
         embeddings = self.embed_content(query)
         pipeline = [
             {
@@ -195,7 +195,7 @@ class BossAgent(OpenAiClientBase):
                     'numCandidates': 100,
                     'limit': 5,
                     'filter': {
-                        'project_id': project_id
+                        'kb_id': kb_id
                     }
                 }
             }, {
