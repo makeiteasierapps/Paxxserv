@@ -1,3 +1,5 @@
+# Seperate out the document logic into its own service file. 
+
 import os
 from bson import ObjectId
 from datetime import datetime
@@ -76,19 +78,6 @@ class KnowledgeBaseService:
             result = self.db['kb_docs'].insert_one(new_doc)
             new_doc_id = str(result.inserted_id)
             return new_doc_id
-
-    def get_text_docs(self, kb_id):
-        docs_cursor = self.db['kb_docs'].find({'kb_id': kb_id, 'type': 'text'})
-        docs_list = []
-        for doc in docs_cursor:
-            doc['id'] = str(doc['_id'])
-            doc.pop('_id', None)
-            doc.pop('chunks', None)
-            docs_list.append(doc)
-        if docs_list:
-            return docs_list
-        else:
-            return []
         
 # KNOWLEDGE BASE DOCUMENT MANAGEMENT
     def chunk_embed_url(self, content, url, kb_id):
@@ -135,6 +124,8 @@ class KnowledgeBaseService:
             updated_doc.pop('_id', None)
         if 'chunks' in updated_doc:
             updated_doc['chunks'] = [str(chunk_id) for chunk_id in updated_doc['chunks']]
+        
+        return updated_doc
         
     def normalize_url(self, url):
         # Example normalization process

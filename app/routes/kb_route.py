@@ -2,6 +2,7 @@ from flask import Blueprint, Response, stream_with_context
 import requests
 import os
 import time
+import json
 from dotenv import load_dotenv
 from flask import jsonify, request, g
 from app.services.KnowledgeBaseService import KnowledgeBaseService
@@ -102,7 +103,7 @@ def kb(subpath):
         uid = request.headers.get('uid')
         mongo_client = MongoDbClient(db_name)
         db = mongo_client.connect()
-        project_services = KnowledgeBaseService(db, uid)
+        kb_services = KnowledgeBaseService(db, uid)
         data = request.get_json()
         kb_id = data.get('kbId')
         url = data.get('url')
@@ -121,11 +122,11 @@ def kb(subpath):
             try:
                 firecrawl_response = requests.post(f"{firecrawl_url}/{endpoint}", json=params, headers=headers, timeout=10)
                 if not firecrawl_response.ok:
-                    yield f"data: {{'status': 'error', 'message': 'Failed to scrape url'}}\n\n"
+                    yield f'{{"status": "error", "message": "Failed to scrape url"}}'
                     return
 
                 firecrawl_data = firecrawl_response.json()
-                yield f"data: {{'status': 'started', 'message': 'Crawl job started'}}\n\n"
+                yield f'{{"status": "started", "message": "Crawl job started"}}'
 
                 if 'jobId' in firecrawl_data:
                     job_id = firecrawl_data['jobId']
@@ -133,7 +134,7 @@ def kb(subpath):
                     while True:
                         status_response = requests.get(f"{firecrawl_url}/crawl/status/{job_id}", headers=headers, timeout=10)
                         if not status_response.ok:
-                            yield f"data: {{'status': 'error', 'message': 'Failed to check {job_id} status'}}\n\n"
+                            yield f'{{"status": "error", "message": "Failed to check {job_id} status"}}'
                             return
                         
                         status_data = status_response.json()
@@ -141,29 +142,31 @@ def kb(subpath):
                             content = status_data['data']
                             break
                         elif status_data['status'] == 'failed':
-                            yield f"data: {{'status': 'error', 'message': 'Crawl job {job_id} failed'}}\n\n"
+                            yield f'{{"status": "error", "message": "Crawl job {job_id} failed"}}'
                             return
                         
-                        yield f"data: {{'status': 'in_progress', 'message': 'Crawling in progress...'}}\n\n"
+                        yield f'{{"status": "in_progress", "message": "Crawling in progress..."}}'
                         time.sleep(5)
                 else:
                     content = [{
                         'markdown': firecrawl_data['data']['markdown'],
                         'metadata': firecrawl_data['data']['metadata'],
                     }]
-
+                
+                url_docs = []
                 for url_content in content:
                     metadata = url_content.get('metadata')
                     markdown = url_content.get('markdown')
                     source_url = metadata.get('sourceURL')
-                    project_services.chunk_embed_url(markdown, source_url, kb_id)
-                    yield f"data: {{'status': 'processing', 'message': 'Processing {source_url}'}}\n\n"
+                    new_doc = kb_services.chunk_embed_url(markdown, source_url, kb_id)
+                    url_docs.append(new_doc)
+                    yield f'{{"status": "processing", "message": "Processing {source_url}"}}'
 
-                yield f"data: {{'status': 'completed', 'message': 'URL scraped and embedded', 'content': {content}}}\n\n"
+                yield f'{{"status": "completed", "content": {json.dumps(url_docs)}}}'
 
             except Exception as e:
                 print(f"Error crawling site: {e}")
-                yield f"data: {{'status': 'error', 'message': 'Failed to crawl site: {str(e)}'}}\n\n"
+                yield f'{{"status": "error", "message": "Failed to crawl site: {str(e)}"}}'
 
         return Response(stream_with_context(generate()), content_type='text/event-stream')
     
@@ -173,29 +176,24 @@ def kb(subpath):
         if not doc_id:
             return jsonify({'message': 'Doc ID is required'}), 400
 
-        g.project_services.delete_doc_by_id(doc_id)
+        g.kb_services.delete_doc_by_id(doc_id)
         return jsonify({'message': 'Document deleted'}), 200
     
     if request.method == "POST" and subpath == "save_text_doc":
         data = request.get_json()
-        kb_id = data.get('projectId')
+        kb_id = data.get('kbId')
         text = data.get('text')
         category = data.get('category')
         category = category.lower() if category else None
         highlights = data.get('highlights')
         doc_id = data.get('docId')
 
-        result = g.project_services.save_text_doc(kb_id, text, highlights, doc_id, category)
+        result = g.kb_services.save_text_doc(kb_id, text, highlights, doc_id, category)
         
         if result == 'not_found':
             return jsonify({'message': 'Document not found'}), 404
         else:
             return jsonify({'message': 'Text doc saved', 'docId': result}), 200
-    
-    if request.method == "GET" and subpath == "text_doc":
-        kb_id = request.args.get('kbId')
-        doc_list = g.kb_services.get_text_docs(kb_id)
-        return doc_list, 200
     
     if request.method == "POST" and subpath == "embed":
         data = request.get_json()
