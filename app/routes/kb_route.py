@@ -4,15 +4,15 @@ import os
 import time
 from dotenv import load_dotenv
 from flask import jsonify, request, g
-from app.services.ProjectService import ProjectService
+from app.services.KnowledgeBaseService import KnowledgeBaseService
 from app.services.MongoDbClient import MongoDbClient
 from app.services.FirebaseStoreageService import FirebaseStorageService as firebase_storage
 
 load_dotenv()
 
-projects_bp = Blueprint('projects_bp', __name__)
+kb_bp = Blueprint('kb_bp', __name__)
 
-@projects_bp.before_request
+@kb_bp.before_request
 def initialize_services():
     if request.method == "OPTIONS":
         return ("", 204)
@@ -20,36 +20,36 @@ def initialize_services():
     g.uid = request.headers.get('uid')
     g.mongo_client = MongoDbClient(db_name)
     db = g.mongo_client.connect()
-    g.project_services = ProjectService(db, g.uid)
+    g.kb_services = KnowledgeBaseService(db, g.uid)
 
-@projects_bp.after_request
+@kb_bp.after_request
 def close_mongo_connection(response):
     if hasattr(g, 'mongo_client'):
         g.mongo_client.close()
     return response
 
-@projects_bp.route('/projects', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
-@projects_bp.route('/projects/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
-def projects(subpath):
+@kb_bp.route('/kb', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+@kb_bp.route('/kb/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+def kb(subpath):
     if request.method == "GET" and subpath == '':
-        project_list = g.project_services.get_projects(g.uid)
-        return jsonify({'projects': project_list}), 200
+        kb_list = g.kb_services.get_kb_list(g.uid)
+        return jsonify({'kb_list': kb_list}), 200
     
     if request.method == "POST" and subpath == '':
         data = request.get_json()
         name = data.get('name')
         objective = data.get('objective')
         
-        new_project_details = g.project_services.create_new_project(g.uid, name, objective)
-        return jsonify({'new_project': new_project_details}), 200
+        new_kb_details = g.kb_services.create_new_kb(g.uid, name, objective)
+        return jsonify({'new_kb': new_kb_details}), 200
     
     if request.method == "DELETE" and subpath == '':
         data = request.get_json()
-        project_id = data.get('projectId')
-        if not project_id:
-            return jsonify({'message': 'Project ID is required'}), 400
-        g.project_services.delete_project_by_id(project_id)
-        return jsonify({'message': 'Project deleted'}), 200
+        kb_id = data.get('kbId')
+        if not kb_id:
+            return jsonify({'message': 'KB ID is required'}), 400
+        g.kb_services.delete_kb_by_id(kb_id)
+        return jsonify({'message': 'KB deleted'}), 200
     
     if subpath == "extract":
         firecrawl_url = os.getenv('FIRECRAWL_URL')
@@ -62,7 +62,7 @@ def projects(subpath):
         if not file.filename.endswith('.pdf'):
             return jsonify({'message': 'File is not a PDF'}), 400
         
-        project_id = request.form.get('projectId')
+        kb_id = request.form.get('kbId')
         headers = {'api': os.getenv('PAXXSERV_API')}
 
         try:
@@ -77,7 +77,7 @@ def projects(subpath):
             response.raise_for_status()
             reponse_data = response.json()
             data = reponse_data['data']
-            content = g.project_services.save_embed_pdf(data, project_id)
+            content = g.kb_services.save_embed_pdf(data, kb_id)
             return jsonify({'content': content}), 200
         except requests.exceptions.HTTPError as http_err:
             print(f"HTTP error occurred: {http_err}") 
@@ -90,11 +90,11 @@ def projects(subpath):
             return jsonify({'message': 'Failed to extract text'}), 500
 
     if request.method == "GET" and subpath == "documents":
-        project_id = request.headers.get('Project-ID')
-        if not project_id:
-            return jsonify({'message': 'Project ID is required'}), 400
+        kb_id = request.headers.get('KB-ID')
+        if not kb_id:
+            return jsonify({'message': 'KB ID is required'}), 400
         
-        documents = g.project_services.get_docs_by_projectId(project_id)
+        documents = g.kb_services.get_docs_by_kbId(kb_id)
         return jsonify({'documents': documents}), 200
     
     if request.method == "POST" and subpath == "documents":
@@ -102,9 +102,9 @@ def projects(subpath):
         uid = request.headers.get('uid')
         mongo_client = MongoDbClient(db_name)
         db = mongo_client.connect()
-        project_services = ProjectService(db, uid)
+        project_services = KnowledgeBaseService(db, uid)
         data = request.get_json()
-        project_id = data.get('projectId')
+        kb_id = data.get('kbId')
         url = data.get('url')
         endpoint = data.get('endpoint')
         
@@ -156,7 +156,7 @@ def projects(subpath):
                     metadata = url_content.get('metadata')
                     markdown = url_content.get('markdown')
                     source_url = metadata.get('sourceURL')
-                    project_services.chunk_embed_url(markdown, source_url, project_id)
+                    project_services.chunk_embed_url(markdown, source_url, kb_id)
                     yield f"data: {{'status': 'processing', 'message': 'Processing {source_url}'}}\n\n"
 
                 yield f"data: {{'status': 'completed', 'message': 'URL scraped and embedded', 'content': {content}}}\n\n"
@@ -178,14 +178,14 @@ def projects(subpath):
     
     if request.method == "POST" and subpath == "save_text_doc":
         data = request.get_json()
-        project_id = data.get('projectId')
+        kb_id = data.get('projectId')
         text = data.get('text')
         category = data.get('category')
         category = category.lower() if category else None
         highlights = data.get('highlights')
         doc_id = data.get('docId')
 
-        result = g.project_services.save_text_doc(project_id, text, highlights, doc_id, category)
+        result = g.project_services.save_text_doc(kb_id, text, highlights, doc_id, category)
         
         if result == 'not_found':
             return jsonify({'message': 'Document not found'}), 404
@@ -193,8 +193,8 @@ def projects(subpath):
             return jsonify({'message': 'Text doc saved', 'docId': result}), 200
     
     if request.method == "GET" and subpath == "text_doc":
-        project_id = request.args.get('projectId')
-        doc_list = g.project_services.get_text_docs(project_id)
+        kb_id = request.args.get('kbId')
+        doc_list = g.kb_services.get_text_docs(kb_id)
         return doc_list, 200
     
     if request.method == "POST" and subpath == "embed":
@@ -203,7 +203,8 @@ def projects(subpath):
         category = data.get('category').lower()
         highlights = data.get('highlights')
         doc_id = data.get('docId')
-        project_id = data.get('projectId')
+        kb_id = data.get('kbId')
 
-        embedded_chunks = g.project_services.embed_text_doc(doc_id, project_id, doc, highlights, category)
+        embedded_chunks = g.kb_services.embed_text_doc(doc_id, kb_id, doc, highlights, category)
         return jsonify({'embedded_chunks': embedded_chunks}), 200
+    

@@ -137,20 +137,18 @@ def handle_chat_message(data):
             chat_service.create_message(chat_id, 'agent', message)
         
         if chat_settings:
-            print(chat_settings)
             chat_constants = chat_settings.get('chatConstants')
             use_profile_data = chat_settings.get('useProfileData', False)
             model = chat_settings.get('agentModel', None)
-            print(model)
             system_prompt = chat_settings.get('systemPrompt')
             user_analysis = None
             if use_profile_data:
-                user_analysis = profile_service.analyze_user_profile(uid)
+                user_analysis = profile_service.get_user_analysis(uid)
             boss_agent = BossAgent(model=model, chat_constants=chat_constants, system_prompt=system_prompt, user_analysis=user_analysis, db=db, uid=uid)
         else: 
             boss_agent = BossAgent(model='gpt-4o', db=db, uid=uid)  
         if create_vector_pipeline:
-                query_pipeline = boss_agent.create_vector_pipeline(user_message, data['projectId'])
+                query_pipeline = boss_agent.create_vector_pipeline(user_message, data['kbId'])
                 results = chat_service.query_snapshots(query_pipeline)
                 system_message = boss_agent.prepare_vector_response(results, system_prompt)
     else:
@@ -159,7 +157,7 @@ def handle_chat_message(data):
         chat_service = ChatService(db)
         boss_agent = BossAgent(model='gpt-4o', db=db, uid=uid)
         if create_vector_pipeline:
-            query_pipeline = boss_agent.create_vector_pipeline(user_message, data['projectId'])
+            query_pipeline = boss_agent.create_vector_pipeline(user_message, data['kbId'])
             results = chat_service.query_snapshots(query_pipeline)
             system_message = boss_agent.prepare_vector_response(results, system_prompt)
          
