@@ -66,7 +66,8 @@ class KnowledgeBaseService:
             'content': text,
             'category': category,
             'highlights': highlights,
-            'type': 'text'
+            'type': 'text',
+            'source': 'user'
         }
         if doc_id:
             result = self.db['kb_docs'].update_one({'_id': ObjectId(doc_id)}, {'$set': new_doc})
