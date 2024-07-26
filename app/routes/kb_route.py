@@ -183,12 +183,10 @@ def kb(subpath):
         data = request.get_json()
         kb_id = data.get('kbId')
         text = data.get('text')
-        category = data.get('category')
-        category = category.lower() if category else None
         highlights = data.get('highlights')
         doc_id = data.get('docId')
 
-        result = g.kb_services.save_text_doc(kb_id, text, highlights, doc_id, category)
+        result = g.kb_services.save_text_doc(kb_id, text, highlights, doc_id)
         
         if result == 'not_found':
             return jsonify({'message': 'Document not found'}), 404

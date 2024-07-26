@@ -60,11 +60,10 @@ class KnowledgeBaseService:
 
         return kb_details
 
-    def save_text_doc(self, kb_id, text, highlights=None, doc_id=None, category=None):
+    def save_text_doc(self, kb_id, text, highlights=None, doc_id=None):
         new_doc = {
             'kb_id': kb_id,
             'content': text,
-            'category': category,
             'highlights': highlights,
             'type': 'text',
             'source': 'user'
