@@ -194,15 +194,16 @@ class KnowledgeBaseService:
             print(f"Error in save_embed_pdf: {e}")
             return None 
     
-    def embed_text_doc(self, doc_id, kb_id, doc, highlights, category):
+    def embed_text_doc(self, doc_id, kb_id, content, highlights):
         # Check if the document has existing chunks and delete them
         existing_doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
         if existing_doc and 'chunks' in existing_doc:
             self.db['chunks'].delete_many({'_id': {'$in': existing_doc['chunks']}})
-        updated_highlights = [{**highlight, 'id': doc_id} for highlight in highlights]
-        chunks = self.document_manager.chunkify(chunks=updated_highlights, source='user')
+        
+        
+        chunks = self.document_manager.chunkify(source='user', content=content, highlights=highlights)
         chunks_with_embeddings = self.document_manager.embed_chunks(chunks)
-        content_summary = self.document_manager.summarize_content(doc)
+        content_summary = self.document_manager.summarize_content(content)
         
         chunk_ids = []
         for chunk in chunks_with_embeddings:
@@ -212,7 +213,6 @@ class KnowledgeBaseService:
                 **chunk,
                 'text': metadata_text,
                 'source': metadata_source,
-                'category': category,
                 'summary': content_summary,
                 'doc_id': doc_id,
                 'kb_id': kb_id

@@ -195,12 +195,12 @@ def kb(subpath):
     
     if request.method == "POST" and subpath == "embed":
         data = request.get_json()
-        doc = data.get('doc')
-        category = data.get('category').lower()
+        print(data)
+        content = data.get('content')
         highlights = data.get('highlights')
         doc_id = data.get('docId')
         kb_id = data.get('kbId')
 
-        embedded_chunks = g.kb_services.embed_text_doc(doc_id, kb_id, doc, highlights, category)
+        embedded_chunks = g.kb_services.embed_text_doc(doc_id, kb_id, content, highlights)
         return jsonify({'embedded_chunks': embedded_chunks}), 200
     
