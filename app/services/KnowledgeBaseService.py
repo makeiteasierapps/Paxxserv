@@ -71,8 +71,12 @@ class KnowledgeBaseService:
             'token_count': tokenizer.token_count(content),
             'source': source,
         }
-        if highlights:
-            kb_doc['highlights'] = highlights
+
+        if highlights is not None:
+            if len(highlights) > 0:
+                kb_doc['highlights'] = highlights
+            else:
+                kb_doc['highlights'] = []
 
         if doc_id:
             result = self.db['kb_docs'].update_one(
@@ -82,11 +86,13 @@ class KnowledgeBaseService:
             if result.matched_count > 0:
                 updated_doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
                 updated_doc['id'] = str(updated_doc.pop('_id'))
+                if 'chunks' in updated_doc:
+                    updated_doc['chunks'] = [str(chunk_id) for chunk_id in updated_doc['chunks']]
                 return updated_doc
             else:
                 return 'not_found'
         else:
-            kb_doc['chunks'] = []  # Only set empty chunks for new documents
+            kb_doc['chunks'] = []
             result = self.db['kb_docs'].insert_one(kb_doc)
             kb_doc['id'] = str(result.inserted_id)
             kb_doc.pop('_id', None)
@@ -118,7 +124,11 @@ class KnowledgeBaseService:
             inserted_chunk = self.db['chunks'].insert_one(chunk_to_insert)
             chunk_ids.append(inserted_chunk.inserted_id)
 
-        self.db['kb_docs'].update_one({'_id': ObjectId(doc_id)}, {'$set': {'chunks': chunk_ids, 'summary': content_summary}})
+        update_data = {'chunks': chunk_ids, 'summary': content_summary}
+        if highlights:
+            update_data['highlights'] = highlights
+
+        self.db['kb_docs'].update_one({'_id': ObjectId(doc_id)}, {'$set': update_data})
 
         updated_doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
         
