@@ -118,6 +118,6 @@ def kb(subpath):
         if result == 'not_found':
             return jsonify({'message': 'Document not found'}), 404
         else:
-            return jsonify({'message': 'Text doc saved', 'docId': result}), 200
+            return jsonify({'message': 'Text doc saved', 'kb_doc': result}), 200
     
     

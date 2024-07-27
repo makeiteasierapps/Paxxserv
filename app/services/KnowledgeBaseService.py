@@ -63,6 +63,7 @@ class KnowledgeBaseService:
         return chunks_with_embeddings
     
     def create_kb_doc_in_db(self, kb_id, content, source, doc_type, highlights=None, doc_id=None):
+        # Create a separate function that updates a kb_doc in the db
         kb_doc = {
             'type': doc_type,
             'content': content,
