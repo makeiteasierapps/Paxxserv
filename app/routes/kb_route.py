@@ -1,88 +1,13 @@
 from flask import Blueprint, Response, stream_with_context
-import requests
-import os
-import time
-import json
 from dotenv import load_dotenv
 from flask import jsonify, request, g
 from app.services.KnowledgeBaseService import KnowledgeBaseService
 from app.services.MongoDbClient import MongoDbClient
-from app.services.FirebaseStoreageService import FirebaseStorageService as firebase_storage
+from app.services.ExtractionService import ExtractionService
 
 load_dotenv()
 
 kb_bp = Blueprint('kb_bp', __name__)
-def extract_from_pdf(file, kb_id, uid, db, kb_services):
-    firecrawl_url = os.getenv('FIRECRAWL_URL')
-    headers = {'api': os.getenv('PAXXSERV_API')}
-
-    try:
-        pdf_url = firebase_storage.upload_file(file, uid, 'documents')
-        payload = {'url': pdf_url}
-        response = requests.post(f"{firecrawl_url}/scrape", json=payload, headers=headers, timeout=10)
-        response.raise_for_status()
-        response_data = response.json()
-        data = response_data['data']
-        content = kb_services.save_embed_pdf(data, kb_id)
-        return jsonify({'content': content}), 200
-    except Exception as e:
-        print(f"Error extracting text from PDF: {e}")
-        return jsonify({'message': 'Failed to extract text from PDF'}), 500
-
-def extract_from_url(normalized_url, kb_id, endpoint, kb_services):
-    firecrawl_url = os.getenv('FIRECRAWL_URL')
-    params = {
-        'url': normalized_url,
-        'pageOptions': {
-            'onlyMainContent': True,
-        },
-    }
-    headers = {'api': os.getenv('PAXXSERV_API')}
-    
-    try:
-        firecrawl_response = requests.post(f"{firecrawl_url}/{endpoint}", json=params, headers=headers, timeout=10)
-        if not firecrawl_response.ok:
-            yield f'{{"status": "error", "message": "Failed to scrape url"}}'
-            return
-
-        firecrawl_data = firecrawl_response.json()
-        yield f'{{"status": "started", "message": "Crawl job started"}}'
-
-        if 'jobId' in firecrawl_data:
-            content = poll_job_status(firecrawl_url, firecrawl_data['jobId'], headers)
-        else:
-            content = [{
-                'markdown': firecrawl_data['data']['markdown'],
-                'metadata': firecrawl_data['data']['metadata'],
-            }]
-        
-        url_docs = []
-        for url_content in content:
-            metadata = url_content.get('metadata')
-            markdown = url_content.get('markdown')
-            source_url = metadata.get('sourceURL')
-            new_doc = kb_services.create_kb_doc_in_db(kb_id, markdown, source_url, 'url')
-            url_docs.append(new_doc)
-            yield f'{{"status": "processing", "message": "Processing {source_url}"}}'
-
-        yield f'{{"status": "completed", "content": {json.dumps(url_docs)}}}'
-
-    except Exception as e:
-        print(f"Error crawling site: {e}")
-        yield f'{{"status": "error", "message": "Failed to crawl site: {str(e)}"}}'
-
-def poll_job_status(firecrawl_url, job_id, headers):
-    while True:
-        status_response = requests.get(f"{firecrawl_url}/crawl/status/{job_id}", headers=headers, timeout=10)
-        status_response.raise_for_status()
-        status_data = status_response.json()
-        
-        if status_data['status'] == 'completed':
-            return status_data['data']
-        elif status_data['status'] == 'failed':
-            raise Exception(f"Crawl job {job_id} failed")
-        
-        time.sleep(5)
 
 @kb_bp.before_request
 def initialize_services():
@@ -137,12 +62,13 @@ def kb(subpath):
         mongo_client = MongoDbClient(db_name)
         db = mongo_client.connect()
         kb_services = KnowledgeBaseService(db, uid)
+        extraction_service = ExtractionService(db, uid)
         
         if 'file' in request.files:
             file = request.files['file']
             kb_id = request.form.get('kbId')
             if file and file.filename.endswith('.pdf'):
-                return extract_from_pdf(file, kb_id, uid, db, kb_services)
+                return extraction_service.extract_from_pdf(file, kb_id, uid, kb_services)
             else:
                 return jsonify({'message': 'Invalid file type. Only PDF files are allowed.'}), 400
         elif request.is_json:
@@ -153,7 +79,7 @@ def kb(subpath):
             endpoint = data.get('endpoint', 'scrape')
             
             def generate():
-                yield from extract_from_url(normalized_url, kb_id, endpoint, kb_services)
+                yield from extraction_service.extract_from_url(normalized_url, kb_id, endpoint, kb_services)
 
             return Response(stream_with_context(generate()), content_type='text/event-stream')
         else:
