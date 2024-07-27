@@ -52,7 +52,7 @@ def kb(subpath):
         g.kb_services.delete_kb_by_id(kb_id)
         return jsonify({'message': 'KB deleted'}), 200
     
-    if subpath == "extract":
+    if subpath == "extract_pdf":
         firecrawl_url = os.getenv('FIRECRAWL_URL')
         file = request.files.get('file')
     
@@ -98,7 +98,7 @@ def kb(subpath):
         documents = g.kb_services.get_docs_by_kbId(kb_id)
         return jsonify({'documents': documents}), 200
     
-    if request.method == "POST" and subpath == "documents":
+    if request.method == "POST" and subpath == "extract":
         db_name = request.headers.get('dbName', 'paxxium')
         uid = request.headers.get('uid')
         mongo_client = MongoDbClient(db_name)
@@ -107,12 +107,12 @@ def kb(subpath):
         data = request.get_json()
         kb_id = data.get('kbId')
         url = data.get('url')
+        normalized_url = kb_services.normalize_url(url)
         endpoint = data.get('endpoint')
-        
         def generate():
             firecrawl_url = os.getenv('FIRECRAWL_URL')
             params = {
-                'url': url,
+                'url': normalized_url,
                 'pageOptions': {
                     'onlyMainContent': True,
                 },
@@ -158,7 +158,10 @@ def kb(subpath):
                     metadata = url_content.get('metadata')
                     markdown = url_content.get('markdown')
                     source_url = metadata.get('sourceURL')
-                    new_doc = kb_services.chunk_embed_url(markdown, source_url, kb_id)
+                    # Need to handle when we are crawling a site. I would probably want to add
+                    # a new field in the doc to hold the different pages within the site.
+                    # Then here I would need to update the doc with each page.
+                    new_doc = kb_services.create_kb_doc_in_db(kb_id, markdown, source_url, 'url')
                     url_docs.append(new_doc)
                     yield f'{{"status": "processing", "message": "Processing {source_url}"}}'
 
@@ -170,6 +173,17 @@ def kb(subpath):
 
         return Response(stream_with_context(generate()), content_type='text/event-stream')
     
+    if request.method == "POST" and subpath == "embed":
+        data = request.get_json()
+        content = data.get('content')
+        highlights = data.get('highlights')
+        doc_id = data.get('docId')
+        kb_id = data.get('kbId')
+        source = data.get('source')
+
+        embedded_chunks = g.kb_services.chunk_and_embed_content(content, source, kb_id, doc_id, highlights)
+        return jsonify({'embedded_chunks': embedded_chunks}), 200
+    
     if request.method == "DELETE" and subpath == "documents":
         data = request.get_json()
         doc_id = data.get('docId')
@@ -179,28 +193,19 @@ def kb(subpath):
         g.kb_services.delete_doc_by_id(doc_id)
         return jsonify({'message': 'Document deleted'}), 200
     
-    if request.method == "POST" and subpath == "save_text_doc":
+    if request.method == "POST" and subpath == "save_doc":
         data = request.get_json()
         kb_id = data.get('kbId')
         text = data.get('text')
         highlights = data.get('highlights')
         doc_id = data.get('docId')
+        source = data.get('source')
 
-        result = g.kb_services.save_text_doc(kb_id, text, highlights, doc_id)
+        result = g.kb_services.create_kb_doc_in_db(kb_id, text, source, 'url', highlights, doc_id)
         
         if result == 'not_found':
             return jsonify({'message': 'Document not found'}), 404
         else:
             return jsonify({'message': 'Text doc saved', 'docId': result}), 200
     
-    if request.method == "POST" and subpath == "embed":
-        data = request.get_json()
-        print(data)
-        content = data.get('content')
-        highlights = data.get('highlights')
-        doc_id = data.get('docId')
-        kb_id = data.get('kbId')
-
-        embedded_chunks = g.kb_services.embed_text_doc(doc_id, kb_id, content, highlights)
-        return jsonify({'embedded_chunks': embedded_chunks}), 200
     
