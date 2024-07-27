@@ -89,12 +89,13 @@ def kb(subpath):
         data = request.get_json()
         content = data.get('content')
         highlights = data.get('highlights')
-        doc_id = data.get('docId')
+        doc_id = data.get('id')
         kb_id = data.get('kbId')
         source = data.get('source')
 
-        embedded_chunks = g.kb_services.chunk_and_embed_content(content, source, kb_id, doc_id, highlights)
-        return jsonify({'embedded_chunks': embedded_chunks}), 200
+        kb_doc = g.kb_services.chunk_and_embed_content(content, source, kb_id, doc_id, highlights)
+        
+        return jsonify({'kb_doc': kb_doc}), 200
     
     if request.method == "DELETE" and subpath == "documents":
         data = request.get_json()
@@ -108,12 +109,12 @@ def kb(subpath):
     if request.method == "POST" and subpath == "save_doc":
         data = request.get_json()
         kb_id = data.get('kbId')
-        text = data.get('text')
+        content = data.get('content')
         highlights = data.get('highlights')
-        doc_id = data.get('docId')
+        doc_id = data.get('id')
         source = data.get('source')
 
-        result = g.kb_services.create_kb_doc_in_db(kb_id, text, source, 'url', highlights, doc_id)
+        result = g.kb_services.create_kb_doc_in_db(kb_id, content, source, 'url', highlights, doc_id)
         
         if result == 'not_found':
             return jsonify({'message': 'Document not found'}), 404
