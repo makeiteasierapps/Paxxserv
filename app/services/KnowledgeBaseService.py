@@ -17,7 +17,6 @@ class KnowledgeBaseService:
         self.db = db
         self.uid = uid
 
-# KNOWLEDGE BASE CRUD
     def get_kb_list(self, uid):
         kb_list_cursor = self.db['knowledge_bases'].find({'uid': uid})
         kb_list = [{'id': str(kb['_id']), **kb} for kb in kb_list_cursor]
@@ -60,45 +59,45 @@ class KnowledgeBaseService:
 
         return kb_details
 
-    def save_text_doc(self, kb_id, text, highlights=None, doc_id=None):
-        new_doc = {
-            'kb_id': kb_id,
-            'content': text,
-            'highlights': highlights,
-            'type': 'text',
-            'source': 'user'
-        }
-        if doc_id:
-            result = self.db['kb_docs'].update_one({'_id': ObjectId(doc_id)}, {'$set': new_doc})
-            if result.matched_count > 0:
-                return doc_id
-            else:
-                return 'not_found'
-        else:
-            result = self.db['kb_docs'].insert_one(new_doc)
-            new_doc_id = str(result.inserted_id)
-            return new_doc_id
-        
-# KNOWLEDGE BASE DOCUMENT MANAGEMENT
-    def chunk_embed_url(self, content, url, kb_id):
-        chunks = self.document_manager.chunkify(url, content)
+    def create_chunks_and_embeddings(self, source, content, highlights=None):
+        chunks = self.document_manager.chunkify(source=source, content=content, highlights=highlights)
         chunks_with_embeddings = self.document_manager.embed_chunks(chunks)
-        content_summary = self.document_manager.summarize_content(content)
-        normalized_url = self.normalize_url(url)
-
+        return chunks_with_embeddings
+    
+    def create_kb_doc_in_db(self, kb_id, content, source, doc_type, highlights=None, doc_id=None):
         kb_doc = {
-            'type': 'url',
+            'type': doc_type,
             'chunks': [],
             'content': content,
             'kb_id': kb_id,
             'token_count': tokenizer.token_count(content),
-            'source': normalized_url,
-            'summary': content_summary
+            'source': source,
         }
-        
-        inserted_doc = self.db['kb_docs'].insert_one(kb_doc)
-        doc_id = inserted_doc.inserted_id
+        if highlights:
+            kb_doc['highlights'] = highlights
 
+        if doc_id:
+            result = self.db['kb_docs'].update_one({'_id': ObjectId(doc_id)}, {'$set': kb_doc})
+            if result.matched_count > 0:
+                kb_doc['id'] = doc_id
+            else:
+                return 'not_found'
+        else:
+            result = self.db['kb_docs'].insert_one(kb_doc)
+            kb_doc['id'] = str(result.inserted_id)
+
+        kb_doc.pop('_id', None)
+        return kb_doc
+    
+    def chunk_and_embed_content(self, content, source, kb_id, doc_id, highlights=None):
+        # Check if the document has existing chunks and delete them
+        existing_doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
+        if existing_doc and 'chunks' in existing_doc:
+            self.db['chunks'].delete_many({'_id': {'$in': existing_doc['chunks']}})
+
+        chunks_with_embeddings = self.create_chunks_and_embeddings(source, content, highlights)
+        content_summary = self.document_manager.summarize_content(content)
+        
         chunk_ids = []
         for chunk in chunks_with_embeddings:
             metadata_text = chunk['metadata']['text']
@@ -108,16 +107,17 @@ class KnowledgeBaseService:
                 'text': metadata_text,
                 'source': metadata_source,
                 'doc_id': str(doc_id),
-                'kb_id': kb_id
+                'kb_id': kb_id,
+                'summary': content_summary
             }
             chunk_to_insert.pop('metadata', None)
             chunk_to_insert.pop('id', None)
             inserted_chunk = self.db['chunks'].insert_one(chunk_to_insert)
             chunk_ids.append(inserted_chunk.inserted_id)
 
-        self.db['kb_docs'].update_one({'_id': doc_id}, {'$set': {'chunks': chunk_ids}})
+        self.db['kb_docs'].update_one({'_id': ObjectId(doc_id)}, {'$set': {'chunks': chunk_ids, 'summary': content_summary}})
 
-        updated_doc = self.db['kb_docs'].find_one({'_id': doc_id})
+        updated_doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
         
         if '_id' in updated_doc:
             updated_doc['id'] = str(updated_doc['_id'])
@@ -144,29 +144,14 @@ class KnowledgeBaseService:
         try:
             content = data['content']
             source = data['metadata']['sourceURL']
-            filename = os.path.basename(source)
-            num_tokens = tokenizer.token_count(content)
-
-            # Chunkify the extracted text
-            chunks = self.document_manager.chunkify(filename, content)
-            # Embed the chunks
-            embeddings = self.document_manager.embed_chunks(chunks)
-
-            # Insert the kb_doc without the chunks to get the doc_id
-            kb_doc = {
-                'type': 'pdf',
-                'chunks': [],  # Temporarily leave this empty
-                'value': content,
-                'kb_id': kb_id,
-                'token_count': num_tokens,
-                'source': filename
-            }
-            inserted_doc = self.db['kb_docs'].insert_one(kb_doc)
-            doc_id = inserted_doc.inserted_id
+            cleaned_source = os.path.basename(source)
+            chunks_with_embeddings = self.create_chunks_and_embeddings(cleaned_source, content)
+            kb_doc = self.create_kb_doc_in_db(kb_id, content, cleaned_source, 'pdf')
+            doc_id = kb_doc['id']
 
             # Now, insert each chunk with the doc_id included
             chunk_ids = []
-            for chunk in embeddings:
+            for chunk in chunks_with_embeddings:
                 # Unpack the metadata to extract 'content' and 'source' directly
                 metadata_text = chunk['metadata']['text']
                 metadata_source = chunk['metadata']['source']
@@ -194,34 +179,3 @@ class KnowledgeBaseService:
             print(f"Error in save_embed_pdf: {e}")
             return None 
     
-    def embed_text_doc(self, doc_id, kb_id, content, highlights):
-        # Check if the document has existing chunks and delete them
-        existing_doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
-        if existing_doc and 'chunks' in existing_doc:
-            self.db['chunks'].delete_many({'_id': {'$in': existing_doc['chunks']}})
-        
-        
-        chunks = self.document_manager.chunkify(source='user', content=content, highlights=highlights)
-        chunks_with_embeddings = self.document_manager.embed_chunks(chunks)
-        content_summary = self.document_manager.summarize_content(content)
-        
-        chunk_ids = []
-        for chunk in chunks_with_embeddings:
-            metadata_text = chunk['metadata']['text']
-            metadata_source = chunk['metadata']['source']
-            chunk_to_insert = {
-                **chunk,
-                'text': metadata_text,
-                'source': metadata_source,
-                'summary': content_summary,
-                'doc_id': doc_id,
-                'kb_id': kb_id
-            }
-            chunk_to_insert.pop('metadata', None)
-            chunk_to_insert.pop('id', None)
-            inserted_chunk = self.db['chunks'].insert_one(chunk_to_insert)
-            chunk_ids.append(inserted_chunk.inserted_id)
-
-        self.db['kb_docs'].update_one({'_id': ObjectId(doc_id)}, {'$set': {'chunks': chunk_ids}})
-
-        return chunks_with_embeddings
