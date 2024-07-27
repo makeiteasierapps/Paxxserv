@@ -12,6 +12,77 @@ from app.services.FirebaseStoreageService import FirebaseStorageService as fireb
 load_dotenv()
 
 kb_bp = Blueprint('kb_bp', __name__)
+def extract_from_pdf(file, kb_id, uid, db, kb_services):
+    firecrawl_url = os.getenv('FIRECRAWL_URL')
+    headers = {'api': os.getenv('PAXXSERV_API')}
+
+    try:
+        pdf_url = firebase_storage.upload_file(file, uid, 'documents')
+        payload = {'url': pdf_url}
+        response = requests.post(f"{firecrawl_url}/scrape", json=payload, headers=headers, timeout=10)
+        response.raise_for_status()
+        response_data = response.json()
+        data = response_data['data']
+        content = kb_services.save_embed_pdf(data, kb_id)
+        return jsonify({'content': content}), 200
+    except Exception as e:
+        print(f"Error extracting text from PDF: {e}")
+        return jsonify({'message': 'Failed to extract text from PDF'}), 500
+
+def extract_from_url(normalized_url, kb_id, endpoint, kb_services):
+    firecrawl_url = os.getenv('FIRECRAWL_URL')
+    params = {
+        'url': normalized_url,
+        'pageOptions': {
+            'onlyMainContent': True,
+        },
+    }
+    headers = {'api': os.getenv('PAXXSERV_API')}
+    
+    try:
+        firecrawl_response = requests.post(f"{firecrawl_url}/{endpoint}", json=params, headers=headers, timeout=10)
+        if not firecrawl_response.ok:
+            yield f'{{"status": "error", "message": "Failed to scrape url"}}'
+            return
+
+        firecrawl_data = firecrawl_response.json()
+        yield f'{{"status": "started", "message": "Crawl job started"}}'
+
+        if 'jobId' in firecrawl_data:
+            content = poll_job_status(firecrawl_url, firecrawl_data['jobId'], headers)
+        else:
+            content = [{
+                'markdown': firecrawl_data['data']['markdown'],
+                'metadata': firecrawl_data['data']['metadata'],
+            }]
+        
+        url_docs = []
+        for url_content in content:
+            metadata = url_content.get('metadata')
+            markdown = url_content.get('markdown')
+            source_url = metadata.get('sourceURL')
+            new_doc = kb_services.create_kb_doc_in_db(kb_id, markdown, source_url, 'url')
+            url_docs.append(new_doc)
+            yield f'{{"status": "processing", "message": "Processing {source_url}"}}'
+
+        yield f'{{"status": "completed", "content": {json.dumps(url_docs)}}}'
+
+    except Exception as e:
+        print(f"Error crawling site: {e}")
+        yield f'{{"status": "error", "message": "Failed to crawl site: {str(e)}"}}'
+
+def poll_job_status(firecrawl_url, job_id, headers):
+    while True:
+        status_response = requests.get(f"{firecrawl_url}/crawl/status/{job_id}", headers=headers, timeout=10)
+        status_response.raise_for_status()
+        status_data = status_response.json()
+        
+        if status_data['status'] == 'completed':
+            return status_data['data']
+        elif status_data['status'] == 'failed':
+            raise Exception(f"Crawl job {job_id} failed")
+        
+        time.sleep(5)
 
 @kb_bp.before_request
 def initialize_services():
@@ -52,44 +123,6 @@ def kb(subpath):
         g.kb_services.delete_kb_by_id(kb_id)
         return jsonify({'message': 'KB deleted'}), 200
     
-    if subpath == "extract_pdf":
-        firecrawl_url = os.getenv('FIRECRAWL_URL')
-        file = request.files.get('file')
-    
-        if not file:
-            return jsonify({'message': 'No file part'}), 400
-
-        # Check if the file is a PDF
-        if not file.filename.endswith('.pdf'):
-            return jsonify({'message': 'File is not a PDF'}), 400
-        
-        kb_id = request.form.get('kbId')
-        headers = {'api': os.getenv('PAXXSERV_API')}
-
-        try:
-            pdf_url = firebase_storage.upload_file(file, g.uid, 'documents')
-        except Exception as e:
-            print(f"Error uploading pdf to storage: {e}")
-            return jsonify({'message': 'Failed to upload pdf to storage'}), 500
-        
-        try:
-            payload = {'url': pdf_url}
-            response = requests.request("POST", f"{firecrawl_url}/scrape", json=payload, headers=headers, timeout=10)
-            response.raise_for_status()
-            reponse_data = response.json()
-            data = reponse_data['data']
-            content = g.kb_services.save_embed_pdf(data, kb_id)
-            return jsonify({'content': content}), 200
-        except requests.exceptions.HTTPError as http_err:
-            print(f"HTTP error occurred: {http_err}") 
-            return jsonify({'message': 'Failed to extract text'}), 500
-        except ValueError as json_err:
-            print(f"JSON decode error: {json_err}, Response: {response.text}")  
-            return jsonify({'message': 'Invalid response from server'}), 500
-        except Exception as e:
-            print(f"Error extracting text from PDF: {e}")
-            return jsonify({'message': 'Failed to extract text'}), 500
-
     if request.method == "GET" and subpath == "documents":
         kb_id = request.headers.get('KB-ID')
         if not kb_id:
@@ -104,74 +137,27 @@ def kb(subpath):
         mongo_client = MongoDbClient(db_name)
         db = mongo_client.connect()
         kb_services = KnowledgeBaseService(db, uid)
-        data = request.get_json()
-        kb_id = data.get('kbId')
-        url = data.get('url')
-        normalized_url = kb_services.normalize_url(url)
-        endpoint = data.get('endpoint')
-        def generate():
-            firecrawl_url = os.getenv('FIRECRAWL_URL')
-            params = {
-                'url': normalized_url,
-                'pageOptions': {
-                    'onlyMainContent': True,
-                },
-            }
+        
+        if 'file' in request.files:
+            file = request.files['file']
+            kb_id = request.form.get('kbId')
+            if file and file.filename.endswith('.pdf'):
+                return extract_from_pdf(file, kb_id, uid, db, kb_services)
+            else:
+                return jsonify({'message': 'Invalid file type. Only PDF files are allowed.'}), 400
+        elif request.is_json:
+            data = request.get_json()
+            kb_id = data.get('kbId')
+            url = data.get('url')
+            normalized_url = kb_services.normalize_url(url)
+            endpoint = data.get('endpoint', 'scrape')
+            
+            def generate():
+                yield from extract_from_url(normalized_url, kb_id, endpoint, kb_services)
 
-            headers = {'api': os.getenv('PAXXSERV_API')}
-            try:
-                firecrawl_response = requests.post(f"{firecrawl_url}/{endpoint}", json=params, headers=headers, timeout=10)
-                if not firecrawl_response.ok:
-                    yield f'{{"status": "error", "message": "Failed to scrape url"}}'
-                    return
-
-                firecrawl_data = firecrawl_response.json()
-                yield f'{{"status": "started", "message": "Crawl job started"}}'
-
-                if 'jobId' in firecrawl_data:
-                    job_id = firecrawl_data['jobId']
-                    
-                    while True:
-                        status_response = requests.get(f"{firecrawl_url}/crawl/status/{job_id}", headers=headers, timeout=10)
-                        if not status_response.ok:
-                            yield f'{{"status": "error", "message": "Failed to check {job_id} status"}}'
-                            return
-                        
-                        status_data = status_response.json()
-                        if status_data['status'] == 'completed':
-                            content = status_data['data']
-                            break
-                        elif status_data['status'] == 'failed':
-                            yield f'{{"status": "error", "message": "Crawl job {job_id} failed"}}'
-                            return
-                        
-                        yield f'{{"status": "in_progress", "message": "Crawling in progress..."}}'
-                        time.sleep(5)
-                else:
-                    content = [{
-                        'markdown': firecrawl_data['data']['markdown'],
-                        'metadata': firecrawl_data['data']['metadata'],
-                    }]
-                
-                url_docs = []
-                for url_content in content:
-                    metadata = url_content.get('metadata')
-                    markdown = url_content.get('markdown')
-                    source_url = metadata.get('sourceURL')
-                    # Need to handle when we are crawling a site. I would probably want to add
-                    # a new field in the doc to hold the different pages within the site.
-                    # Then here I would need to update the doc with each page.
-                    new_doc = kb_services.create_kb_doc_in_db(kb_id, markdown, source_url, 'url')
-                    url_docs.append(new_doc)
-                    yield f'{{"status": "processing", "message": "Processing {source_url}"}}'
-
-                yield f'{{"status": "completed", "content": {json.dumps(url_docs)}}}'
-
-            except Exception as e:
-                print(f"Error crawling site: {e}")
-                yield f'{{"status": "error", "message": "Failed to crawl site: {str(e)}"}}'
-
-        return Response(stream_with_context(generate()), content_type='text/event-stream')
+            return Response(stream_with_context(generate()), content_type='text/event-stream')
+        else:
+            return jsonify({'message': 'No file or URL provided'}), 400
     
     if request.method == "POST" and subpath == "embed":
         data = request.get_json()
