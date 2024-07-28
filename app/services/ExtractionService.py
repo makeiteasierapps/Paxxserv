@@ -3,8 +3,11 @@ import time
 import json
 import requests
 from flask import jsonify
+from canopy.tokenizer import Tokenizer
 from app.services.FirebaseStoreageService import FirebaseStorageService as firebase_storage
 
+Tokenizer.initialize()
+tokenizer = Tokenizer()
 class ExtractionService:
     def __init__(self, db, uid):
         self.db = db
@@ -23,7 +26,7 @@ class ExtractionService:
             content = response_data['data']['content']
             source = response_data['data']['metadata']['sourceURL']
             cleaned_source = os.path.basename(source)
-            kb_doc = kb_services.create_kb_doc_in_db(kb_id, content, cleaned_source, 'pdf')
+            kb_doc = kb_services.create_kb_doc_in_db(kb_id, cleaned_source, 'pdf', content=content)
             return jsonify(kb_doc), 200
         except Exception as e:
             print(f"Error extracting text from PDF: {e}")
@@ -61,11 +64,16 @@ class ExtractionService:
                 metadata = url_content.get('metadata')
                 markdown = url_content.get('markdown')
                 source_url = metadata.get('sourceURL')
-                new_doc = kb_services.create_kb_doc_in_db(kb_id, markdown, source_url, 'url')
-                url_docs.append(new_doc)
+                url_docs.append({
+                    'content': markdown,
+                    'source': source_url,
+                    'token_count': tokenizer.token_count(markdown)
+                })
                 yield f'{{"status": "processing", "message": "Processing {source_url}"}}'
 
-            yield f'{{"status": "completed", "content": {json.dumps(url_docs)}}}'
+            kb_doc = kb_services.create_kb_doc_in_db(kb_id, normalized_url, 'url', urls=url_docs)
+            
+            yield f'{{"status": "completed", "content": {json.dumps(kb_doc, ensure_ascii=False)}}}'
 
         except Exception as e:
             print(f"Error crawling site: {e}")
