@@ -62,16 +62,23 @@ class KnowledgeBaseService:
         chunks_with_embeddings = self.document_manager.embed_chunks(chunks)
         return chunks_with_embeddings
     
-    def create_kb_doc_in_db(self, kb_id, content, source, doc_type, highlights=None, doc_id=None):
-        # Create a separate function that updates a kb_doc in the db
+    def create_kb_doc_in_db(self, kb_id, source, doc_type, highlights=None, doc_id=None, urls=None, content=None):
         kb_doc = {
             'type': doc_type,
-            'content': content,
             'kb_id': kb_id,
-            'token_count': tokenizer.token_count(content),
             'source': source,
         }
-
+        
+        if content is not None:
+            kb_doc['content'] = content
+            kb_doc['token_count'] = tokenizer.token_count(content)
+        elif urls:
+            kb_doc['urls'] = urls
+            kb_doc['token_count'] = sum(url_doc['token_count'] for url_doc in urls)
+        else:
+            kb_doc['content'] = ''
+            kb_doc['token_count'] = 0
+        
         if highlights is not None:
             if len(highlights) > 0:
                 kb_doc['highlights'] = highlights
