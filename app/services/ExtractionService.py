@@ -66,8 +66,8 @@ class ExtractionService:
                 source_url = metadata.get('sourceURL')
                 url_docs.append({
                     'content': markdown,
-                    'source': source_url,
-                    'token_count': tokenizer.token_count(markdown)
+                    'token_count': tokenizer.token_count(markdown),
+                    'metadata': metadata
                 })
                 yield f'{{"status": "processing", "message": "Processing {source_url}"}}'
 

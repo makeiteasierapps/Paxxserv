@@ -109,12 +109,16 @@ def kb(subpath):
     if request.method == "POST" and subpath == "save_doc":
         data = request.get_json()
         kb_id = data.get('kbId')
+        urls = data.get('urls')
         content = data.get('content')
         highlights = data.get('highlights')
         doc_id = data.get('id')
         source = data.get('source')
 
-        result = g.kb_services.create_kb_doc_in_db(kb_id, content, source, 'url', highlights, doc_id)
+        if content:
+            result = g.kb_services.create_kb_doc_in_db(kb_id, source, 'pdf', highlights, doc_id, content=content)
+        else:
+            result = g.kb_services.create_kb_doc_in_db(kb_id, source, 'url', highlights, doc_id, urls=urls)
         
         if result == 'not_found':
             return jsonify({'message': 'Document not found'}), 404
