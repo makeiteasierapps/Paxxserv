@@ -88,13 +88,15 @@ def kb(subpath):
     if request.method == "POST" and subpath == "embed":
         data = request.get_json()
         content = data.get('content')
+        urls = data.get('urls')
         highlights = data.get('highlights')
         doc_id = data.get('id')
         kb_id = data.get('kbId')
         source = data.get('source')
-
-        kb_doc = g.kb_services.chunk_and_embed_content(content, source, kb_id, doc_id, highlights)
-        
+        if content:
+            kb_doc = g.kb_services.chunk_and_embed_content(source, kb_id, doc_id, highlights, content=content)
+        else:
+            kb_doc = g.kb_services.chunk_and_embed_content(source, kb_id, doc_id, highlights, urls=urls)
         return jsonify({'kb_doc': kb_doc}), 200
     
     if request.method == "DELETE" and subpath == "documents":
