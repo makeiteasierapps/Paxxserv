@@ -105,15 +105,56 @@ class KnowledgeBaseService:
             kb_doc.pop('_id', None)
             return kb_doc
     
-    def chunk_and_embed_content(self, content, source, kb_id, doc_id, highlights=None):
+    def chunk_and_embed_content(self, source, kb_id, doc_id, highlights=None, content=None, urls=None):
         # Check if the document has existing chunks and delete them
         existing_doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
         if existing_doc and 'chunks' in existing_doc:
             self.db['chunks'].delete_many({'_id': {'$in': existing_doc['chunks']}})
 
-        chunks_with_embeddings = self.create_chunks_and_embeddings(source, content, highlights)
-        content_summary = self.document_manager.summarize_content(content)
+        chunk_ids = []
+        content_summaries = []
+        processed_urls = []
+
+        if content:
+            chunks_with_embeddings = self.create_chunks_and_embeddings(source, content, highlights)
+            content_summary = self.document_manager.summarize_content(content)
+            chunk_ids.extend(self._insert_chunks(chunks_with_embeddings, doc_id, kb_id, content_summary))
+            content_summaries.append(content_summary)
+        elif urls:
+            for url in urls:
+                chunks_with_embeddings = self.create_chunks_and_embeddings(url['metadata']['sourceURL'], url['content'], highlights)
+                content_summary = self.document_manager.summarize_content(url['content'])
+                url_chunk_ids = self._insert_chunks(chunks_with_embeddings, doc_id, kb_id, content_summary)
+                chunk_ids.extend(url_chunk_ids)
+                content_summaries.append(content_summary)
+                processed_urls.append({
+                    **url,
+                    'chunk_ids': [str(chunk_id) for chunk_id in url_chunk_ids],
+                    'summary': content_summary
+                })
+
+        update_data = {'chunks': chunk_ids}
+        if content:
+            update_data['summary'] = content_summaries[0]
+        else:
+            update_data['urls'] = processed_urls
+
+        if highlights:
+            update_data['highlights'] = highlights
+
+        self.db['kb_docs'].update_one({'_id': ObjectId(doc_id)}, {'$set': update_data})
+
+        updated_doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
         
+        if '_id' in updated_doc:
+            updated_doc['id'] = str(updated_doc['_id'])
+            updated_doc.pop('_id', None)
+        if 'chunks' in updated_doc:
+            updated_doc['chunks'] = [str(chunk_id) for chunk_id in updated_doc['chunks']]
+        
+        return updated_doc
+
+    def _insert_chunks(self, chunks_with_embeddings, doc_id, kb_id, content_summary):
         chunk_ids = []
         for chunk in chunks_with_embeddings:
             metadata_text = chunk['metadata']['text']
@@ -130,23 +171,8 @@ class KnowledgeBaseService:
             chunk_to_insert.pop('id', None)
             inserted_chunk = self.db['chunks'].insert_one(chunk_to_insert)
             chunk_ids.append(inserted_chunk.inserted_id)
-
-        update_data = {'chunks': chunk_ids, 'summary': content_summary}
-        if highlights:
-            update_data['highlights'] = highlights
-
-        self.db['kb_docs'].update_one({'_id': ObjectId(doc_id)}, {'$set': update_data})
-
-        updated_doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
-        
-        if '_id' in updated_doc:
-            updated_doc['id'] = str(updated_doc['_id'])
-            updated_doc.pop('_id', None)
-        if 'chunks' in updated_doc:
-            updated_doc['chunks'] = [str(chunk_id) for chunk_id in updated_doc['chunks']]
-        
-        return updated_doc
-        
+        return chunk_ids
+    
     def normalize_url(self, url):
         # Example normalization process
         url = url.lower()
