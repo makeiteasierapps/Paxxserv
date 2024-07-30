@@ -17,6 +17,8 @@ class OpenAiClientBase:
 
     def _get_user_api_key(self):
         user_doc = self.db['users'].find_one({'_id': self.uid}, {'open_key': 1})
+        if not user_doc or 'open_key' not in user_doc:
+            raise ValueError(f"No API key found for user with ID: {self.uid}")
         return user_doc['open_key']
     
     def _load_openai_key(self):
