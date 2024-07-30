@@ -18,6 +18,7 @@ def initialize_services():
         return "", 204
     db_name = request.headers.get('dbName', 'paxxium')
     g.uid = request.headers.get('uid')
+    print(g.uid)
     g.mongo_client = MongoDbClient(db_name)
     db = g.mongo_client.connect()
     g.profile_service = ProfileService(db, g.uid)
