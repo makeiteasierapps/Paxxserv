@@ -1,3 +1,4 @@
+import re
 import tiktoken
 from flask_socketio import emit
 from app.agents.OpenAiClientBase import OpenAiClientBase
@@ -21,7 +22,7 @@ class BossAgent(OpenAiClientBase):
     
     def process_streaming_response(self, chat_id, response):
         response_chunks = []
-        stream_state = {'inside_code_block': False, 'language': None, 'ignore_next_token': False}
+        stream_state = {'inside_code_block': False, 'language': None, 'ignore_next_token': False, 'buffer': ''}
 
         for chunk in response:
             response_chunk = chunk.choices[0].delta.content
@@ -31,29 +32,36 @@ class BossAgent(OpenAiClientBase):
         return response_chunks
 
     def process_response_chunk(self, chat_id, response_chunk, response_chunks, stream_state):
-        if stream_state['ignore_next_token']:
+
+        if stream_state.get('ignore_next_token', False):
             stream_state['ignore_next_token'] = False
-            stream_state['language'] = None
             return
 
         if response_chunk == '```':
-            stream_state['inside_code_block'] = True
-        elif response_chunk == '``' and stream_state['language'] != 'markdown':
+            stream_state['inside_code_block'] = not stream_state['inside_code_block']
+            if stream_state['inside_code_block']:
+                stream_state['buffer'] = ''
+            else:
+                stream_state['language'] = None
+            return
+
+        if stream_state['inside_code_block'] and not stream_state['language']:
+            stream_state['buffer'] += response_chunk
+            if '\n' in stream_state['buffer']:
+                language, code = stream_state['buffer'].split('\n', 1)
+                stream_state['language'] = language.strip()
+                if code:
+                    self.handle_chunk_content(chat_id, code, response_chunks, stream_state)
+                stream_state['buffer'] = ''
+            return
+
+        if response_chunk == '``':
             stream_state['inside_code_block'] = False
+            stream_state['language'] = None
             stream_state['ignore_next_token'] = True
-        elif stream_state['inside_code_block'] and stream_state['language'] is None:
-            stream_state['language'] = response_chunk.strip()
         else:
             self.handle_chunk_content(chat_id, response_chunk, response_chunks, stream_state)
-    
     def handle_chunk_content(self, chat_id, response_chunk, response_chunks, stream_state):
-        if stream_state['inside_code_block'] and stream_state['language'] is None:
-            stream_state['language'] = response_chunk.strip()
-            if stream_state['language'] == 'markdown':
-                stream_state['inside_code_block'] = False
-                stream_state['language'] = None
-                return
-
         formatted_message = self.format_stream_message(response_chunk, stream_state['inside_code_block'], stream_state['language'])
         formatted_message['room'] = chat_id
         response_chunks.append(formatted_message)

@@ -1,8 +1,5 @@
 import argparse
-from app import create_app
-from hypercorn.config import Config
-from hypercorn.asyncio import serve
-import asyncio
+from app import create_app, socketio
 
 app = create_app()
 
@@ -11,15 +8,8 @@ def main():
     parser.add_argument('--mode', choices=['dev', 'prod'], default='prod', help='Run mode: dev or prod')
     args = parser.parse_args()
 
-    config = Config()
-    config.bind = ["0.0.0.0:3033"]
-
-    if args.mode == 'dev':
-        config.use_reloader = True
-    else:
-        config.use_reloader = False
-
-    asyncio.run(serve(app, config))
+    debug = args.mode == 'dev'
+    socketio.run(app, host='0.0.0.0', port=3033, debug=debug)
 
 if __name__ == '__main__':
     main()

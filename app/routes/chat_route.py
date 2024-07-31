@@ -26,16 +26,6 @@ def initialize_services():
     db = g.mongo_client.connect()
     g.chat_service = ChatService(db)
         
-@socketio.on('connect')
-def handle_connect():
-    print(f"Client connected: {request.sid}")
-
-@chat_bp.route('/socket.io/', methods=['OPTIONS'])
-def handle_socketio_options():
-    response = Response()
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-    return response
 
 @chat_bp.route('/chat', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'])
 @chat_bp.route('/chat/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'])
@@ -104,6 +94,11 @@ def handle_messages(subpath):
         return (json.dumps({'fileUrl': file_url}), 200)
     
 # SOCKET EVENTS
+
+@socketio.on('connect')
+def handle_connect():
+    print(f"Client connected: {request.sid}")
+
 @socketio.on('join_room')
 def handle_join_room(data):
     room = data['chatId']
