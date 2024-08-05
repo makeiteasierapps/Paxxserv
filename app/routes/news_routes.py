@@ -47,27 +47,27 @@ def news():
     if request.method == 'PUT':
         data = request.get_json()
         doc_id = data['articleId']
-        g.news_service.mark_is_read(doc_id)
-        return ({"message": "Updated successfully"}, 200) 
-    
+        is_read = data['isRead']
+        g.news_service.mark_is_read(doc_id, is_read)
+        return ({"message": "Updated successfully"}, 200)
+
     if request.method == 'DELETE':
         data = request.get_json()
         doc_id = data['articleId']
         g.news_service.delete_news_article(doc_id)
         return ({"message": "Deleted successfully"}, 200)
-    
+
 @news_bp.route('/ai-fetch-news', methods=['GET', 'OPTIONS'])
 def ai_fetch_news():
     if request.method == 'GET':
         topics = g.news_service.get_user_topics()
         if not topics:
             return ({"message": "No topics found, please answer some questions in the profile section and analyze"}, 404)
-        
+
         random_topic = random.choice(topics)
         urls = g.news_service.get_article_urls(random_topic)
-        
-        news_data = g.news_service.summarize_articles(urls)
-        g.news_service.upload_news_data(news_data)
-        return (news_data, 200)
+        news_data_list = g.news_service.summarize_articles(urls)
+        g.news_service.upload_news_data(news_data_list)
+        return (news_data_list, 200)
     
     
