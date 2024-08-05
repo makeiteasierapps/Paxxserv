@@ -2,7 +2,9 @@ import os
 from dotenv import load_dotenv
 import requests
 from newspaper import Article
-import uuid
+import http.client
+import json
+from bson.objectid import ObjectId
 from ..agents.OpenAiClientBase import OpenAiClientBase
 
 load_dotenv()
@@ -10,8 +12,6 @@ load_dotenv()
 class NewsService(OpenAiClientBase):
     def __init__(self, db, uid):
         super().__init__(db, uid)
-        self.uid = uid
-        self.db = db
         self.apikey = os.getenv('GNEWS_API_KEY')
 
     def pass_to_news_agent(self, article_to_summarize, model='gpt-4o-mini'):
@@ -26,29 +26,20 @@ class NewsService(OpenAiClientBase):
         )
         return response.choices[0].message.content
     
-    # Fetch article URLs based on query
     def get_article_urls(self, query):
-        # Construct API URL
-        url = f"https://gnews.io/api/v4/search?q={query}&lang=en&country=us&max=3&apikey={self.apikey}"
-
-        try:
-            articles = requests.get(url, timeout=10)
-        except Exception as exception:
-            print(f"Error occurred while fetching articles: {exception}")
-            return
-
-        if articles.status_code != 200:
-            print(f"Request failed with status code: {articles.status_code}")
-            return
-
-        data = articles.json()
-        articles = data["articles"]
-        article_urls = [article_data["url"] for article_data in articles]
+        conn = http.client.HTTPSConnection("google.serper.dev")
+        payload = json.dumps({"q": query, "num": 3})
+        headers = {
+            'X-API-KEY': os.getenv('SERPER_API_KEY'),
+            'Content-Type': 'application/json'
+        }
+        conn.request("POST", "/search", payload, headers)
+        res = conn.getresponse()
+        data = json.loads(res.read().decode('utf-8'))
         
+        urls = [item['link'] for item in data.get('organic', [])]
+        return urls
 
-        return article_urls
-
-    # Summarize articles
     def summarize_articles(self, article_urls):
         summarized_articles = []
 
@@ -92,15 +83,14 @@ class NewsService(OpenAiClientBase):
             
             summary = self.pass_to_news_agent(template)
 
-            unique_id = str(uuid.uuid4())
-
             # Create article dictionary
             article_dict = {
-                'id': unique_id,
                 'title': article_title,
                 'summary': summary,
                 'image': article.top_image,
-                'url': article_url
+                'url': article_url,
+                'is_read': False,
+                'uid': self.uid
             }
 
             summarized_articles.append(article_dict)
@@ -110,14 +100,11 @@ class NewsService(OpenAiClientBase):
     def upload_news_data(self, news_data_list):
         for news_data in news_data_list:
             url = news_data['url']
-            
-            news_data_with_uid = news_data.copy()
-            news_data_with_uid['uid'] = self.uid
-
             existing_article = self.db['newsArticles'].find_one({'url': url, 'uid': self.uid})
 
             if existing_article is None:
-                self.db['newsArticles'].insert_one(news_data_with_uid)
+                self.db['newsArticles'].insert_one(news_data)
+                news_data['_id'] = str(news_data['_id'])
                 print(f"Added URL '{url}'.")
             else:
                 print(f"URL '{url}' already exists, skipping...")
@@ -134,12 +121,11 @@ class NewsService(OpenAiClientBase):
             return user_document.get('topics', [])
         return []
 
-    def mark_is_read(self, doc_id):
+    def mark_is_read(self, doc_id, is_read):
         try:
-            # Query for the document with the matching 'id' and 'uid' fields
             result = self.db['newsArticles'].update_one(
-                {'id': doc_id, 'uid': self.uid},  # Query to find the document
-                {'$set': {'is_read': True}}  # Update operation
+                {'_id': ObjectId(doc_id)},  
+                {'$set': {'is_read': is_read}}  
             )
 
             if result.matched_count == 0:
@@ -151,7 +137,7 @@ class NewsService(OpenAiClientBase):
 
     def delete_news_article(self, doc_id):
         try:
-            result = self.db['newsArticles'].delete_one({'id': doc_id, 'uid': self.uid})
+            result = self.db['newsArticles'].delete_one({'_id': ObjectId(doc_id)})
 
             if result.deleted_count == 0:
                 return "No matching document found"
