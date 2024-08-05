@@ -11,6 +11,7 @@ nginx config file:
 
 Systemd service file:
 /etc/systemd/system/paxxserv.service
+/etc/systemd/system/firecrawl.service
 
 # Check Hypercorn logs
 sudo journalctl -u paxxserv.service -f
