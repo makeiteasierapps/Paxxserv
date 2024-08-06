@@ -61,6 +61,7 @@ class BossAgent(OpenAiClientBase):
             stream_state['ignore_next_token'] = True
         else:
             self.handle_chunk_content(chat_id, response_chunk, response_chunks, stream_state)
+    
     def handle_chunk_content(self, chat_id, response_chunk, response_chunks, stream_state):
         formatted_message = self.format_stream_message(response_chunk, stream_state['inside_code_block'], stream_state['language'])
         formatted_message['room'] = chat_id
