@@ -21,7 +21,7 @@ def handle_join_room(data):
 def handle_chat_message(data):
     uid = data.get('userId')
     save_to_db = data.get('saveToDb', False)
-    use_kb = data.get('useKb', False)
+    kb_id = data.get('kbId', None)
     chat_settings = data.get('chatSettings', None)
     db_name = data.get('dbName')
     system_prompt = None
@@ -40,6 +40,7 @@ def handle_chat_message(data):
         profile_service = ProfileService(db)
 
         chat_service.create_message(chat_id, 'user', user_message)
+        
         def save_agent_message(chat_id, message):
             chat_service.create_message(chat_id, 'agent', message)
         
@@ -54,17 +55,18 @@ def handle_chat_message(data):
             boss_agent = BossAgent(model=model, chat_constants=chat_constants, system_prompt=system_prompt, user_analysis=user_analysis, db=db, uid=uid)
         else: 
             boss_agent = BossAgent(model='gpt-4o', db=db, uid=uid)  
-        if use_kb:
-                query_pipeline = boss_agent.create_vector_pipeline(user_message, data['kbId'])
-                results = chat_service.query_snapshots(query_pipeline)
-                system_message = boss_agent.prepare_vector_response(results, system_prompt)
+        
+        if kb_id:
+            query_pipeline = boss_agent.create_vector_pipeline(user_message, kb_id)
+            results = chat_service.query_snapshots(query_pipeline)
+            system_message = boss_agent.prepare_vector_response(results, system_prompt)
     else:
         mongo_client = MongoDbClient(db_name)
         db = mongo_client.connect()
         chat_service = ChatService(db)
         boss_agent = BossAgent(model='gpt-4o', db=db, uid=uid)
-        if use_kb:
-            query_pipeline = boss_agent.create_vector_pipeline(user_message, data['kbId'])
+        if kb_id:
+            query_pipeline = boss_agent.create_vector_pipeline(user_message, kb_id)
             results = chat_service.query_snapshots(query_pipeline)
             system_message = boss_agent.prepare_vector_response(results, system_prompt)
          
