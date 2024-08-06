@@ -35,4 +35,7 @@ def create_app():
     
     for blueprint in blueprints:
         app.register_blueprint(blueprint)
+
+    from .routes import socket
+    
     return app
