@@ -173,15 +173,4 @@ class KnowledgeBaseService:
             chunk_ids.append(inserted_chunk.inserted_id)
         return chunk_ids
     
-    def normalize_url(self, url):
-        # Example normalization process
-        url = url.lower()
-        if url.startswith("http://"):
-            url = url[7:]
-        elif url.startswith("https://"):
-            url = url[8:]
-        url = url.split('#')[0]  # Remove fragment
-        url = url.split('?')[0]  # Remove query
-        if url.endswith('/'):
-            url = url[:-1]
-        return url
+    
