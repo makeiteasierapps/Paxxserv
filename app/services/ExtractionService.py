@@ -35,7 +35,8 @@ class ExtractionService:
             print(f"Error extracting text from PDF: {e}")
             return jsonify({'message': 'Failed to extract text from PDF'}), 500
 
-    def extract_from_url(self, normalized_url, kb_id, endpoint, kb_services):
+    def extract_from_url(self, url, kb_id, endpoint, kb_services):
+        normalized_url = self.normalize_url(url)
         if os.getenv('LOCAL_DEV') == 'true':
             firecrawl_url = os.getenv('FIRECRAWL_DEV_URL')
         else:
@@ -98,3 +99,15 @@ class ExtractionService:
                 raise Exception(f"Crawl job {job_id} failed")
             
             time.sleep(5)
+
+    def normalize_url(self, url):
+        url = url.lower()
+        if url.startswith("http://"):
+            url = url[7:]
+        elif url.startswith("https://"):
+            url = url[8:]
+        url = url.split('#')[0]
+        url = url.split('?')[0]  
+        if url.endswith('/'):
+            url = url[:-1]
+        return url

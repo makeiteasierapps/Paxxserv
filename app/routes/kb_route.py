@@ -75,11 +75,10 @@ def kb(subpath):
             data = request.get_json()
             kb_id = data.get('kbId')
             url = data.get('url')
-            normalized_url = kb_services.normalize_url(url)
             endpoint = data.get('endpoint', 'scrape')
             
             def generate():
-                yield from extraction_service.extract_from_url(normalized_url, kb_id, endpoint, kb_services)
+                yield from extraction_service.extract_from_url(url, kb_id, endpoint, kb_services)
 
             return Response(stream_with_context(generate()), content_type='text/event-stream')
         else:
