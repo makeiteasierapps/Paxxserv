@@ -7,6 +7,7 @@ from app.services.ProfileService import ProfileService
 from app.agents.BossAgent import BossAgent
 from app.services.MongoDbClient import MongoDbClient
 from app.services.ExtractionService import ExtractionService
+from app.services.KnowledgeBaseService import KnowledgeBaseService
 
 
 @socketio.on('connect')
@@ -41,6 +42,8 @@ def handle_chat_message(data):
         db = mongo_client.connect()
         chat_service = ChatService(db)
         profile_service = ProfileService(db)
+        kb_service = KnowledgeBaseService(db, uid)
+        extraction_service = ExtractionService(db, uid)
 
         chat_service.create_message(chat_id, 'user', user_message)
         
@@ -64,21 +67,19 @@ def handle_chat_message(data):
             results = chat_service.query_snapshots(query_pipeline)
             system_message = boss_agent.prepare_vector_response(results, system_prompt)
         if len(urls) > 0:
-            extraction_service = ExtractionService(db, uid)
             extracted_docs = []
             for url in urls:
-                for result in extraction_service.extract_from_url(url, kb_id, 'scrape', None):
+                for result in extraction_service.extract_from_url(url, kb_id, 'scrape', kb_service):
                     result_dict = json.loads(result)
                     if result_dict['status'] == 'completed':
                         extracted_docs.append(result_dict['content'])
                     elif result_dict['status'] == 'error':
                         # Handle error if needed
                         print(f"Error extracting from URL: {result_dict['message']}")
-            
-            # Now you can use the extracted_docs for further processing
-            # For example, you might want to update the system_message with this information
+
             if extracted_docs:
-                pass
+                extracted_docs_response = extraction_service.parse_extraction_response(extracted_docs)
+                system_message = boss_agent.prepare_url_content_for_ai(extracted_docs_response, system_prompt)
     else:
         mongo_client = MongoDbClient(db_name)
         db = mongo_client.connect()

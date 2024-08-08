@@ -220,6 +220,23 @@ class BossAgent(OpenAiClientBase):
     
         return pipeline
     
+    def prepare_url_content_for_ai(self, url_content, system_prompt=None):
+        query_instructions = f'''
+        \nAnswer the users question using the content from the url they are interested in.
+        URL: {url_content['source_url']}
+        CONTENT: {url_content['content']}
+        \n
+        '''
+
+        if system_prompt:
+            query_instructions += f"\n{system_prompt}"
+        
+        system_message = {
+            'role': 'system',
+            'content': query_instructions
+        }
+        return system_message
+    
     def token_counter(self, message):
         """Return the number of tokens in a string."""
         try:

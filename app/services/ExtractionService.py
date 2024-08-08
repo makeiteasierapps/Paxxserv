@@ -80,7 +80,7 @@ class ExtractionService:
                 yield f'{{"status": "processing", "message": "Processing {source_url}"}}'
 
             kb_doc = kb_services.create_kb_doc_in_db(kb_id, normalized_url, 'url', urls=url_docs)
-            
+             
             yield f'{{"status": "completed", "content": {json.dumps(kb_doc, ensure_ascii=False)}}}'
 
         except Exception as e:
@@ -111,3 +111,15 @@ class ExtractionService:
         if url.endswith('/'):
             url = url[:-1]
         return url
+    
+    def parse_extraction_response(self, response):
+        for url_content in response[0]['urls']:
+            content = url_content['content']
+            token_count = url_content['token_count']
+            source_url = url_content['metadata']['sourceURL']
+
+        return {
+            'content': content,
+            'token_count': token_count,
+            'source_url': source_url
+        }
