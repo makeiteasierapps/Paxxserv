@@ -3,9 +3,9 @@ from canopy.tokenizer import Tokenizer
 from canopy.models.data_models import Document
 from canopy.knowledge_base.models import KBEncodedDocChunk
 from canopy.knowledge_base.chunker.recursive_character import RecursiveCharacterChunker
-from .OpenAiClientBase import OpenAiClientBase
+from .OpenAiClient import OpenAiClient
 
-class DocumentManager(OpenAiClientBase):
+class DocumentManager(OpenAiClient):
     def __init__(self, db, uid):
         super().__init__(db, uid)
         Tokenizer.initialize()

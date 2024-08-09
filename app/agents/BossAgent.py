@@ -1,11 +1,9 @@
-import re
 import tiktoken
 from flask_socketio import emit
-from app.agents.OpenAiClientBase import OpenAiClientBase
 
-class BossAgent(OpenAiClientBase):
-    def __init__(self, model='gpt-4o-mini', system_prompt="You are a friendly but genuine AI Agent. Don't be annoyingly nice, but don't be rude either.", chat_constants=None, user_analysis=None, db=None, uid=None):
-        super().__init__(db, uid)
+class BossAgent():
+    def __init__(self, ai_client, model='gpt-4o-mini', system_prompt="You are a friendly but genuine AI Agent. Don't be annoyingly nice, but don't be rude either.", chat_constants=None, user_analysis=None):
+        self.ai_client = ai_client
         self.is_initialized = True
         self.model = model
         self.system_prompt = system_prompt
@@ -13,7 +11,7 @@ class BossAgent(OpenAiClientBase):
         self.user_analysis = user_analysis
     
     def handle_streaming_response(self, chat_id, new_chat_history, save_callback=None):
-        response = self.pass_to_openai(new_chat_history, model=self.model, stream=True)
+        response = self.ai_client.generate_chat_completion(new_chat_history, model=self.model, stream=True)
         response_chunks = self.process_streaming_response(chat_id, response)
         collapsed_response = self.collapse_response_chunks(response_chunks)
         self.send_end_of_stream_notification(chat_id, response_chunks)
@@ -24,11 +22,15 @@ class BossAgent(OpenAiClientBase):
         response_chunks = []
         stream_state = {'inside_code_block': False, 'language': None, 'ignore_next_token': False, 'buffer': ''}
 
+        response_chunk = None
         for chunk in response:
-            response_chunk = chunk.choices[0].delta.content
+            if chunk.type == 'content_block_delta':
+                delta = chunk.delta
+                response_chunk = delta.text
+            else:
+                response_chunk = chunk.choices[0].delta.content
             if response_chunk is not None:
                 self.process_response_chunk(chat_id, response_chunk, response_chunks, stream_state)
-        
         return response_chunks
 
     def process_response_chunk(self, chat_id, response_chunk, response_chunks, stream_state):
@@ -194,7 +196,7 @@ class BossAgent(OpenAiClientBase):
         return system_message
     
     def create_vector_pipeline(self, query, kb_id):
-        embeddings = self.embed_content(query)
+        embeddings = self.ai_client.embed_content(query)
         pipeline = [
             {
                 '$vectorSearch': {

@@ -1,6 +1,8 @@
-from ..agents.OpenAiClientBase import OpenAiClientBase
-
-class ProfileService(OpenAiClientBase):
+class ProfileService():
+    def __init__(self, db=None, uid=None):
+        self.db = db
+        self.uid = uid
+    
     def get_user_analysis(self, uid):
         user_doc = self.db['users'].find_one({'_id': uid}, {'analysis': 1})
         

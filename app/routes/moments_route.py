@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 from flask import  Blueprint, request, jsonify, g
-from app.agents.OpenAiClientBase import OpenAiClientBase
+from app.agents.OpenAiClient import OpenAiClient
 from app.agents.ContentProcessor import ContentProcessor
 from app.services.MomentService import MomentService
 from app.services.MongoDbClient import MongoDbClient
@@ -16,7 +16,7 @@ def initialize_services():
     g.mongo_client = MongoDbClient(db_name)
     db = g.mongo_client.connect()
     g.moment_service = MomentService(db)
-    g.openai_client = OpenAiClientBase()
+    g.openai_client = OpenAiClient()
 
 @moment_bp.after_request
 def close_mongo_connection(response):
