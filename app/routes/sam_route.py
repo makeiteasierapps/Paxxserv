@@ -1,6 +1,6 @@
 import os
 from flask import Blueprint, Response, send_file, request
-from app.agents.OpenAiClientBase import OpenAiClientBase
+from app.agents.OpenAiClient import OpenAiClient
 
 sam_bp = Blueprint('sam', __name__)
 
@@ -14,7 +14,7 @@ def handle_socketio_options():
 @sam_bp.route('/sam', methods=['POST'])
 def handle_new_message():
     new_message = request.json['newMessage']
-    openai_client = OpenAiClientBase()
+    openai_client = OpenAiClient()
     messages = [{
                 "role": "user",
                 "content": new_message,

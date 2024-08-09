@@ -1,10 +1,8 @@
 import os
-import json
 import dspy
 import traceback
 from dspy import Signature, InputField, OutputField, ChainOfThought
 from dspy.functional import TypedChainOfThought
-from .OpenAiClientBase import OpenAiClientBase
 from typing import List
 from pydantic import BaseModel
 import uuid
@@ -30,9 +28,10 @@ class QuestionGeneratorSignature(Signature):
     category = InputField()
     questions: QuestionsOutput = OutputField(desc='The questions should be personalized based on the users details contained within a list')
 
-class QuestionGenerator(OpenAiClientBase):
+class QuestionGenerator():
     def __init__(self, db, uid):
-        super().__init__(db, uid)
+        self.db = db
+        self.uid = uid
         self.openai_key = os.getenv('OPENAI_API_KEY')
         try:
             lm = dspy.OpenAI(model='gpt-4o-mini', max_tokens=1000, api_key=self.openai_key)

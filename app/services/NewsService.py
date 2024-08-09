@@ -5,11 +5,11 @@ from newspaper import Article
 import http.client
 import json
 from bson.objectid import ObjectId
-from ..agents.OpenAiClientBase import OpenAiClientBase
+from ..agents.OpenAiClient import OpenAiClient
 
 load_dotenv()
 
-class NewsService(OpenAiClientBase):
+class NewsService(OpenAiClient):
     def __init__(self, db, uid):
         super().__init__(db, uid)
         self.apikey = os.getenv('GNEWS_API_KEY')

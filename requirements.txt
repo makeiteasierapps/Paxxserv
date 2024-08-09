@@ -12,3 +12,4 @@ lxml-html-clean
 requests
 canopy-sdk
 pymupdf
+anthropic
