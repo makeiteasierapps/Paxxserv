@@ -1,5 +1,7 @@
 import tiktoken
 from flask_socketio import emit
+from app.agents.OpenAiClient import OpenAiClient
+from app.agents.AnthropicClient import AnthropicClient
 
 class BossAgent():
     def __init__(self, ai_client, model='gpt-4o-mini', system_prompt="You are a friendly but genuine AI Agent. Don't be annoyingly nice, but don't be rude either.", chat_constants=None, user_analysis=None):
@@ -10,8 +12,30 @@ class BossAgent():
         self.chat_constants = chat_constants
         self.user_analysis = user_analysis
     
-    def handle_streaming_response(self, chat_id, new_chat_history, save_callback=None):
-        response = self.ai_client.generate_chat_completion(new_chat_history, model=self.model, stream=True)
+    def handle_streaming_response(self, chat_id, new_chat_history, save_callback=None, system_message=None):
+        system_content = f'''
+            {self.system_prompt}
+            ***USER ANALYSIS***
+            {self.user_analysis}
+            **************
+            ***THINGS TO REMEMBER***
+            {self.chat_constants}
+            **************
+        '''
+        if system_message:
+            system_content += f"\n{system_message}"
+        
+        if isinstance(self.ai_client, OpenAiClient):
+            openai_messages = [
+                {
+                    'role': 'system',
+                    'content': system_content
+                }
+            ]
+            response = self.ai_client.generate_chat_completion(openai_messages, model=self.model, stream=True)
+        elif isinstance(self.ai_client, AnthropicClient):
+            response = self.ai_client.generate_chat_completion(messages=new_chat_history, model=self.model, stream=True, system=system_content)
+        
         response_chunks = self.process_streaming_response(chat_id, response)
         collapsed_response = self.collapse_response_chunks(response_chunks)
         self.send_end_of_stream_notification(chat_id, response_chunks)
@@ -22,15 +46,24 @@ class BossAgent():
         response_chunks = []
         stream_state = {'inside_code_block': False, 'language': None, 'ignore_next_token': False, 'buffer': ''}
 
-        response_chunk = None
         for chunk in response:
-            if chunk.type == 'content_block_delta':
-                delta = chunk.delta
-                response_chunk = delta.text
-            else:
+            if hasattr(chunk, 'type'):
+                if chunk.type == 'message_start':
+                    print('Stream message start')
+                elif chunk.type == 'message_stop':
+                    print('Stream message end')
+                elif chunk.type == 'content_block_delta':
+                    delta = chunk.delta
+                    if delta.type == 'text_delta':
+                        self.process_response_chunk(chat_id, delta.text, response_chunks, stream_state)
+                elif chunk.type == 'message_delta':
+                    # Handle any top-level changes to the Message object if needed
+                    pass
+            else:  # OpenAI client structure
                 response_chunk = chunk.choices[0].delta.content
-            if response_chunk is not None:
-                self.process_response_chunk(chat_id, response_chunk, response_chunks, stream_state)
+                if response_chunk is not None:
+                    self.process_response_chunk(chat_id, response_chunk, response_chunks, stream_state)
+
         return response_chunks
 
     def process_response_chunk(self, chat_id, response_chunk, response_chunks, stream_state):
@@ -107,26 +140,15 @@ class BossAgent():
 
     def process_message(self, chat_history, chat_id, user_message, system_message=None, save_callback=None, image_url=None):
         new_chat_history = self.manage_chat(chat_history, user_message, image_url)
-        if system_message:
-            new_chat_history.insert(0, system_message)
-        
-        self.handle_streaming_response(chat_id, new_chat_history, save_callback)
+        self.handle_streaming_response(chat_id, new_chat_history, save_callback, system_message)
      
     def manage_chat(self, chat_history, new_user_message, image_url=None):
         """
         Takes a chat object extracts x amount of tokens and returns a message
-        object ready to pass into OpenAI chat completion
+        object ready to pass into OpenAI chat completion or Anthropic
         """
         
-        formatted_messages = [{
-                "role": "system",
-                "content": 
-                f'''
-                    {self.system_prompt}\n***USER ANALYSIS***\n{self.user_analysis}\n**************
-                    ***THINGS TO REMEMBER***\n{self.chat_constants}\n**************
-                ''',
-            },
-        ]
+        formatted_messages = []
         token_limit = 20000
         token_count = 0
         for message in chat_history:
@@ -148,8 +170,7 @@ class BossAgent():
         if image_url:
             formatted_messages.append({
                 "role": "user",
-                "content": 
-                [
+                "content": [
                     {
                         "type": "text", 
                         "text": new_user_message
@@ -163,8 +184,8 @@ class BossAgent():
         else:
             formatted_messages.append({
                 "role": "user",
-            "content": new_user_message,
-        })
+                "content": new_user_message,
+            })
         
         return formatted_messages
     

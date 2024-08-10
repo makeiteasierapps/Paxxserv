@@ -25,8 +25,10 @@ class AnthropicClient():
         load_dotenv()
         return os.getenv('ANTHROPIC_API_KEY')
     
-    def generate_chat_completion(self, messages, model="claude-2", json=False, stream=False):
+    def generate_chat_completion(self, messages, model, json=False, stream=False, system=None):
+        print(model)
         kwargs = {"messages": messages, "model": model, "stream": stream, "max_tokens": 1000}
-        print(kwargs)
+        if system:
+            kwargs["system"] = system
         response = self.client.messages.create(**kwargs)
         return response if stream else response.content[0].text

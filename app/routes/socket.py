@@ -38,7 +38,7 @@ def create_boss_agent(chat_settings, db, uid, profile_service):
 
     chat_constants = chat_settings.get('chat_constants')
     use_profile_data = chat_settings.get('use_profile_data', False)
-    model = chat_settings.get('agent_model', 'gpt-4')
+    model = chat_settings.get('agent_model')
     system_prompt = chat_settings.get('system_prompt')
     user_analysis = profile_service.get_user_analysis(uid) if use_profile_data else None
 
@@ -57,7 +57,6 @@ def create_boss_agent(chat_settings, db, uid, profile_service):
 
     return boss_agent, system_prompt
     
-
 def handle_extraction(urls, extraction_service, kb_id, kb_service, boss_agent, system_prompt):
     extracted_docs = []
     for url in urls:
