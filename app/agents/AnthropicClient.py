@@ -1,4 +1,4 @@
-from anthropic import Anthropic
+import anthropic
 from dotenv import load_dotenv
 import os
 
@@ -13,7 +13,7 @@ class AnthropicClient():
             api_key = self._load_anthropic_key()
         else:
             api_key = self._get_user_api_key()
-        return Anthropic(api_key=api_key)
+        return anthropic.Anthropic(api_key=api_key)
 
     def _get_user_api_key(self):
         user_doc = self.db['users'].find_one({'_id': self.uid}, {'anthropic_key': 1})
