@@ -101,7 +101,7 @@ class BossAgent():
         formatted_message = self.format_stream_message(response_chunk, stream_state['inside_code_block'], stream_state['language'])
         formatted_message['room'] = chat_id
         response_chunks.append(formatted_message)
-        emit('chat_response', formatted_message, room=chat_id)
+        emit('chat_response', formatted_message)
 
     def collapse_response_chunks(self, response_chunks):
         collapsed_response = []
@@ -123,7 +123,7 @@ class BossAgent():
             'type': 'end_of_stream',
             'room': chat_id
         }
-        emit('chat_response', end_stream_obj, room=chat_id)
+        emit('chat_response', end_stream_obj)
 
     def format_stream_message(self, message, inside_code_block, language):
         if inside_code_block:
