@@ -1,4 +1,3 @@
-hypercorn
 flask
 dspy-ai
 python-dotenv
@@ -13,3 +12,5 @@ requests
 canopy-sdk
 pymupdf
 anthropic
+gevent
+gevent-websocket
