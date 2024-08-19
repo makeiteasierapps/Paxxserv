@@ -6,7 +6,6 @@ flask-socketio
 flask-cors
 firebase-admin
 newspaper3k
-crcmod
 lxml-html-clean
 requests
 canopy-sdk

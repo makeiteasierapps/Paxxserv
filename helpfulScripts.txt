@@ -1,10 +1,6 @@
 Start server:
-hypercorn run:app --worker-class asyncio --bind 0.0.0.0:3033 --debug --reload
-python run.py --mode dev
-python run.py --mode prod
-
-list hypercorn processes:
-ps aux | grep hypercorn
+python run.py(prod)
+python run.py --dev
 
 nginx config file:
 /etc/nginx/sites-available/default
@@ -13,10 +9,10 @@ Systemd service file:
 /etc/systemd/system/paxxserv.service
 /etc/systemd/system/firecrawl.service
 
-# Check Hypercorn logs
+# Check logs
 sudo journalctl -u paxxserv.service -f
 
-# Verify Hypercorn is running
+# Verify service is running
 sudo systemctl status paxxserv.service
 
 # Check network configuration
