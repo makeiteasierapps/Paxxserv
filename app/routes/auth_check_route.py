@@ -28,6 +28,7 @@ def auth_check():
     """
     
     if request.method == 'POST':
+        print('Post request received', request.json)
         try:
             uid = request.json.get('uid')
             user_doc = g.db['users'].find_one({'_id': uid})  
