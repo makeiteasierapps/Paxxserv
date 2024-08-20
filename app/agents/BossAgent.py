@@ -26,12 +26,10 @@ class BossAgent():
             system_content += f"\n{system_message}"
         
         if isinstance(self.ai_client, OpenAiClient):
-            openai_messages = [
-                {
-                    'role': 'system',
-                    'content': system_content
-                }
-            ]
+            openai_messages = [{
+                'role': 'system',
+                'content': system_content
+            }, *new_chat_history]
             response = self.ai_client.generate_chat_completion(openai_messages, model=self.model, stream=True)
         elif isinstance(self.ai_client, AnthropicClient):
             response = self.ai_client.generate_chat_completion(messages=new_chat_history, model=self.model, stream=True, system=system_content)
@@ -67,7 +65,7 @@ class BossAgent():
         return response_chunks
 
     def process_response_chunk(self, chat_id, response_chunk, response_chunks, stream_state):
-
+        print(response_chunk)
         if stream_state.get('ignore_next_token', False):
             stream_state['ignore_next_token'] = False
             return

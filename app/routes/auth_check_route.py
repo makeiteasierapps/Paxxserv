@@ -1,8 +1,8 @@
 import os
-from flask import Blueprint, request, jsonify, g, current_app
-from app.services.MongoDbClient import MongoDbClient
 from pymongo.errors import PyMongoError
 from dotenv import load_dotenv
+from flask import Blueprint, request, jsonify, g, current_app
+from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
 

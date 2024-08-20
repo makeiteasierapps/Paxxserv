@@ -2,12 +2,16 @@ import os
 import time
 import json
 import requests
+from dotenv import load_dotenv
 from flask import jsonify
 from canopy.tokenizer import Tokenizer
 from app.services.FirebaseStoreageService import FirebaseStorageService as firebase_storage
 
 Tokenizer.initialize()
 tokenizer = Tokenizer()
+
+load_dotenv()
+
 class ExtractionService:
     def __init__(self, db, uid):
         self.db = db
@@ -41,7 +45,6 @@ class ExtractionService:
             firecrawl_url = os.getenv('FIRECRAWL_DEV_URL')
         else:
             firecrawl_url = os.getenv('FIRECRAWL_URL')
-        
         params = {
             'url': normalized_url,
             'pageOptions': {
