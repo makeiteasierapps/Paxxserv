@@ -65,7 +65,6 @@ class BossAgent():
         return response_chunks
 
     def process_response_chunk(self, chat_id, response_chunk, response_chunks, stream_state):
-        print(response_chunk)
         if stream_state.get('ignore_next_token', False):
             stream_state['ignore_next_token'] = False
             return
