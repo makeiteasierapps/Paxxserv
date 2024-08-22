@@ -29,7 +29,7 @@ class OpenAiClient():
         )
         return response.data[0].embedding
     
-    def generate_chat_completion(self, messages, model="gpt-4", json=False, stream=False):
+    def generate_chat_completion(self, messages, model="gpt-4o-mini", json=False, stream=False):
         kwargs = {"messages": messages, "model": model, "stream": stream}
         if json:
             kwargs["response_format"] = {"type": "json_object"}

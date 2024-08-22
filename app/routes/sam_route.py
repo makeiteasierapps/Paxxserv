@@ -19,7 +19,7 @@ def handle_new_message():
                 "role": "user",
                 "content": new_message,
             }]
-    text_response = openai_client.pass_to_openai(messages, model='gpt-4o')
+    text_response = openai_client.generate_chat_completion(messages, model='gpt-4o')
     file_path = 'app/audioFiles/audio.mp3'
         
     # Delete the existing file if it exists
