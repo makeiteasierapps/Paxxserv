@@ -10,16 +10,29 @@ auth_check_bp = Blueprint('auth_check', __name__)
 
 @auth_check_bp.before_request
 def initialize_services():
+    current_app.logger.info('Before request started.')
+    
     if request.method == 'OPTIONS':
+        current_app.logger.info('OPTIONS request received.')
         return ("Options request received", 204)
+    
     if request.method == 'GET':
+        current_app.logger.info('GET request received.')
         return
+    
+    # POST and other methods
     db_name = request.headers.get('dbName')
     if not db_name:
+        current_app.logger.warning('Database name is required but not provided.')
         return ('Database name is required', 400)
-    g.mongo_client = MongoDbClient(db_name)
-    db = g.mongo_client.connect()
-    g.db = db
+    
+    try:
+        g.mongo_client = MongoDbClient(db_name)
+        g.db = g.mongo_client.connect()
+        current_app.logger.info('Database connection successful.')
+    except Exception as e:
+        current_app.logger.error(f"Error connecting to database: {str(e)}")
+        return jsonify({'error': 'Database connection failed'}), 500
 
 @auth_check_bp.route('/auth_check', methods=['POST', 'OPTIONS', 'GET'])
 def auth_check():
