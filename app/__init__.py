@@ -22,7 +22,7 @@ socketio = SocketIO(cors_allowed_origins="*")
 
 def create_app():
     app = Flask(__name__)
-    CORS(app)
+    CORS(app, resources={r"/*": {"origins": "https://paxxiumv1.web.app"}})
     socketio.init_app(app)
 
     if not app.debug:
