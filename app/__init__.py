@@ -22,6 +22,7 @@ socketio = SocketIO(cors_allowed_origins="*")
 
 def create_app():
     app = Flask(__name__)
+    CORS(app)
     socketio.init_app(app)
 
     if not app.debug:
