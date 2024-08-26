@@ -5,3 +5,5 @@
 2024-08-22 15:28:10,398 INFO: Database connection successful. [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:32]
 2024-08-22 15:35:38,427 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:37]
 2024-08-22 15:35:45,915 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:37]
+2024-08-26 10:53:16,391 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/PaxxServ/app/__init__.py:43]
+2024-08-26 10:53:32,816 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/PaxxServ/app/__init__.py:43]

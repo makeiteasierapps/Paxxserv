@@ -18,7 +18,7 @@ try:
 except ValueError:
     pass
 
-socketio = SocketIO(cors_allowed_origins="*")
+socketio = SocketIO(cors_allowed_origins="*", async_mode='gevent')
 
 def create_app():
     app = Flask(__name__)
@@ -27,7 +27,7 @@ def create_app():
         "allow_headers": ["Content-Type", "Accept", "dbName", "uid"],
         "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
     }})
-    
+
     socketio.init_app(app)
 
     if not app.debug:
