@@ -16,27 +16,27 @@ cors = CORS(resources={r"/*": {
 
 @auth_check_bp.before_request
 def initialize_services():
-    if request.method == 'OPTIONS':
-        current_app.logger.info('OPTIONS request received.')
-        return ("Options request received", 204)
-    
-    if request.method == 'GET':
-        current_app.logger.info('GET request received.')
+    current_app.logger.info(f"Request method: {request.method}")
+    current_app.logger.info(f"Received headers: {request.headers}")
+
+    if request.method in ['OPTIONS', 'GET']:
         return
-    
-    # POST and other methods
+
     db_name = request.headers.get('dbName')
     if not db_name:
         current_app.logger.warning('Database name is required but not provided.')
-        return ('Database name is required', 400)
-    
+        return jsonify({'error': 'Database name is required'}), 400
+
     try:
+        # Force JSON parsing here to see if it's causing the delay
+        _ = request.get_json()
+        
         g.mongo_client = MongoDbClient(db_name)
         g.db = g.mongo_client.connect()
         current_app.logger.info('Database connection successful.')
     except Exception as e:
-        current_app.logger.error(f"Error connecting to database: {str(e)}")
-        return jsonify({'error': 'Database connection failed'}), 500
+        current_app.logger.error(f"Error in initialize_services: {str(e)}")
+        return jsonify({'error': 'Server error'}), 500
 
 @auth_check_bp.route('/auth_check', methods=['POST', 'OPTIONS', 'GET'])
 def auth_check():
@@ -76,7 +76,6 @@ def auth_check():
                 return jsonify({'error': 'Incomplete Firebase configuration'}), 500
             
             current_app.logger.info("Firebase configuration fetched successfully")
-            print(config)
             return jsonify(config)
         except Exception as e:
             current_app.logger.error(f"Error fetching Firebase configuration: {str(e)}")
