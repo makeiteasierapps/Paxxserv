@@ -1,12 +1,18 @@
 import os
+from flask_cors import CORS
 from pymongo.errors import PyMongoError
 from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify, g, current_app
 from app.services.MongoDbClient import MongoDbClient
 
-load_dotenv()
+load_dotenv(override=True)
 
 auth_check_bp = Blueprint('auth_check', __name__)
+cors = CORS(resources={r"/*": {
+    "origins": ["https://paxxiumv1.web.app", "http://localhost:3000"],
+    "allow_headers": ["Content-Type", "Accept", "dbName", "uid"],
+    "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
+}})
 
 @auth_check_bp.before_request
 def initialize_services():
@@ -70,6 +76,7 @@ def auth_check():
                 return jsonify({'error': 'Incomplete Firebase configuration'}), 500
             
             current_app.logger.info("Firebase configuration fetched successfully")
+            print(config)
             return jsonify(config)
         except Exception as e:
             current_app.logger.error(f"Error fetching Firebase configuration: {str(e)}")

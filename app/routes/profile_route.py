@@ -1,6 +1,7 @@
 import json
 import traceback
 from flask import Blueprint, request, jsonify, g, Response, current_app, stream_with_context
+from flask_cors import CORS
 from dotenv import load_dotenv
 from app.services.ProfileService import ProfileService
 from app.services.UserService import UserService
@@ -11,6 +12,11 @@ from app.agents.AnalyzeUser import AnalyzeUser
 load_dotenv()
 
 profile_bp = Blueprint('profile_bp', __name__)
+cors = CORS(resources={r"/*": {
+    "origins": ["https://paxxiumv1.web.app", "http://localhost:3000"],
+    "allow_headers": ["Content-Type", "Accept", "dbName", "uid"],
+    "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
+}})
 
 @profile_bp.before_request
 def initialize_services():
