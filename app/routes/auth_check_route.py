@@ -19,30 +19,34 @@ def initialize_services():
     current_app.logger.info(f"Request method: {request.method}")
     current_app.logger.info(f"Received headers: {request.headers}")
 
-    if request.method in ['OPTIONS', 'GET']:
-        return
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200  # Return a valid response for OPTIONS requests
 
+    if request.method == 'GET':
+        return  # Allow GET requests to proceed to the main handler
+
+    # POST and other methods
     db_name = request.headers.get('dbName')
     if not db_name:
         current_app.logger.warning('Database name is required but not provided.')
         return jsonify({'error': 'Database name is required'}), 400
-
+    
     try:
-        # Force JSON parsing here to see if it's causing the delay
-        _ = request.get_json()
-        
         g.mongo_client = MongoDbClient(db_name)
         g.db = g.mongo_client.connect()
         current_app.logger.info('Database connection successful.')
     except Exception as e:
-        current_app.logger.error(f"Error in initialize_services: {str(e)}")
-        return jsonify({'error': 'Server error'}), 500
+        current_app.logger.error(f"Error connecting to database: {str(e)}")
+        return jsonify({'error': 'Database connection failed'}), 500
 
 @auth_check_bp.route('/auth_check', methods=['POST', 'OPTIONS', 'GET'])
 def auth_check():
     """
     Checks if admin has granted access to the user
     """
+    
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200 
     
     if request.method == 'POST':
         print('Post request received', request.json)
