@@ -42,3 +42,63 @@ Accept-Language: en-US,en;q=0.9
  [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:20]
 2024-08-26 12:40:38,389 INFO: Fetching Firebase configuration [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:63]
 2024-08-26 12:40:38,389 INFO: Firebase configuration fetched successfully [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:78]
+2024-08-26 12:42:55,675 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
+2024-08-26 12:43:22,117 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
+2024-08-26 12:45:03,355 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
+2024-08-26 12:45:31,637 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
+2024-08-26 12:45:48,414 INFO: Request method: GET [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:19]
+2024-08-26 12:45:48,417 INFO: Received headers: Host: 127.0.0.1:3033
+Connection: keep-alive
+Sec-Ch-Ua: "Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"
+Sec-Ch-Ua-Mobile: ?0
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36
+Sec-Ch-Ua-Platform: "macOS"
+Accept: */*
+Origin: http://localhost:3000
+Sec-Fetch-Site: cross-site
+Sec-Fetch-Mode: cors
+Sec-Fetch-Dest: empty
+Referer: http://localhost:3000/
+Accept-Encoding: gzip, deflate, br, zstd
+Accept-Language: en-US,en;q=0.9
+
+ [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:20]
+2024-08-26 12:45:48,418 INFO: Fetching Firebase configuration [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:67]
+2024-08-26 12:45:48,418 INFO: Firebase configuration fetched successfully [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:82]
+2024-08-26 12:45:59,642 INFO: Request method: OPTIONS [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:19]
+2024-08-26 12:45:59,642 INFO: Received headers: Host: 127.0.0.1:3033
+Connection: keep-alive
+Accept: */*
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: content-type,dbname
+Origin: http://localhost:3000
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36
+Sec-Fetch-Mode: cors
+Sec-Fetch-Site: cross-site
+Sec-Fetch-Dest: empty
+Referer: http://localhost:3000/
+Accept-Encoding: gzip, deflate, br, zstd
+Accept-Language: en-US,en;q=0.9
+
+ [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:20]
+2024-08-26 12:45:59,651 INFO: Request method: POST [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:19]
+2024-08-26 12:45:59,652 INFO: Received headers: Content-Type: application/json
+Content-Length: 38
+Host: 127.0.0.1:3033
+Connection: keep-alive
+Sec-Ch-Ua: "Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"
+Dbname: paxxium
+Sec-Ch-Ua-Platform: "macOS"
+Sec-Ch-Ua-Mobile: ?0
+User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36
+Accept: */*
+Origin: http://localhost:3000
+Sec-Fetch-Site: cross-site
+Sec-Fetch-Mode: cors
+Sec-Fetch-Dest: empty
+Referer: http://localhost:3000/
+Accept-Encoding: gzip, deflate, br, zstd
+Accept-Language: en-US,en;q=0.9
+
+ [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:20]
+2024-08-26 12:45:59,763 INFO: Database connection successful. [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:37]
