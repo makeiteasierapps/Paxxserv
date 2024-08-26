@@ -10,7 +10,9 @@ auth_check_bp = Blueprint('auth_check', __name__)
 
 @auth_check_bp.before_request
 def initialize_services():
-    current_app.logger.info('Before request started.')
+    if request.method == 'OPTIONS':
+        current_app.logger.info('OPTIONS request received.')
+        return ("Options request received", 204)
     
     if request.method == 'GET':
         current_app.logger.info('GET request received.')
