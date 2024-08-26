@@ -50,7 +50,7 @@ def auth_check():
     """
     start_time = time.time()
     current_app.logger.info(f"auth_check called with method: {request.method}")
-    
+
     if request.method == 'OPTIONS':
         return jsonify({}), 200 
     
@@ -79,15 +79,23 @@ def auth_check():
     
     if request.method == 'POST':
         current_app.logger.info('Post request received')
+        current_app.logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
+        current_app.logger.info(f"Content-Length: {request.headers.get('Content-Length')}")
+        
         try:
-            json_data = request.get_json()
+            # Try to access raw data
+            raw_data = request.get_data()
+            current_app.logger.info(f"Raw data length: {len(raw_data)}")
+            
+            # Now try to parse JSON
+            json_data = request.get_json(force=True)
             current_app.logger.info(f"Received JSON data: {json_data}")
+            
             uid = json_data.get('uid')
             user_doc = g.db['users'].find_one({'_id': uid})  
             auth_status = user_doc.get('authorized', False)
             current_app.logger.info(f"auth_check took {time.time() - start_time} seconds")
             return jsonify({'auth_status': auth_status})
         except Exception as e:
-            current_app.logger.error(f"Unexpected error: {str(e)}")
-            return jsonify({'error': 'An unexpected error occurred'}), 500
+            current_app.logger.error(f"Error in POST handler: {str(e)}")
     
