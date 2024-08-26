@@ -1,72 +1,8 @@
-2024-08-26 11:58:40,219 INFO: Database connection successful. [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:36]
-2024-08-26 11:59:25,532 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 11:59:41,218 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 11:59:59,720 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:00:09,056 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:00:20,419 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:00:30,753 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:00:37,036 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:00:46,318 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:01:38,652 INFO: OPTIONS request received. [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:20]
-2024-08-26 12:01:38,761 INFO: Database connection successful. [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:36]
-2024-08-26 12:02:57,164 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:03:15,922 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:08:53,204 INFO: OPTIONS request received. [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:20]
-2024-08-26 12:08:53,379 INFO: Database connection successful. [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:36]
-2024-08-26 12:11:20,005 INFO: GET request received. [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:24]
-2024-08-26 12:11:20,005 INFO: Fetching Firebase configuration [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:63]
-2024-08-26 12:11:20,005 INFO: Firebase configuration fetched successfully [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:78]
-2024-08-26 12:12:51,880 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:23:40,613 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:40:02,084 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:40:05,408 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:40:13,496 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:40:34,213 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:40:35,767 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:40:38,388 INFO: Request method: GET [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:19]
-2024-08-26 12:40:38,388 INFO: Received headers: Host: 127.0.0.1:3033
-Connection: keep-alive
-Sec-Ch-Ua: "Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"
-Sec-Ch-Ua-Mobile: ?0
-User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36
-Sec-Ch-Ua-Platform: "macOS"
-Accept: */*
-Origin: http://localhost:3000
-Sec-Fetch-Site: cross-site
-Sec-Fetch-Mode: cors
-Sec-Fetch-Dest: empty
-Referer: http://localhost:3000/
-Accept-Encoding: gzip, deflate, br, zstd
-Accept-Language: en-US,en;q=0.9
-
- [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:20]
-2024-08-26 12:40:38,389 INFO: Fetching Firebase configuration [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:63]
-2024-08-26 12:40:38,389 INFO: Firebase configuration fetched successfully [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:78]
-2024-08-26 12:42:55,675 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:43:22,117 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:45:03,355 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:45:31,637 INFO: Paxxserv startup [in /Users/shaunoffenbacher/Desktop/paxxserv/app/__init__.py:38]
-2024-08-26 12:45:48,414 INFO: Request method: GET [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:19]
-2024-08-26 12:45:48,417 INFO: Received headers: Host: 127.0.0.1:3033
-Connection: keep-alive
-Sec-Ch-Ua: "Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"
-Sec-Ch-Ua-Mobile: ?0
-User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36
-Sec-Ch-Ua-Platform: "macOS"
-Accept: */*
-Origin: http://localhost:3000
-Sec-Fetch-Site: cross-site
-Sec-Fetch-Mode: cors
-Sec-Fetch-Dest: empty
-Referer: http://localhost:3000/
-Accept-Encoding: gzip, deflate, br, zstd
-Accept-Language: en-US,en;q=0.9
-
- [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:20]
-2024-08-26 12:45:48,418 INFO: Fetching Firebase configuration [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:67]
-2024-08-26 12:45:48,418 INFO: Firebase configuration fetched successfully [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:82]
-2024-08-26 12:45:59,642 INFO: Request method: OPTIONS [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:19]
-2024-08-26 12:45:59,642 INFO: Received headers: Host: 127.0.0.1:3033
+2024-08-26 12:54:43,332 INFO: Post request received [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:81]
+2024-08-26 12:54:43,332 INFO: Received JSON data: {'uid': '0es2TCkoX0WLXn0MXfdsUdRfHjQ2'} [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:84]
+2024-08-26 12:54:43,905 INFO: auth_check took 0.5735409259796143 seconds [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:88]
+2024-08-26 12:54:52,893 INFO: Request method: OPTIONS [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:22]
+2024-08-26 12:54:52,894 INFO: Received headers: Host: 127.0.0.1:3033
 Connection: keep-alive
 Accept: */*
 Access-Control-Request-Method: POST
@@ -80,9 +16,9 @@ Referer: http://localhost:3000/
 Accept-Encoding: gzip, deflate, br, zstd
 Accept-Language: en-US,en;q=0.9
 
- [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:20]
-2024-08-26 12:45:59,651 INFO: Request method: POST [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:19]
-2024-08-26 12:45:59,652 INFO: Received headers: Content-Type: application/json
+ [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:23]
+2024-08-26 12:54:52,902 INFO: Request method: POST [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:22]
+2024-08-26 12:54:52,902 INFO: Received headers: Content-Type: application/json
 Content-Length: 38
 Host: 127.0.0.1:3033
 Connection: keep-alive
@@ -100,5 +36,10 @@ Referer: http://localhost:3000/
 Accept-Encoding: gzip, deflate, br, zstd
 Accept-Language: en-US,en;q=0.9
 
- [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:20]
-2024-08-26 12:45:59,763 INFO: Database connection successful. [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:37]
+ [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:23]
+2024-08-26 12:54:53,004 INFO: Database connection successful. [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:39]
+2024-08-26 12:54:53,004 INFO: initialize_services took 0.10213804244995117 seconds [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:44]
+2024-08-26 12:54:53,004 INFO: auth_check called with method: POST [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:52]
+2024-08-26 12:54:53,004 INFO: Post request received [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:81]
+2024-08-26 12:54:53,005 INFO: Received JSON data: {'uid': '0es2TCkoX0WLXn0MXfdsUdRfHjQ2'} [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:84]
+2024-08-26 12:54:53,567 INFO: auth_check took 0.5629658699035645 seconds [in /Users/shaunoffenbacher/Desktop/paxxserv/app/routes/auth_check_route.py:88]
