@@ -13,4 +13,3 @@ pymupdf
 anthropic
 gevent
 gevent-websocket
-eventlet
