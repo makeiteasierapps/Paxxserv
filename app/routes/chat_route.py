@@ -1,6 +1,7 @@
 import json
 from dotenv import load_dotenv
 from flask import Blueprint, request, g, jsonify
+from flask_cors import CORS
 from app.services.ChatService import ChatService
 from app.services.FirebaseStoreageService import FirebaseStorageService as firebase_storage
 from app.services.MongoDbClient import MongoDbClient
@@ -8,6 +9,11 @@ from app.services.MongoDbClient import MongoDbClient
 load_dotenv()
 
 chat_bp = Blueprint('chat', __name__)
+cors = CORS(resources={r"/*": {
+    "origins": ["https://paxxiumv1.web.app", "http://localhost:3000"],
+    "allow_headers": ["Content-Type", "Accept", "dbName", "uid"],
+    "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
+}})
 
 @chat_bp.before_request
 def initialize_services():
@@ -17,7 +23,7 @@ def initialize_services():
     db_name = request.headers.get('dbName')
     if not db_name:
         return jsonify({"error": "dbName is required in the headers"}), 400
-    g.uid = request.headers.get('userId')
+    g.uid = request.headers.get('uid')
     g.mongo_client = MongoDbClient(db_name)
     db = g.mongo_client.connect()
     g.chat_service = ChatService(db)

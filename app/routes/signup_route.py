@@ -1,11 +1,17 @@
 from dotenv import load_dotenv
 from flask import Blueprint, request, g
+from flask_cors import CORS
 from app.services.UserService import UserService
 from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
 
 signup_bp = Blueprint('signup_bp', __name__)
+cors = CORS(resources={r"/*": {
+    "origins": ["https://paxxiumv1.web.app", "http://localhost:3000"],
+    "allow_headers": ["Content-Type", "Accept", "dbName", "uid"],
+    "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
+}})
 
 @signup_bp.before_request
 def initialize_services():
@@ -32,7 +38,7 @@ def signup():
             'open_key': openai_api_key,
             'authorized': authorized}
       
-        g.user_service.update_user_profile(uid, updates)
+        g.user_service.update_user(uid, updates)
 
         return ({'message': 'User added successfully'}, 200)
 
