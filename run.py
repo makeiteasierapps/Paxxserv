@@ -6,7 +6,13 @@ from app import create_app, socketio
 
 def main(debug=False):
     app = create_app()
-    socketio.run(app, host='0.0.0.0', port=3033, debug=debug, use_reloader=debug)
+    
+    if debug:
+        # Development mode with hot reloading and debugging
+        socketio.run(app, host='0.0.0.0', port=3033, debug=True, use_reloader=True)
+    else:
+        # Production mode with Gunicorn
+        app.run(host='0.0.0.0', port=3033)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run the application in production or development mode.')

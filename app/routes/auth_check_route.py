@@ -1,10 +1,8 @@
 import os
 import time
 from flask_cors import CORS
-from pymongo.errors import PyMongoError
 from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify, g, current_app
-from werkzeug.exceptions import HTTPException
 from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv(override=True)
