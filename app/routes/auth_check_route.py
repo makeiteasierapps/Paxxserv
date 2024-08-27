@@ -34,6 +34,9 @@ def auth_check():
     """
     Checks if admin has granted access to the user
     """
+
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
     
     if request.method == 'GET':
         try:
