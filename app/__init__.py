@@ -1,10 +1,8 @@
 from dotenv import load_dotenv
-import logging
 import os
 from flask import Flask
 from flask_socketio import SocketIO
 from flask_cors import CORS
-from logging.handlers import RotatingFileHandler
 from firebase_admin import credentials, initialize_app
 
 load_dotenv()
@@ -30,18 +28,6 @@ def create_app():
     }})
 
     socketio.init_app(app)
-
-    if not app.debug:
-        if not os.path.exists('logs'):
-            os.mkdir('logs')
-        file_handler = RotatingFileHandler('logs/paxxserv.log', maxBytes=10240, backupCount=10)
-        file_handler.setFormatter(logging.Formatter(
-            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-        ))
-        file_handler.setLevel(logging.INFO)
-        app.logger.addHandler(file_handler)
-        app.logger.setLevel(logging.INFO)
-        app.logger.info('Paxxserv startup')
     
     # Register blueprints
     from .routes import chat_route, sam_route, moments_route, auth_check_route, images_route, news_routes, signup_route, profile_route, kb_route
