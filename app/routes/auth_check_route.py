@@ -1,6 +1,4 @@
 import os
-import time
-from flask_cors import CORS
 from dotenv import load_dotenv
 from flask import Blueprint, request, jsonify, g, current_app
 from app.services.MongoDbClient import MongoDbClient
@@ -8,17 +6,9 @@ from app.services.MongoDbClient import MongoDbClient
 load_dotenv(override=True)
 
 auth_check_bp = Blueprint('auth_check', __name__)
-cors = CORS(resources={r"/*": {
-    "origins": ["https://paxxiumv1.web.app", "http://localhost:3000"],
-    "allow_headers": ["Content-Type", "Accept", "dbName", "uid"],
-    "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
-}})
 
 @auth_check_bp.before_request
 def initialize_services():
-    start_time = time.time()
-    current_app.logger.info(f"Request method: {request.method}")
-    current_app.logger.info(f"Received headers: {request.headers}")
 
     if request.method == 'OPTIONS':
         return jsonify({}), 200
@@ -39,18 +29,11 @@ def initialize_services():
         current_app.logger.error(f"Error connecting to database: {str(e)}")
         return jsonify({'error': 'Database connection failed'}), 500
 
-    current_app.logger.info(f"initialize_services took {time.time() - start_time} seconds")
-
 @auth_check_bp.route('/auth_check', methods=['POST', 'OPTIONS', 'GET'])
 def auth_check():
     """
     Checks if admin has granted access to the user
     """
-    start_time = time.time()
-    current_app.logger.info(f"auth_check called with method: {request.method}")
-
-    if request.method == 'OPTIONS':
-        return jsonify({}), 200 
     
     if request.method == 'GET':
         try:
@@ -69,30 +52,18 @@ def auth_check():
                 current_app.logger.error(f"Missing Firebase configuration keys: {', '.join(missing_keys)}")
                 return jsonify({'error': 'Incomplete Firebase configuration'}), 500
             
-            current_app.logger.info("Firebase configuration fetched successfully")
             return jsonify(config)
         except Exception as e:
             current_app.logger.error(f"Error fetching Firebase configuration: {str(e)}")
             return jsonify({'error': 'An error occurred while fetching the configuration'}), 500
     
     if request.method == 'POST':
-        current_app.logger.info('Post request received')
-        current_app.logger.info(f"Content-Type: {request.headers.get('Content-Type')}")
-        current_app.logger.info(f"Content-Length: {request.headers.get('Content-Length')}")
-        
-        try:
-            # Try to access raw data
-            raw_data = request.get_data()
-            current_app.logger.info(f"Raw data length: {len(raw_data)}")
-            
-            # Now try to parse JSON
+    
+        try:            
             json_data = request.get_json(force=True)
-            current_app.logger.info(f"Received JSON data: {json_data}")
-            
             uid = json_data.get('uid')
             user_doc = g.db['users'].find_one({'_id': uid})  
             auth_status = user_doc.get('authorized', False)
-            current_app.logger.info(f"auth_check took {time.time() - start_time} seconds")
             return jsonify({'auth_status': auth_status})
         except Exception as e:
             current_app.logger.error(f"Error in POST handler: {str(e)}")
