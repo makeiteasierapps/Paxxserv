@@ -12,8 +12,9 @@ def main(debug=False):
         # Development mode with hot reloading and debugging
         socketio.run(app, host='0.0.0.0', port=3033, debug=True, use_reloader=True)
     else:
-        # Production mode with Gunicorn
-        app.run(host='0.0.0.0', port=3033)
+        # Production mode
+        # Don't run the app here, let Gunicorn handle it
+        pass
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run the application in production or development mode.')
