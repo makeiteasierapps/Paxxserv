@@ -74,7 +74,7 @@ def handle_extraction(urls, extraction_service, kb_id, kb_service, boss_agent, s
 @socketio.on('chat_request')
 def handle_chat_message(data):
     urls = data.get('urls', [])
-    uid = data.get('userId')
+    uid = data.get('uid')
     save_to_db = data.get('saveToDb', False)
     kb_id = data.get('kbId', None)
     chat_settings = data.get('chatSettings', None)

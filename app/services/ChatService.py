@@ -10,8 +10,7 @@ class ChatService:
             'uid': uid,
             'chat_name': chat_name,
             'agent_model': agent_model,
-            'is_open': True,
-            'created_at': datetime.utcnow()
+            'updated_at': datetime.utcnow()
         }
         # Add optional fields only if they are not None
         if system_prompt is not None:
@@ -71,27 +70,23 @@ class ChatService:
         )
         return update_result
 
-    def update_visibility(self, chat_id, is_open):
-        """
-        Updates the visibility of a chat in the database
-        """
-
-        self.db['chats'].update_one({'_id': ObjectId(chat_id)}, {'$set': {'is_open': is_open}})
-        return True
-
-    def create_message(self, chat_id, message_from, message_content):        
+    def create_message(self, chat_id, message_from, message_content):
+        current_time = datetime.utcnow()
         new_message = {
             '_id': ObjectId(),
             'message_from': message_from,
             'content': message_content,
             'type': 'database',
-            'time_stamp': datetime.utcnow()
+            'current_time': current_time
         }
 
-            # Update the chat document to append the new message to the 'messages' array
+        # Update the chat document to append the new message and update the 'updated_at' field
         self.db.chats.update_one(
             {'_id': ObjectId(chat_id)}, 
-            {'$push': {'messages': new_message}}
+            {
+                '$push': {'messages': new_message},
+                '$set': {'updated_at': current_time}
+            }
         )
 
         return new_message
