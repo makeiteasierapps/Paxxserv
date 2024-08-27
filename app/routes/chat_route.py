@@ -39,7 +39,7 @@ def chat(subpath):
         data = request.get_json()
         
         chat_id = g.chat_service.create_chat_in_db(
-        data['userId'], 
+        data['uid'], 
         data['chatName'], 
         data['agentModel'], 
         system_prompt=data.get('systemPrompt'), 
@@ -49,25 +49,17 @@ def chat(subpath):
         return {
             'chatId': chat_id,
             'chat_name': data['chatName'],
-            'agentModel': data['agentModel'],
-            'userId': data['userId'],
-            'systemPrompt': data.get('systemPrompt'),
-            'chatConstants': data.get('chatConstants'),
-            'useProfileData': data.get('useProfileData'),
-            'is_open': True
+            'agent_model': data['agentModel'],
+            'uid': data['uid'],
+            'system_prompt': data.get('systemPrompt'),
+            'chat_constants': data.get('chatConstants'),
+            'use_profile_data': data.get('useProfileData'),
         }, 200
 
     if request.method == 'DELETE' and subpath == '':
         chat_id = request.get_json()['chatId']
         g.chat_service.delete_chat(chat_id)
         return 'Conversation deleted', 200
-    
-    if subpath == 'update_visibility':
-        data = request.get_json()
-        chat_id = data['chatId']
-        is_open = data['is_open']
-        g.chat_service.update_visibility(chat_id, is_open)
-        return ('Chat visibility updated', 200)
 
     if subpath == 'update_settings':
         data = request.get_json()
@@ -90,7 +82,7 @@ def handle_messages(subpath):
         return 'Memory Cleared', 200
     
     if subpath == 'utils':
-        uid = request.headers.get('userId')
+        uid = request.headers.get('uid')
         file = request.files['image']
         file_url = firebase_storage.upload_file(file, uid, 'gpt-vision')
         return (json.dumps({'fileUrl': file_url}), 200)
