@@ -16,7 +16,7 @@ try:
 except ValueError:
     pass
 
-socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet')
+socketio = SocketIO(cors_allowed_origins="*", async_mode='gevent')
 
 def create_app():
     app = Flask(__name__)
