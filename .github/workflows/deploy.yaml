@@ -17,6 +17,6 @@ jobs:
         port: 22
         key: ${{ secrets.SERVER_SSH_KEY }}
         script: |
-          pwd
-          ls -la
-          # The rest of your deployment script will go here
+          cd ~/projects/paxxserv
+          git pull
+          sudo /bin/systemctl restart paxxserv.service
