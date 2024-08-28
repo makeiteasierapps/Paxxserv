@@ -7,7 +7,6 @@ from app import create_app, socketio
 app = create_app()
 
 def main(debug=False):
-
     if debug:
         socketio.run(app, host='0.0.0.0', port=3033, debug=True, use_reloader=True)
     else:
