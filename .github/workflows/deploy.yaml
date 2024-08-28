@@ -12,7 +12,9 @@ jobs:
     - name: Deploy to server
       uses: appleboy/ssh-action@master
       with:
-        host: abyssus
+        host: paxxium.com
+        username: gravitaskillis
+        port: 22
         key: ${{ secrets.SERVER_SSH_KEY }}
         script: |
           cd /home/projects/paxxserv
