@@ -1,7 +1,6 @@
 from flask import Blueprint, Response, stream_with_context
 from dotenv import load_dotenv
 from flask import jsonify, request, g
-from flask_cors import CORS
 from app.services.KnowledgeBaseService import KnowledgeBaseService
 from app.services.MongoDbClient import MongoDbClient
 from app.services.ExtractionService import ExtractionService
@@ -9,11 +8,6 @@ from app.services.ExtractionService import ExtractionService
 load_dotenv()
 
 kb_bp = Blueprint('kb_bp', __name__)
-cors = CORS(resources={r"/*": {
-    "origins": ["https://paxxiumv1.web.app", "http://localhost:3000"],
-    "allow_headers": ["Content-Type", "Accept", "dbName", "uid"],
-    "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
-}})
 
 @kb_bp.before_request
 def initialize_services():

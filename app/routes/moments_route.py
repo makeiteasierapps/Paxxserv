@@ -1,6 +1,5 @@
 from dotenv import load_dotenv
 from flask import  Blueprint, request, jsonify, g
-from flask_cors import CORS
 from app.agents.OpenAiClient import OpenAiClient
 from app.agents.ContentProcessor import ContentProcessor
 from app.services.MomentService import MomentService
@@ -8,11 +7,6 @@ from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
 moment_bp = Blueprint('moment_bp', __name__)
-cors = CORS(resources={r"/*": {
-    "origins": ["https://paxxiumv1.web.app", "http://localhost:3000"],
-    "allow_headers": ["Content-Type", "Accept", "dbName", "uid"],
-    "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
-}})
 
 @moment_bp.before_request
 def initialize_services():
