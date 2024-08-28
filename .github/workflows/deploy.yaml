@@ -17,6 +17,6 @@ jobs:
         port: 22
         key: ${{ secrets.SERVER_SSH_KEY }}
         script: |
-          cd /home/projects/paxxserv
+          cd projects/paxxserv
           git pull
           sudo systemctl restart paxxserv.service

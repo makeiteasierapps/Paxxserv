@@ -10,7 +10,8 @@ auth_check_bp = Blueprint('auth_check', __name__)
 @auth_check_bp.before_request
 def initialize_services():
 
-    
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
 
     if request.method == 'GET':
         return
