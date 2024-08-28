@@ -9,14 +9,14 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to server
-        uses: appleboy/ssh-action@master
-        with:
-          host: paxxium.com
-          username: gravitaskillis
-          port: 22
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script: |
-            cd /home/projects/paxxserv
-            git pull
-            sudo /bin/systemctl restart paxxserv.service
+    - name: Deploy to server
+      uses: appleboy/ssh-action@master
+      with:
+        host: paxxium.com
+        username: gravitaskillis
+        port: 22
+        key: ${{ secrets.SERVER_SSH_KEY }}
+        script: |
+          pwd
+          ls -la
+          # The rest of your deployment script will go here
