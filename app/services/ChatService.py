@@ -54,21 +54,18 @@ class ChatService:
         result = self.db['chats'].delete_one({'_id': ObjectId(chat_id)})
         return result.deleted_count
 
-    def update_settings(self, chat_id, chat_name, agent_model, system_prompt, chat_constants, use_profile_data):
+    def update_settings(self, chat_id, **kwargs):
         """
-        Updates a chat in the database
+        Updates a chat in the database with only the provided settings
         """
-        update_result = self.db['chats'].update_one(
-            {'_id': ObjectId(chat_id)},
-            {'$set': {
-                'chat_name': chat_name,
-                'agent_model': agent_model,
-                'system_prompt': system_prompt,
-                'chat_constants': chat_constants,
-                'use_profile_data': use_profile_data
-                }}
-        )
-        return update_result
+        update_fields = {k: v for k, v in kwargs.items() if v is not None}
+        if update_fields:
+            update_result = self.db['chats'].update_one(
+                {'_id': ObjectId(chat_id)},
+                {'$set': update_fields}
+            )
+            return update_result
+        return None
 
     def create_message(self, chat_id, message_from, message_content):
         current_time = datetime.utcnow()
