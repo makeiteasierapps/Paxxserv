@@ -1,14 +1,8 @@
 import os
 from flask import Blueprint, Response, send_file, request
-from flask_cors import CORS
 from app.agents.OpenAiClient import OpenAiClient
 
 sam_bp = Blueprint('sam', __name__)
-cors = CORS(resources={r"/*": {
-    "origins": ["https://paxxiumv1.web.app", "http://localhost:3000"],
-    "allow_headers": ["Content-Type", "Accept", "dbName", "uid"],
-    "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
-}})
 
 @sam_bp.route('/sam', methods=['OPTIONS'])
 def handle_socketio_options():

@@ -1,7 +1,6 @@
 import io
 from dotenv import load_dotenv
 from flask import request, Blueprint, g, jsonify
-from flask_cors import CORS
 import requests
 from app.services.FirebaseStoreageService import FirebaseStorageService
 from app.agents.ImageManager import ImageManager
@@ -10,11 +9,6 @@ from app.services.MongoDbClient import MongoDbClient
 load_dotenv()
 
 images_bp = Blueprint('images', __name__)
-cors = CORS(resources={r"/*": {
-    "origins": ["https://paxxiumv1.web.app", "http://localhost:3000"],
-    "allow_headers": ["Content-Type", "Accept", "dbName", "uid"],
-    "methods": ["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
-}})
 
 @images_bp.before_request
 def initialize_services():

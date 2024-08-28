@@ -11,8 +11,6 @@ from app.services.MongoDbClient import MongoDbClient
 from app.services.ExtractionService import ExtractionService
 from app.services.KnowledgeBaseService import KnowledgeBaseService
 
-
-
 @socketio.on('connect')
 def handle_connect():
     print(f"Client connected: {request.sid}")
