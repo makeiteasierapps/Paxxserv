@@ -57,15 +57,8 @@ def chat(subpath):
 
     if subpath == 'update_settings':
         data = request.get_json()
-        use_profile_data = data.get('use_profile_data')
-        chat_name = data.get('chat_name')
         chat_id = data.get('chatId')
-        agent_model = data.get('agent_model')
-        system_prompt = data.get('system_prompt')
-        chat_constants = data.get('chat_constants')
-        g.chat_service.update_settings(chat_id, chat_name, agent_model, system_prompt, chat_constants, use_profile_data)
-
-        return ('Chat settings updated', 200)
+        g.chat_service.update_settings(chat_id, **data)
 
 @chat_bp.route('/messages', defaults={'subpath': ''}, methods=['DELETE', 'POST'])
 @chat_bp.route('/messages/<path:subpath>', methods=['DELETE', 'POST'])
