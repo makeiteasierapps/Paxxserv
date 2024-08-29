@@ -59,6 +59,7 @@ def chat(subpath):
         data = request.get_json()
         chat_id = data.get('chatId')
         g.chat_service.update_settings(chat_id, **data)
+        return 'Conversation settings updated', 200
 
 @chat_bp.route('/messages', defaults={'subpath': ''}, methods=['DELETE', 'POST'])
 @chat_bp.route('/messages/<path:subpath>', methods=['DELETE', 'POST'])
