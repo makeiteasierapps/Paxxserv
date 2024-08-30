@@ -27,7 +27,7 @@ class AnthropicClient:
     
     def generate_chat_completion(self, messages, model, json=False, stream=False, system=None):
         print(model)
-        kwargs = {"messages": messages, "model": model, "stream": stream, "max_tokens": 1000}
+        kwargs = {"messages": messages, "model": model, "stream": stream, "max_tokens": 8192}
         if system:
             kwargs["system"] = system
         response = self.client.messages.create(**kwargs)
