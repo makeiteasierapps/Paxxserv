@@ -1,7 +1,10 @@
+import json
 from fastapi import APIRouter, Depends, Header, HTTPException, File, UploadFile
 from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
 from typing import Optional
 from pydantic import BaseModel
+from app.utils.custom_json_encoder import CustomJSONEncoder
 from app.services.ChatService import ChatService
 from app.services.FirebaseStoreageService import FirebaseStorageService as firebase_storage
 from app.services.MongoDbClient import MongoDbClient
@@ -34,7 +37,9 @@ class UpdateSettingsData(BaseModel):
 @router.get("/chat")
 async def get_all_chats(chat_service: ChatService = Depends(get_chat_service)):
     chat_service, uid = chat_service
-    return JSONResponse(content=chat_service.get_all_chats(uid))
+    json_chats = jsonable_encoder(chat_service.get_all_chats(uid))
+    json_str = json.dumps(json_chats, cls=CustomJSONEncoder)
+    return JSONResponse(content=json.loads(json_str))
 
 @router.post("/chat")
 async def create_chat(data: ChatData, chat_service: ChatService = Depends(get_chat_service)):
