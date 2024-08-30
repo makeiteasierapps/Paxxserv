@@ -10,3 +10,4 @@ pymupdf
 anthropic
 fastapi
 uvicorn
+python-socketio

@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from firebase_admin import credentials, initialize_app
 import logging
+import socketio
 
 load_dotenv()
 
@@ -24,6 +25,8 @@ except ValueError as e:
 
 def create_app():
     app = FastAPI()
+    sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
+    socket_app = socketio.ASGIApp(sio, app)
 
     app.add_middleware(
         CORSMiddleware,
@@ -36,7 +39,7 @@ def create_app():
     # Import and include routers
     from .routes import (
         chat_route, sam_route, moments_route, auth_check_route, 
-        images_route, news_routes, signup_route, profile_route, kb_route
+        images_route, news_routes, signup_route, profile_route, kb_route, socket_handler
     )
     
     routers = [
@@ -48,10 +51,13 @@ def create_app():
         profile_route.router,
         news_routes.router,
         signup_route.router,
-        kb_route.router
+        kb_route.router,
     ]
     
     for router in routers:
         app.include_router(router)
 
-    return app
+    # Setup Socket.IO event handlers
+    socket_handler.setup_socketio_events(sio)
+
+    return socket_app

@@ -1,101 +1,85 @@
-import json
-import traceback
-from flask import Blueprint, request, jsonify, g, Response, current_app, stream_with_context
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, UploadFile, File
+from fastapi.responses import JSONResponse, StreamingResponse
+from typing import Optional
 from dotenv import load_dotenv
 from app.services.ProfileService import ProfileService
 from app.services.UserService import UserService
 from app.services.MongoDbClient import MongoDbClient
 from app.agents.QuestionGenerator import QuestionGenerator
 from app.agents.AnalyzeUser import AnalyzeUser
+import json
+import traceback
 
 load_dotenv()
 
-profile_bp = Blueprint('profile_bp', __name__)
+router = APIRouter()
 
-@profile_bp.before_request
-def initialize_services():
-    if request.method == "OPTIONS":
-        return "", 204
-    db_name = request.headers.get('dbName', 'paxxium')
-    g.uid = request.headers.get('uid')
-    print(g.uid)
-    g.mongo_client = MongoDbClient(db_name)
-    db = g.mongo_client.connect()
-    g.profile_service = ProfileService(db, g.uid)
-    g.user_service = UserService(db)
-    g.analyze_user = AnalyzeUser(db, g.uid)
-
-@profile_bp.after_request
-def close_mongo_connection(response):
-    if hasattr(g, 'mongo_client'):
-        g.mongo_client.close()
-    return response
-
-@profile_bp.route('/profile', defaults={'subpath': ''}, methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
-@profile_bp.route('/profile/<path:subpath>', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
-def profile(subpath):
-    if request.method == 'GET' and subpath == '':
-        user_profile = g.profile_service.get_profile(g.uid)
-        return jsonify(user_profile), 200
-
-    if subpath == 'generate_questions':
-        content = request.get_json()
-        db_name = request.headers.get('dbName', 'paxxium')
-        uid = request.headers.get('uid')
-        mongo_client = MongoDbClient(db_name)
+def get_services(dbName: str = Header(...), uid: str = Header(...)):
+    try:
+        mongo_client = MongoDbClient(dbName)
         db = mongo_client.connect()
-        db['users'].update_one({'_id': uid}, {'$set': {'userintro': content['userInput']}})
-        def generate():
-            with current_app.app_context():
-                try:
-                    mongo_client = MongoDbClient(db_name)
-                    db = mongo_client.connect()
-                    question_generator = QuestionGenerator(db, uid)
-                    for result in question_generator.generate_questions(content['userInput']):
-                        yield json.dumps(result) + '\n'
-                except Exception as e:
-                    error_msg = f"Error in generate_questions: {str(e)}\n{traceback.format_exc()}"
-                    current_app.logger.error(error_msg)
-                    yield json.dumps({"error": error_msg}) + '\n'
-                finally:
-                    if 'mongo_client' in locals():
-                        mongo_client.close()
-                    yield ''  # Ensure the stream is properly closed
-        
-        return Response(stream_with_context(generate()), content_type='application/json'), 200
-    
-    if subpath == 'questions':
-        if request.method == 'GET':
-            questions = g.profile_service.load_questions(g.uid)
-            return jsonify(questions), 200
-        
-    if subpath == 'answers':
-        if request.method == 'POST':
-            data = request.get_json()
-            question_id = data['questionId']
-            answer = data['answer']
-            g.profile_service.update_profile_answer(question_id, answer)
-            return jsonify({'response': 'Profile questions/answers updated successfully'}), 200
+        profile_service = ProfileService(db, uid)
+        user_service = UserService(db)
+        analyze_user = AnalyzeUser(db, uid)
+        return {"db": db, "profile_service": profile_service, "user_service": user_service, "analyze_user": analyze_user, "mongo_client": mongo_client}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Service initialization failed: {str(e)}")
 
-    if subpath == 'user':
-        data = request.get_json()
-        g.profile_service.update_user_profile(g.uid, data)
-        return jsonify({'response': 'User profile updated successfully'}), 200
-    
-    if subpath == 'analyze':
-        answered_questions = g.profile_service.load_questions(g.uid, fetch_answered=True)
-        response = g.analyze_user.analyze_cateogry(answered_questions)
-        # response = g.profile_service.analyze_user_profile(prompt)
-        # analysis_obj = json.loads(response)
-        # g.profile_service.update_user_profile(g.uid, analysis_obj.copy())
-        return jsonify(response), 200
+@router.get("/profile")
+async def get_profile(services: dict = Depends(get_services)):
+    user_profile = services["profile_service"].get_profile(services["profile_service"].uid)
+    return JSONResponse(content=user_profile)
 
-    if subpath in ('update_avatar', 'profile/update_avatar'):
-        file = request.files['avatar']
-        avatar_url = g.user_service.update_user_avatar(file, g.uid)
-        return jsonify({'avatar_url': avatar_url}), 200
-
-    return 'Not Found', 404
-
+@router.post("/profile/generate_questions")
+async def generate_questions(request: Request, services: dict = Depends(get_services)):
+    content = await request.json()
+    services["db"]['users'].update_one({'_id': services["profile_service"].uid}, {'$set': {'userintro': content['userInput']}})
     
-    
+    async def generate():
+        try:
+            question_generator = QuestionGenerator(services["db"], services["profile_service"].uid)
+            for result in question_generator.generate_questions(content['userInput']):
+                yield json.dumps(result) + '\n'
+        except Exception as e:
+            error_msg = f"Error in generate_questions: {str(e)}\n{traceback.format_exc()}"
+            yield json.dumps({"error": error_msg}) + '\n'
+        finally:
+            services["mongo_client"].close()
+            yield ''  # Ensure the stream is properly closed
+
+    return StreamingResponse(generate(), media_type='application/json')
+
+@router.get("/profile/questions")
+async def get_questions(services: dict = Depends(get_services)):
+    questions = services["profile_service"].load_questions(services["profile_service"].uid)
+    return JSONResponse(content=questions)
+
+@router.post("/profile/answers")
+async def update_answers(request: Request, services: dict = Depends(get_services)):
+    data = await request.json()
+    question_id = data['questionId']
+    answer = data['answer']
+    services["profile_service"].update_profile_answer(question_id, answer)
+    return JSONResponse(content={'response': 'Profile questions/answers updated successfully'})
+
+@router.post("/profile/user")
+async def update_user_profile(request: Request, services: dict = Depends(get_services)):
+    data = await request.json()
+    services["profile_service"].update_user_profile(services["profile_service"].uid, data)
+    return JSONResponse(content={'response': 'User profile updated successfully'})
+
+@router.post("/profile/analyze")
+async def analyze_profile(services: dict = Depends(get_services)):
+    answered_questions = services["profile_service"].load_questions(services["profile_service"].uid, fetch_answered=True)
+    response = services["analyze_user"].analyze_cateogry(answered_questions)
+    return JSONResponse(content=response)
+
+@router.post("/profile/update_avatar")
+async def update_avatar(file: UploadFile = File(...), services: dict = Depends(get_services)):
+    avatar_url = services["user_service"].update_user_avatar(file.file, services["profile_service"].uid)
+    return JSONResponse(content={'avatar_url': avatar_url})
+
+# Additional error handling - catch all
+@router.api_route("/profile/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def catch_all(path: str):
+    raise HTTPException(status_code=404, detail="Not Found")
