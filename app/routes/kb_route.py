@@ -1,7 +1,10 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, File, UploadFile, Form
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.encoders import jsonable_encoder
 from typing import Optional
 from dotenv import load_dotenv
+from app.utils.custom_json_encoder import CustomJSONEncoder
 from app.services.KnowledgeBaseService import KnowledgeBaseService
 from app.services.MongoDbClient import MongoDbClient
 from app.services.ExtractionService import ExtractionService
@@ -19,7 +22,9 @@ def get_services(dbName: str = Header(...), uid: str = Header(...)):
 @router.get("/kb")
 async def get_kb_list(services: dict = Depends(get_services)):
     kb_list = services["kb_services"].get_kb_list(services["uid"])
-    return JSONResponse(content={"kb_list": kb_list})
+    json_kb_list = jsonable_encoder(kb_list)
+    json_str = json.dumps(json_kb_list, cls=CustomJSONEncoder)
+    return JSONResponse(content=json.loads(json_str))
 
 @router.post("/kb")
 async def create_kb(request: Request, services: dict = Depends(get_services)):
@@ -27,7 +32,9 @@ async def create_kb(request: Request, services: dict = Depends(get_services)):
     name = data.get('name')
     objective = data.get('objective')
     new_kb_details = services["kb_services"].create_new_kb(services["uid"], name, objective)
-    return JSONResponse(content={"new_kb": new_kb_details})
+    json_kb_details = jsonable_encoder(new_kb_details)
+    json_str = json.dumps(json_kb_details, cls=CustomJSONEncoder)
+    return JSONResponse(content=json.loads(json_str))
 
 @router.delete("/kb")
 async def delete_kb(request: Request, services: dict = Depends(get_services)):
