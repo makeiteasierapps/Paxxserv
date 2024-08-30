@@ -1,9 +1,6 @@
-flask
 dspy-ai
 python-dotenv
 pymongo[srv]
-flask-socketio
-flask-cors
 firebase-admin
 newspaper3k
 lxml-html-clean
@@ -11,6 +8,5 @@ requests
 canopy-sdk
 pymupdf
 anthropic
-gevent
-gevent-websocket
-eventlet
+fastapi
+uvicorn
