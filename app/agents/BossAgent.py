@@ -3,7 +3,7 @@ from flask_socketio import emit
 from app.agents.OpenAiClient import OpenAiClient
 from app.agents.AnthropicClient import AnthropicClient
 
-class BossAgent():
+class BossAgent:
     def __init__(self, ai_client, model='gpt-4o-mini', system_prompt="You are a friendly but genuine AI Agent. Don't be annoyingly nice, but don't be rude either.", chat_constants=None, user_analysis=None):
         self.ai_client = ai_client
         self.is_initialized = True

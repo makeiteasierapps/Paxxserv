@@ -2,7 +2,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 
-class OpenAiClient():
+class OpenAiClient:
     def __init__(self, db=None, uid=None):
         self.db = db
         self.uid = uid

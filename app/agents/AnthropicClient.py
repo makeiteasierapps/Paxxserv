@@ -2,7 +2,7 @@ import anthropic
 from dotenv import load_dotenv
 import os
 
-class AnthropicClient():
+class AnthropicClient:
     def __init__(self, db=None, uid=None):
         self.db = db
         self.uid = uid

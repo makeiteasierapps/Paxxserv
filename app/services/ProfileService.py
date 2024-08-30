@@ -1,4 +1,4 @@
-class ProfileService():
+class ProfileService:
     def __init__(self, db=None, uid=None):
         self.db = db
         self.uid = uid

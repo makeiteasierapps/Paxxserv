@@ -9,13 +9,15 @@ from ..agents.OpenAiClient import OpenAiClient
 
 load_dotenv()
 
-class NewsService(OpenAiClient):
+class NewsService:
     def __init__(self, db, uid):
-        super().__init__(db, uid)
+        self.db = db
+        self.uid = uid
+        self.client = OpenAiClient(db, uid)
         self.apikey = os.getenv('GNEWS_API_KEY')
 
     def pass_to_news_agent(self, article_to_summarize, model='gpt-4o-mini'):
-        response = self.openai_client.chat.completions.create(
+        response = self.client.generate_chat_completion(
             model=model,
             messages=[
                 {
@@ -24,7 +26,8 @@ class NewsService(OpenAiClient):
                 }
             ],
         )
-        return response.choices[0].message.content
+        
+        return response
     
     def get_article_urls(self, query):
         conn = http.client.HTTPSConnection("google.serper.dev")
