@@ -3,7 +3,8 @@ import time
 import json
 import requests
 from dotenv import load_dotenv
-from flask import jsonify
+from fastapi import HTTPException
+from fastapi.responses import JSONResponse
 from canopy.tokenizer import Tokenizer
 from app.services.FirebaseStoreageService import FirebaseStorageService as firebase_storage
 
@@ -34,10 +35,10 @@ class ExtractionService:
             source = response_data['data']['metadata']['sourceURL']
             cleaned_source = os.path.basename(source)
             kb_doc = kb_services.create_kb_doc_in_db(kb_id, cleaned_source, 'pdf', content=content)
-            return jsonify(kb_doc), 200
+            return JSONResponse(content=kb_doc, status_code=200)
         except Exception as e:
             print(f"Error extracting text from PDF: {e}")
-            return jsonify({'message': 'Failed to extract text from PDF'}), 500
+            raise HTTPException(status_code=500, detail="Failed to extract text from PDF")
 
     def extract_from_url(self, url, kb_id, endpoint, kb_services):
         normalized_url = self.normalize_url(url)
