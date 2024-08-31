@@ -1,5 +1,7 @@
+from fastapi import APIRouter, Header, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
+from typing import Any
 import random
-from flask import Blueprint, request, g
 from dotenv import load_dotenv
 from app.services.NewsService import NewsService
 from app.services.UserService import UserService
@@ -7,66 +9,65 @@ from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
 
-news_bp = Blueprint('news_bp', __name__)
+router = APIRouter()
 
-@news_bp.before_request
-def initialize_services():
-    if request.method == "OPTIONS":
-        return ("", 204)
-    db_name = request.headers.get('dbName', 'paxxium')
-    g.uid = request.headers.get('uid')
-    g.mongo_client = MongoDbClient(db_name)
-    db = g.mongo_client.connect()
-    g.user_service = UserService(db)
-    g.news_service = NewsService(db, g.uid)
+def get_db(dbName: str = Header(...)):
+    try:
+        mongo_client = MongoDbClient(dbName)
+        db = mongo_client.connect()
+        return db
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")
 
-@news_bp.after_request
-def close_mongo_connection(response):
-    if hasattr(g, 'mongo_client'):
-        g.mongo_client.close()
-    return response
+def get_services(db: Any = Depends(get_db), uid: str = Header(...)):
+    user_service = UserService(db)
+    news_service = NewsService(db, uid)
+    return user_service, news_service
 
-@news_bp.route('/news', methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
-def news():
-    if request.method == 'GET':
-        news_data = g.news_service.get_all_news_articles()
-        # Convert ObjectId to string
-        for article in news_data:
-            article['_id'] = str(article['_id'])
-        return (news_data, 200)
+@router.get("/news")
+async def get_news(services: tuple = Depends(get_services)):
+    _, news_service = services
+    news_data = news_service.get_all_news_articles()
+    for article in news_data:
+        article['_id'] = str(article['_id'])
+    return JSONResponse(content=news_data)
 
-    if request.method == 'POST':
-        data = request.get_json()
-        query = data['query']
-        urls = g.news_service.get_article_urls(query)
-        news_data = g.news_service.summarize_articles(urls)
-        g.news_service.upload_news_data(news_data)
-        return (news_data, 200)
+@router.post("/news")
+async def post_news(request: Request, services: tuple = Depends(get_services)):
+    _, news_service = services
+    data = await request.json()
+    query = data['query']
+    urls = news_service.get_article_urls(query)
+    news_data = news_service.summarize_articles(urls)
+    news_service.upload_news_data(news_data)
+    return JSONResponse(content=news_data)
+
+@router.put("/news")
+async def update_news(request: Request, services: tuple = Depends(get_services)):
+    _, news_service = services
+    data = await request.json()
+    doc_id = data['articleId']
+    is_read = data['isRead']
+    news_service.mark_is_read(doc_id, is_read)
+    return JSONResponse(content={"message": "Updated successfully"})
+
+@router.delete("/news")
+async def delete_news(request: Request, services: tuple = Depends(get_services)):
+    _, news_service = services
+    data = await request.json()
+    doc_id = data['articleId']
+    news_service.delete_news_article(doc_id)
+    return JSONResponse(content={"message": "Deleted successfully"})
+
+@router.get("/ai-fetch-news")
+async def ai_fetch_news(services: tuple = Depends(get_services)):
+    _, news_service = services
+    topics = news_service.get_user_topics()
+    if not topics:
+        raise HTTPException(status_code=404, detail="No topics found, please answer some questions in the profile section and analyze")
     
-    if request.method == 'PUT':
-        data = request.get_json()
-        doc_id = data['articleId']
-        is_read = data['isRead']
-        g.news_service.mark_is_read(doc_id, is_read)
-        return ({"message": "Updated successfully"}, 200)
-
-    if request.method == 'DELETE':
-        data = request.get_json()
-        doc_id = data['articleId']
-        g.news_service.delete_news_article(doc_id)
-        return ({"message": "Deleted successfully"}, 200)
-
-@news_bp.route('/ai-fetch-news', methods=['GET', 'OPTIONS'])
-def ai_fetch_news():
-    if request.method == 'GET':
-        topics = g.news_service.get_user_topics()
-        if not topics:
-            return ({"message": "No topics found, please answer some questions in the profile section and analyze"}, 404)
-
-        random_topic = random.choice(topics)
-        urls = g.news_service.get_article_urls(random_topic)
-        news_data_list = g.news_service.summarize_articles(urls)
-        g.news_service.upload_news_data(news_data_list)
-        return (news_data_list, 200)
-    
-    
+    random_topic = random.choice(topics)
+    urls = news_service.get_article_urls(random_topic)
+    news_data_list = news_service.summarize_articles(urls)
+    news_service.upload_news_data(news_data_list)
+    return JSONResponse(content=news_data_list)

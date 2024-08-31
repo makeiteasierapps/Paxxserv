@@ -1,38 +1,42 @@
 from dotenv import load_dotenv
-from flask import Blueprint, request, g
+from fastapi import APIRouter, Header, HTTPException, Depends
+from fastapi.responses import JSONResponse
 from app.services.UserService import UserService
 from app.services.MongoDbClient import MongoDbClient
+from pydantic import BaseModel
 
 load_dotenv()
 
-signup_bp = Blueprint('signup_bp', __name__)
+router = APIRouter()
 
-@signup_bp.before_request
-def initialize_services():
-    if request.method == "OPTIONS":
-        return ("", 204)
-    db_name = request.headers.get('dbName')
-    if not db_name:
-        return ('Database name is required', 400)
-    g.mongo_client = MongoDbClient(db_name)
-    db = g.mongo_client.connect()
-    g.user_service = UserService(db)
+class SignupData(BaseModel):
+    username: str
+    uid: str
+    openAiApiKey: str
+    authorized: bool
 
-@signup_bp.route('/signup', methods=['POST'])
-def signup():
-    if request.method == 'POST':
-        req_data = request.get_json()
-        username = req_data.get('username')
-        uid = req_data.get('uid')
-        openai_api_key = req_data.get('openAiApiKey')
-        authorized = req_data.get('authorized')
+def get_db(dbName: str = Header(...)):
+    try:
+        mongo_client = MongoDbClient(dbName)
+        db = mongo_client.connect()
+        return db
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")
 
+def get_user_service(db: MongoDbClient = Depends(get_db)):
+    return UserService(db)
+
+@router.post('/signup')
+async def signup(data: SignupData, user_service: UserService = Depends(get_user_service)):
+    try:
         updates = {   
-            'username': username,
-            'open_key': openai_api_key,
-            'authorized': authorized}
+            'username': data.username,
+            'open_key': data.openAiApiKey,
+            'authorized': data.authorized
+        }
       
-        g.user_service.update_user(uid, updates)
+        user_service.update_user(data.uid, updates)
 
-        return ({'message': 'User added successfully'}, 200)
-
+        return JSONResponse(content={'message': 'User added successfully'}, status_code=200)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred during signup: {str(e)}")

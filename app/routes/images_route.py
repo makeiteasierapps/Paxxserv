@@ -1,6 +1,7 @@
 import io
 from dotenv import load_dotenv
-from flask import request, Blueprint, g, jsonify
+from fastapi import APIRouter, Header, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 import requests
 from app.services.FirebaseStoreageService import FirebaseStorageService
 from app.agents.ImageManager import ImageManager
@@ -8,46 +9,44 @@ from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
 
-images_bp = Blueprint('images', __name__)
+router = APIRouter()
 
-@images_bp.before_request
-def initialize_services():
-    if request.method == 'OPTIONS':
-        return ('', 204)
-    db_name = request.headers.get('dbName')
-    if not db_name:
-        return jsonify({"error": "dbName is required in the headers"}), 400
-    g.uid = request.headers.get('uid')
-    g.mongo_client = MongoDbClient(db_name)
-    db = g.mongo_client.connect()
-    g.image_manager = ImageManager(db, g.uid)
-            
+def get_db_and_image_manager(dbName: str = Header(...), uid: str = Header(...)):
+    try:
+        mongo_client = MongoDbClient(dbName)
+        db = mongo_client.connect()
+        image_manager = ImageManager(db, uid)
+        return db, image_manager
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")
 
-@images_bp.route('/images', methods=['GET', 'POST', 'DELETE', 'PUT', 'PATCH', 'OPTIONS'])
-def images():
-    if request.method == "POST":
-        image_request = request.get_json()
-        image_url = g.image_manager.generate_image(image_request)
-        return (image_url, 200)
-    
-    if request.method == "GET":
-        images_list = FirebaseStorageService.fetch_all_images(g.uid, 'dalle_images')
-        return (images_list, 200)
-    
-    if request.method == "DELETE":
-        data = request.get_json()
-        path = data.get('path')
-        FirebaseStorageService.delete_image(path)
-        return ({'message': 'Image deleted successfully'}, 200)
+@router.post("/images")
+async def generate_image(request: Request, db_and_manager: tuple = Depends(get_db_and_image_manager)):
+    _, image_manager = db_and_manager
+    image_request = await request.json()
+    image_url = image_manager.generate_image(image_request)
+    return JSONResponse(content=image_url, status_code=200)
 
-@images_bp.route('/images/save', methods=['POST'])
-def save_image():    
-    data = request.get_json()
-    url = data.get('image')  
+@router.get("/images")
+async def get_images(uid: str = Header(...)):
+    images_list = FirebaseStorageService.fetch_all_images(uid, 'dalle_images')
+    return JSONResponse(content=images_list, status_code=200)
+
+@router.delete("/images")
+async def delete_image(request: Request):
+    data = await request.json()
+    path = data.get('path')
+    FirebaseStorageService.delete_image(path)
+    return JSONResponse(content={'message': 'Image deleted successfully'}, status_code=200)
+
+@router.post("/images/save")
+async def save_image(request: Request, uid: str = Header(...)):
+    data = await request.json()
+    url = data.get('image')
     response = requests.get(url, timeout=10)
     if response.status_code != 200:
-        return ({'error': 'Failed to fetch image'}, 400)
+        raise HTTPException(status_code=400, detail='Failed to fetch image')
     image_data = response.content
     image_blob = io.BytesIO(image_data)
-    image_url = FirebaseStorageService.upload_file(image_blob, g.uid, 'dalle_images')
-    return (image_url, 200)
+    image_url = FirebaseStorageService.upload_file(image_blob, uid, 'dalle_images')
+    return JSONResponse(content=image_url, status_code=200)
