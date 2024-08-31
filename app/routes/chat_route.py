@@ -2,7 +2,7 @@ import json
 from fastapi import APIRouter, Depends, Header, HTTPException, File, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from typing import Optional
+from typing import Optional, Dict, Any
 from pydantic import BaseModel
 from app.utils.custom_json_encoder import CustomJSONEncoder
 from app.services.ChatService import ChatService
@@ -21,11 +21,6 @@ def get_chat_service(dbName: str = Header(...), uid: str = Header(...)):
 
 class ChatData(BaseModel):
     uid: str
-    chatName: str
-    agentModel: str
-    systemPrompt: Optional[str] = None
-    chatConstants: Optional[dict] = None
-    useProfileData: Optional[bool] = None
 
 class DeleteChatData(BaseModel):
     chatId: str
@@ -44,22 +39,14 @@ async def get_all_chats(chat_service: ChatService = Depends(get_chat_service)):
 @router.post("/chat")
 async def create_chat(data: ChatData, chat_service: ChatService = Depends(get_chat_service)):
     chat_service, _ = chat_service
-    chat_id = chat_service.create_chat_in_db(
-        data.uid, 
-        data.chatName, 
-        data.agentModel, 
-        system_prompt=data.systemPrompt, 
-        chat_constants=data.chatConstants, 
-        use_profile_data=data.useProfileData
+    chat_data = chat_service.create_chat_in_db(
+        data.uid,
     )
     return JSONResponse(content={
-        'chatId': chat_id,
-        'chat_name': data.chatName,
-        'agent_model': data.agentModel,
+        'chatId': CustomJSONEncoder().default(chat_data['_id']),
+        'chat_name': chat_data['chat_name'],
+        'agent_model': chat_data['agent_model'],
         'uid': data.uid,
-        'system_prompt': data.systemPrompt,
-        'chat_constants': data.chatConstants,
-        'use_profile_data': data.useProfileData,
     })
 
 @router.delete("/chat")
