@@ -33,7 +33,7 @@ def create_app():
         allow_origins=["https://paxxiumv1.web.app", "http://localhost:3000"],
         allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
-        allow_headers=["Content-Type", "Accept", "dbName", "uid"],
+        allow_headers=["Content-Type", "Accept", "dbName", "uid", 'Kb-ID'],
     )
 
     # Import and include routers
