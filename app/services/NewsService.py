@@ -108,7 +108,6 @@ class NewsService:
             if existing_article is None:
                 self.db['newsArticles'].insert_one(news_data)
                 news_data['_id'] = str(news_data['_id'])
-                print(f"Added URL '{url}'.")
             else:
                 print(f"URL '{url}' already exists, skipping...")
 
