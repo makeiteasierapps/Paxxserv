@@ -1,16 +1,14 @@
+import uvicorn
 import argparse
-from gevent import monkey
-monkey.patch_all()
-
-from app import create_app, socketio
+from app import create_app
 
 app = create_app()
 
 def main(debug=False):
     if debug:
-        socketio.run(app, host='0.0.0.0', port=3033, debug=True, use_reloader=True)
+        uvicorn.run("run:app", host="0.0.0.0", port=3033, reload=True)
     else:
-        pass
+        uvicorn.run(app, host="0.0.0.0", port=3033, workers=4, log_level="info")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run the application in production or development mode.')
