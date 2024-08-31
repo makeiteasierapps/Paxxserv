@@ -26,7 +26,7 @@ def initialize_services(db, uid):
     extraction_service = ExtractionService(db, uid)
     return chat_service, profile_service, kb_service, extraction_service
 
-def create_boss_agent(chat_settings, db, uid, profile_service):
+def create_boss_agent(chat_settings, sio, db, uid, profile_service):
     if not chat_settings:
         return None, None
 
@@ -43,6 +43,7 @@ def create_boss_agent(chat_settings, db, uid, profile_service):
 
     boss_agent = BossAgent(
         ai_client=ai_client,
+        sio=sio,
         model=model,
         system_prompt=system_prompt,
         chat_constants=chat_constants,
@@ -68,6 +69,7 @@ def handle_extraction(urls: List[str], extraction_service, kb_id, kb_service, bo
 def setup_socketio_events(sio: socketio.AsyncServer):
     @sio.event
     async def chat(sid, data):
+        print(f"Received data: {data}")
         try:
             urls = data.get('urls', [])
             uid = data.get('uid')
@@ -81,21 +83,21 @@ def setup_socketio_events(sio: socketio.AsyncServer):
             system_message = None
             
             if save_to_db and not db_name:
-                await sio.emit('error', {"error": "dbName is required when saveToDb is true"}, room=sid)
+                await sio.emit('error', {"error": "dbName is required when saveToDb is true"})
                 return
 
             db = get_db(db_name)
             chat_service, profile_service, kb_service, extraction_service = initialize_services(db, uid)
-            boss_agent, system_prompt = create_boss_agent(chat_settings, db, uid, profile_service)
+            boss_agent, system_prompt = create_boss_agent(chat_settings, sio, db, uid, profile_service)
 
             if save_to_db:
                 chat_service.create_message(chat_id, 'user', user_message)
                 async def save_agent_message(chat_id, message):
                     chat_service.create_message(chat_id, 'agent', message)
-                    await sio.emit('agent_message', {"type": "agent_message", "content": message}, room=sid)
+                    await sio.emit('agent_message', {"type": "agent_message", "content": message})
             else:
                 async def save_agent_message(chat_id, message):
-                    await sio.emit('agent_message', {"type": "agent_message", "content": message}, room=sid)
+                    await sio.emit('agent_message', {"type": "agent_message", "content": message})
 
             if kb_id:
                 query_pipeline = boss_agent.create_vector_pipeline(user_message, kb_id)
@@ -108,7 +110,7 @@ def setup_socketio_events(sio: socketio.AsyncServer):
             await boss_agent.process_message(data['chatHistory'], chat_id, user_message, system_message, save_agent_message, image_url)
 
         except Exception as e:
-            await sio.emit('error', {"error": str(e)}, room=sid)
+            await sio.emit('error', {"error": str(e)})
 
     @sio.event
     async def connect(sid, environ):
