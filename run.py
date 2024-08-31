@@ -8,7 +8,7 @@ def main(debug=False):
     if debug:
         uvicorn.run("run:app", host="0.0.0.0", port=3033, reload=True)
     else:
-        uvicorn.run(app, host="0.0.0.0", port=3033)
+        uvicorn.run(app, host="0.0.0.0", port=3033, workers=4, log_level="info")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run the application in production or development mode.')
