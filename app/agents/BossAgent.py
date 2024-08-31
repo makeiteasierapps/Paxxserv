@@ -60,7 +60,7 @@ class BossAgent:
             else:  # OpenAI client structure
                 response_chunk = chunk.choices[0].delta.content
                 if response_chunk is not None:
-                    self.process_response_chunk(chat_id, response_chunk, response_chunks, stream_state)
+                    await self.process_response_chunk(chat_id, response_chunk, response_chunks, stream_state)
 
         return response_chunks
 
