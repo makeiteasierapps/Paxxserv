@@ -5,23 +5,17 @@ class ChatService:
     def __init__(self, db):
         self.db = db
         
-    def create_chat_in_db(self, uid, chat_name, agent_model, system_prompt=None, chat_constants=None, use_profile_data=False):
+    def create_chat_in_db(self, uid):
         new_chat = {
             'uid': uid,
-            'chat_name': chat_name,
-            'agent_model': agent_model,
+            'chat_name': 'New Chat',
+            'agent_model': 'gpt-4o-mini',
             'updated_at': datetime.utcnow()
         }
-        # Add optional fields only if they are not None
-        if system_prompt is not None:
-            new_chat['system_prompt'] = system_prompt
-        if chat_constants is not None:
-            new_chat['chat_constants'] = chat_constants
-        if use_profile_data is not None:
-            new_chat['use_profile_data'] = use_profile_data
 
-        result = self.db['chats'].insert_one(new_chat)
-        return str(result.inserted_id)
+        self.db['chats'].insert_one(new_chat)
+        print(new_chat)
+        return new_chat
         
     def get_all_chats(self, uid):
         # Query the conversations collection for conversations belonging to the user
