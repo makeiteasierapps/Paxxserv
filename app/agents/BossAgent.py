@@ -1,18 +1,18 @@
 import tiktoken
-from flask_socketio import emit
 from app.agents.OpenAiClient import OpenAiClient
 from app.agents.AnthropicClient import AnthropicClient
 
 class BossAgent:
-    def __init__(self, ai_client, model='gpt-4o-mini', system_prompt="You are a friendly but genuine AI Agent. Don't be annoyingly nice, but don't be rude either.", chat_constants=None, user_analysis=None):
+    def __init__(self, ai_client,  model='gpt-4o-mini', system_prompt="You are a friendly but genuine AI Agent. Don't be annoyingly nice, but don't be rude either.", chat_constants=None, user_analysis=None, sio=None):
         self.ai_client = ai_client
+        self.sio = sio
         self.is_initialized = True
         self.model = model
         self.system_prompt = system_prompt
         self.chat_constants = chat_constants
         self.user_analysis = user_analysis
     
-    def handle_streaming_response(self, chat_id, new_chat_history, save_callback=None, system_message=None):
+    async def handle_streaming_response(self, chat_id, new_chat_history, save_callback=None, system_message=None):
         system_content = f'''
             {self.system_prompt}
             ***USER ANALYSIS***
@@ -34,13 +34,13 @@ class BossAgent:
         elif isinstance(self.ai_client, AnthropicClient):
             response = self.ai_client.generate_chat_completion(messages=new_chat_history, model=self.model, stream=True, system=system_content)
         
-        response_chunks = self.process_streaming_response(chat_id, response)
+        response_chunks = await self.process_streaming_response(chat_id, response)
         collapsed_response = self.collapse_response_chunks(response_chunks)
-        self.send_end_of_stream_notification(chat_id, response_chunks)
+        await self.send_end_of_stream_notification(chat_id, response_chunks)
         if save_callback:
-            save_callback(chat_id, collapsed_response)
+            await save_callback(chat_id, collapsed_response)
     
-    def process_streaming_response(self, chat_id, response):
+    async def process_streaming_response(self, chat_id, response):
         response_chunks = []
         stream_state = {'inside_code_block': False, 'language': None, 'ignore_next_token': False, 'buffer': ''}
 
@@ -53,7 +53,7 @@ class BossAgent:
                 elif chunk.type == 'content_block_delta':
                     delta = chunk.delta
                     if delta.type == 'text_delta':
-                        self.process_response_chunk(chat_id, delta.text, response_chunks, stream_state)
+                        await self.process_response_chunk(chat_id, delta.text, response_chunks, stream_state)
                 elif chunk.type == 'message_delta':
                     # Handle any top-level changes to the Message object if needed
                     pass
@@ -64,7 +64,7 @@ class BossAgent:
 
         return response_chunks
 
-    def process_response_chunk(self, chat_id, response_chunk, response_chunks, stream_state):
+    async def process_response_chunk(self, chat_id, response_chunk, response_chunks, stream_state):
         if stream_state.get('ignore_next_token', False):
             stream_state['ignore_next_token'] = False
             return
@@ -92,13 +92,14 @@ class BossAgent:
             stream_state['language'] = None
             stream_state['ignore_next_token'] = True
         else:
-            self.handle_chunk_content(chat_id, response_chunk, response_chunks, stream_state)
+            await self.handle_chunk_content(chat_id, response_chunk, response_chunks, stream_state)
     
-    def handle_chunk_content(self, chat_id, response_chunk, response_chunks, stream_state):
+    async def handle_chunk_content(self, chat_id, response_chunk, response_chunks, stream_state):
         formatted_message = self.format_stream_message(response_chunk, stream_state['inside_code_block'], stream_state['language'])
         formatted_message['room'] = chat_id
         response_chunks.append(formatted_message)
-        emit('chat_response', formatted_message)
+        if self.sio:
+            await self.sio.emit('chat_response', formatted_message)
 
     def collapse_response_chunks(self, response_chunks):
         collapsed_response = []
@@ -113,14 +114,16 @@ class BossAgent:
             collapsed_response.append(current_message)
         return collapsed_response
 
-    def send_end_of_stream_notification(self, chat_id, response_chunks):
+    async def send_end_of_stream_notification(self, chat_id, response_chunks):
         end_stream_obj = {
             'message_from': 'agent',
             'content': response_chunks,
             'type': 'end_of_stream',
             'room': chat_id
         }
-        emit('chat_response', end_stream_obj)
+        
+        if self.sio:
+            await self.sio.emit('chat_response', end_stream_obj)
 
     def format_stream_message(self, message, inside_code_block, language):
         if inside_code_block:
@@ -135,9 +138,9 @@ class BossAgent:
                 'content': message,
             }
 
-    def process_message(self, chat_history, chat_id, user_message, system_message=None, save_callback=None, image_url=None):
+    async def process_message(self, chat_history, chat_id, user_message, system_message=None, save_callback=None, image_url=None):
         new_chat_history = self.manage_chat(chat_history, user_message, image_url)
-        self.handle_streaming_response(chat_id, new_chat_history, save_callback, system_message)
+        await self.handle_streaming_response(chat_id, new_chat_history, save_callback, system_message)
      
     def manage_chat(self, chat_history, new_user_message, image_url=None):
         """
