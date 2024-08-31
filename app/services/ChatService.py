@@ -14,7 +14,6 @@ class ChatService:
         }
 
         self.db['chats'].insert_one(new_chat)
-        print(new_chat)
         return new_chat
         
     def get_all_chats(self, uid):
