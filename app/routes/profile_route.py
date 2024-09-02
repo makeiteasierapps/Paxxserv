@@ -75,8 +75,16 @@ async def analyze_profile(services: dict = Depends(get_services)):
 
 @router.post("/profile/update_avatar")
 async def update_avatar(file: UploadFile = File(...), services: dict = Depends(get_services)):
-    avatar_url = services["user_service"].update_user_avatar(file.file, services["profile_service"].uid)
-    return JSONResponse(content={'avatar_url': avatar_url})
+    try:
+        uid = services["profile_service"].uid
+        if uid is None:
+            raise ValueError("UID is None")
+        file_content = await file.read()
+        avatar_url = services["user_service"].update_user_avatar(uid, file_content)
+        return {"avatar_url": avatar_url}
+    except Exception as e:
+        print(f"Error in update_avatar: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Avatar update failed: {str(e)}")
 
 # Additional error handling - catch all
 @router.api_route("/profile/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
