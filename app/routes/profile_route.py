@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, UploadFile, File
 from fastapi.responses import JSONResponse, StreamingResponse
-from typing import Optional
 from dotenv import load_dotenv
 from app.services.ProfileService import ProfileService
 from app.services.UserService import UserService

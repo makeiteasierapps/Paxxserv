@@ -3,18 +3,16 @@ from app.agents.OpenAiClient import OpenAiClient
 from app.agents.AnthropicClient import AnthropicClient
 
 class BossAgent:
-    def __init__(self, ai_client,  model='gpt-4o-mini', system_prompt="You are a friendly but genuine AI Agent. Don't be annoyingly nice, but don't be rude either.", chat_constants=None, user_analysis=None, sio=None):
+    def __init__(self, ai_client,  model='gpt-4o-mini',chat_constants=None, user_analysis=None, sio=None):
         self.ai_client = ai_client
         self.sio = sio
         self.is_initialized = True
         self.model = model
-        self.system_prompt = system_prompt
         self.chat_constants = chat_constants
         self.user_analysis = user_analysis
     
     async def handle_streaming_response(self, chat_id, new_chat_history, save_callback=None, system_message=None):
         system_content = f'''
-            {self.system_prompt}
             ***USER ANALYSIS***
             {self.user_analysis}
             **************
@@ -189,7 +187,7 @@ class BossAgent:
         
         return formatted_messages
     
-    def prepare_vector_response(self, query_results, system_prompt=None):
+    def prepare_vector_response(self, query_results):
         text = []
 
         for item in query_results:
@@ -207,8 +205,6 @@ class BossAgent:
         a detailed response that is relevant to the users question.\n
         KNOWLEDGE BASE: {combined_text}
         '''
-        if system_prompt:
-            query_instructions += f"\n{system_prompt}"
         
         system_message = {
             'role': 'system',
@@ -243,16 +239,13 @@ class BossAgent:
     
         return pipeline
     
-    def prepare_url_content_for_ai(self, url_content, system_prompt=None):
+    def prepare_url_content_for_ai(self, url_content):
         query_instructions = f'''
         \nAnswer the users question using the content from the url they are interested in.
         URL: {url_content['source_url']}
         CONTENT: {url_content['content']}
         \n
         '''
-
-        if system_prompt:
-            query_instructions += f"\n{system_prompt}"
         
         system_message = {
             'role': 'system',
