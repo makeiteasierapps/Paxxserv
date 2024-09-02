@@ -35,3 +35,4 @@ class FirebaseStorageService:
         blob.upload_from_string(file_data, content_type=content_type)
         blob.make_public()
         return blob.public_url
+    

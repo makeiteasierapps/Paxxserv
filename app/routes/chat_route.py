@@ -2,7 +2,6 @@ import json
 from fastapi import APIRouter, Depends, Header, HTTPException, File, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
-from typing import Optional, Dict, Any
 from pydantic import BaseModel
 from app.utils.custom_json_encoder import CustomJSONEncoder
 from app.services.ChatService import ChatService
@@ -27,7 +26,10 @@ class DeleteChatData(BaseModel):
 
 class UpdateSettingsData(BaseModel):
     chatId: str
-    # Add other fields as needed
+
+    class Config:
+        extra = 'allow'
+
 
 @router.get("/chat")
 async def get_all_chats(chat_service: ChatService = Depends(get_chat_service)):
@@ -58,7 +60,7 @@ async def delete_chat(data: DeleteChatData, chat_service: ChatService = Depends(
 @router.patch("/chat/update_settings")
 async def update_settings(data: UpdateSettingsData, chat_service: ChatService = Depends(get_chat_service)):
     chat_service, _ = chat_service
-    chat_service.update_settings(data.chatId, **data.dict(exclude={'chatId'}))
+    chat_service.update_settings(data.chatId, **data.model_dump(exclude={'chatId', 'uid'}))
     return JSONResponse(content={'message': 'Conversation settings updated'})
 
 @router.delete("/messages")
