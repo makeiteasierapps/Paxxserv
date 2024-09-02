@@ -33,7 +33,6 @@ def create_boss_agent(chat_settings, sio, db, uid, profile_service):
     chat_constants = chat_settings.get('chat_constants')
     use_profile_data = chat_settings.get('use_profile_data', False)
     model = chat_settings.get('agent_model')
-    system_prompt = chat_settings.get('system_prompt')
     user_analysis = profile_service.get_user_analysis(uid) if use_profile_data else None
 
     if model.startswith('claude'):
@@ -45,14 +44,13 @@ def create_boss_agent(chat_settings, sio, db, uid, profile_service):
         ai_client=ai_client,
         sio=sio,
         model=model,
-        system_prompt=system_prompt,
         chat_constants=chat_constants,
         user_analysis=user_analysis
     )
 
-    return boss_agent, system_prompt
+    return boss_agent
 
-def handle_extraction(urls: List[str], extraction_service, kb_id, kb_service, boss_agent, system_prompt):
+def handle_extraction(urls: List[str], extraction_service, kb_id, kb_service, boss_agent):
     extracted_docs = []
     for url in urls:
         for result in extraction_service.extract_from_url(url, kb_id, 'scrape', kb_service):
@@ -63,7 +61,7 @@ def handle_extraction(urls: List[str], extraction_service, kb_id, kb_service, bo
                 print(f"Error extracting from URL: {result_dict['message']}")
     if extracted_docs:
         extracted_docs_response = extraction_service.parse_extraction_response(extracted_docs)
-        return boss_agent.prepare_url_content_for_ai(extracted_docs_response, system_prompt)
+        return boss_agent.prepare_url_content_for_ai(extracted_docs_response)
     return None
 
 def setup_socketio_events(sio: socketio.AsyncServer):
@@ -88,7 +86,7 @@ def setup_socketio_events(sio: socketio.AsyncServer):
 
             db = get_db(db_name)
             chat_service, profile_service, kb_service, extraction_service = initialize_services(db, uid)
-            boss_agent, system_prompt = create_boss_agent(chat_settings, sio, db, uid, profile_service)
+            boss_agent = create_boss_agent(chat_settings, sio, db, uid, profile_service)
 
             if save_to_db:
                 chat_service.create_message(chat_id, 'user', user_message)
@@ -102,10 +100,10 @@ def setup_socketio_events(sio: socketio.AsyncServer):
             if kb_id:
                 query_pipeline = boss_agent.create_vector_pipeline(user_message, kb_id)
                 results = chat_service.query_snapshots(query_pipeline)
-                system_message = boss_agent.prepare_vector_response(results, system_prompt)
+                system_message = boss_agent.prepare_vector_response(results)
 
             if urls:
-                system_message = handle_extraction(urls, extraction_service, kb_id, kb_service, boss_agent, system_prompt)
+                system_message = handle_extraction(urls, extraction_service, kb_id, kb_service, boss_agent)
 
             await boss_agent.process_message(data['chatHistory'], chat_id, user_message, system_message, save_agent_message, image_url)
 
