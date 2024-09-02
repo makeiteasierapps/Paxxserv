@@ -5,7 +5,6 @@ from dspy import Signature, InputField, OutputField, ChainOfThought
 from dspy.functional import TypedChainOfThought
 from typing import List
 from pydantic import BaseModel
-import uuid
 from bson import ObjectId
 
 class TopicsOutput(BaseModel):
@@ -28,7 +27,7 @@ class QuestionGeneratorSignature(Signature):
     """
     user_details = InputField()
     category = InputField()
-    questions: QuestionsOutput = OutputField(desc='The questions should be personalized based on the users details contained within a list')
+    questions: QuestionsOutput = OutputField(desc='The questions should be a personalized list based on the users details')
 
 class AnalyzeUser():
     def __init__(self, db, uid):
@@ -41,40 +40,46 @@ class AnalyzeUser():
         except Exception as e:
             print(f"Failed to initialize dspy: {e}")
     
-    def analyze_cateogry(self, answered_questions):
+    def analyze_category(self, answered_questions):
         try:
             analyses = []
             for category in answered_questions:
                 category_id = ObjectId(category['_id'])
                 category_name = category['category']
-                questions = [f"Questions from the category: {category_name}"]
-                for question_obj in category['questions']:
-                    question = question_obj['question']
-                    answer = question_obj['answer']
-                    prompt = f'question: {question} \n answer: {answer}'
-                    questions.append(prompt)
-                questions_string = "\n".join(questions)
+                questions_string = self._format_questions(category)
+                
                 analysis_prompt = TypedChainOfThought(TopicItemsSignature)
                 response = analysis_prompt(survey=questions_string)
+                
                 analyses.append(f"{category_name} analysis: {response.user_analysis}")
-                self.db['questions'].update_one(
-                    {'_id': category_id}, 
-                    {'$set': {'category_analysis': response.user_analysis}, '$addToSet': {'topics': {'$each': response.topics.topics}}},
-                    
-                )
-                self.db['users'].update_one(
-                    {'_id': self.uid}, 
-                    {'$addToSet': {'topics': {'$each': response.topics.topics}}}  
-                )
+                self._update_database(category_id, response)
+
             combined_analysis = "\n\n".join(analyses)
-            full_analysis_prompt = ChainOfThought('category_analyses -> full_analysis')
-            response = full_analysis_prompt(category_analyses=combined_analysis)
-            self.db['users'].update_one({'_id': self.uid}, {'$set': {'user_analysis': response.full_analysis}})
-            return response.full_analysis
+            full_analysis = self._generate_full_analysis(combined_analysis)
+            return full_analysis
         except Exception as e:
-            print(f"Error in generate_questions: {str(e)}")
+            print(f"Error in analyze_category: {str(e)}")
             print(traceback.format_exc())
             return {'error': str(e)}
-            
-        
-        return 'response'
+
+    def _format_questions(self, category):
+        questions = [f"Questions from the category: {category['category']}"]
+        questions.extend(f"question: {q['question']}\nanswer: {q['answer']}" for q in category['questions'])
+        return "\n".join(questions)
+
+    def _update_database(self, category_id, response):
+        self.db['questions'].update_one(
+            {'_id': category_id}, 
+            {'$set': {'category_analysis': response.user_analysis}, 
+             '$addToSet': {'topics': {'$each': response.topics.topics}}}
+        )
+        self.db['users'].update_one(
+            {'_id': self.uid}, 
+            {'$addToSet': {'topics': {'$each': response.topics.topics}}}
+        )
+
+    def _generate_full_analysis(self, combined_analysis):
+        full_analysis_prompt = ChainOfThought('category_analyses -> full_analysis')
+        response = full_analysis_prompt(category_analyses=combined_analysis)
+        self.db['users'].update_one({'_id': self.uid}, {'$set': {'user_analysis': response.full_analysis}})
+        return response.full_analysis
