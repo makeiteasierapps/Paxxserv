@@ -26,7 +26,6 @@ class AnthropicClient:
         return os.getenv('ANTHROPIC_API_KEY')
     
     def generate_chat_completion(self, messages, model, json=False, stream=False, system=None):
-        print(model)
         kwargs = {"messages": messages, "model": model, "stream": stream, "max_tokens": 8192}
         if system:
             kwargs["system"] = system
