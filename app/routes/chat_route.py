@@ -5,7 +5,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from app.utils.custom_json_encoder import CustomJSONEncoder
 from app.services.ChatService import ChatService
-from app.services.FirebaseStoreageService import FirebaseStorageService as firebase_storage
+from app.services.LocalStorageService import FirebaseStorageService as firebase_storage
 from app.services.MongoDbClient import MongoDbClient
 
 router = APIRouter()

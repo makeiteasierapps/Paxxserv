@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 from canopy.tokenizer import Tokenizer
-from app.services.FirebaseStoreageService import FirebaseStorageService as firebase_storage
+from app.services.LocalStorageService import FirebaseStorageService as firebase_storage
 
 Tokenizer.initialize()
 tokenizer = Tokenizer()

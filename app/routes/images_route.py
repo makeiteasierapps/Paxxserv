@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Header, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 import requests
-from app.services.FirebaseStoreageService import FirebaseStorageService
+from app.services.LocalStorageService import FirebaseStorageService
 from app.agents.ImageManager import ImageManager
 from app.services.MongoDbClient import MongoDbClient
 
