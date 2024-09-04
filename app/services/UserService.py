@@ -1,5 +1,5 @@
 from io import BytesIO
-from .FirebaseStoreageService import FirebaseStorageService
+from .LocalStorageService import FirebaseStorageService
 
 class UserService:
     def __init__(self, db):
