@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Header, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 import requests
-from app.services.LocalStorageService import FirebaseStorageService
+from app.services.LocalStorageService import LocalStorageService
 from app.agents.ImageManager import ImageManager
 from app.services.MongoDbClient import MongoDbClient
 
@@ -29,14 +29,14 @@ async def generate_image(request: Request, db_and_manager: tuple = Depends(get_d
 
 @router.get("/images")
 async def get_images(uid: str = Header(...)):
-    images_list = FirebaseStorageService.fetch_all_images(uid, 'dalle_images')
+    images_list = LocalStorageService.fetch_all_images(uid, 'dalle_images')
     return JSONResponse(content=images_list, status_code=200)
 
 @router.delete("/images")
 async def delete_image(request: Request):
     data = await request.json()
     path = data.get('path')
-    FirebaseStorageService.delete_image(path)
+    LocalStorageService.delete_image(path)
     return JSONResponse(content={'message': 'Image deleted successfully'}, status_code=200)
 
 @router.post("/images/save")
@@ -48,5 +48,5 @@ async def save_image(request: Request, uid: str = Header(...)):
         raise HTTPException(status_code=400, detail='Failed to fetch image')
     image_data = response.content
     image_blob = io.BytesIO(image_data)
-    image_url = FirebaseStorageService.upload_file(image_blob, uid, 'dalle_images')
+    image_url = LocalStorageService.upload_file(image_blob, uid, 'dalle_images')
     return JSONResponse(content=image_url, status_code=200)
