@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 from canopy.tokenizer import Tokenizer
-from app.services.LocalStorageService import FirebaseStorageService as firebase_storage
+from app.services.LocalStorageService import LocalStorageService as local_storage
 
 Tokenizer.initialize()
 tokenizer = Tokenizer()
@@ -26,7 +26,7 @@ class ExtractionService:
         headers = {'api': os.getenv('PAXXSERV_API')}
 
         try:
-            pdf_url = firebase_storage.upload_file(file, uid, 'documents')
+            pdf_url = local_storage.upload_file(file, uid, 'documents')
             payload = {'url': pdf_url}
             response = requests.post(f"{firecrawl_url}/scrape", json=payload, headers=headers, timeout=10)
             response.raise_for_status()

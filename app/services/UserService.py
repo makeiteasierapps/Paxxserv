@@ -1,5 +1,5 @@
 from io import BytesIO
-from .LocalStorageService import FirebaseStorageService
+from .LocalStorageService import LocalStorageService
 
 class UserService:
     def __init__(self, db):
@@ -35,7 +35,7 @@ class UserService:
 
         custom_file = CustomFile(file_data, 'avatar.png')
 
-        avatar_url = FirebaseStorageService.upload_file(custom_file, uid, 'profile_images')
+        avatar_url = LocalStorageService.upload_image(custom_file, uid, 'profile_images')
         print(avatar_url)
         self.db['users'].update_one(
             {'_id': uid},

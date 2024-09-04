@@ -4,9 +4,8 @@ from fastapi import APIRouter, Header, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 import requests
 from app.services.LocalStorageService import LocalStorageService
-from app.agents.ImageManager import ImageManager
 from app.services.MongoDbClient import MongoDbClient
-
+from app.agents.OpenAiClient import OpenAiClient
 load_dotenv()
 
 router = APIRouter()
@@ -15,16 +14,20 @@ def get_db_and_image_manager(dbName: str = Header(...), uid: str = Header(...)):
     try:
         mongo_client = MongoDbClient(dbName)
         db = mongo_client.connect()
-        image_manager = ImageManager(db, uid)
-        return db, image_manager
+        openai_client = OpenAiClient(db, uid)
+        return db, openai_client
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")
 
 @router.post("/images")
 async def generate_image(request: Request, db_and_manager: tuple = Depends(get_db_and_image_manager)):
-    _, image_manager = db_and_manager
+    _, openai_client = db_and_manager
     image_request = await request.json()
-    image_url = image_manager.generate_image(image_request)
+    size = image_request.get('size', '1024x1024').lower()
+    quality = image_request.get('quality', 'standard').lower()
+    style = image_request.get('style', 'natural').lower()
+    prompt = image_request.get('prompt')
+    image_url = openai_client.generate_image(prompt, size, quality, style)
     return JSONResponse(content=image_url, status_code=200)
 
 @router.get("/images")
