@@ -43,3 +43,7 @@ class OpenAiClient:
             input=message,
         )
         return response
+    
+    def generate_image(self, prompt, size, quality, style):
+        response = self.client.images.generate(prompt=prompt, size=size, quality=quality, style=style, model='dall-e-3', n=1, )
+        return response.data[0].url
