@@ -51,5 +51,5 @@ async def save_image(request: Request, uid: str = Header(...)):
         raise HTTPException(status_code=400, detail='Failed to fetch image')
     image_data = response.content
     image_blob = io.BytesIO(image_data)
-    image_url = LocalStorageService.upload_file(image_blob, uid, 'dalle_images')
+    image_url = LocalStorageService.upload_image(image_blob, uid, 'dalle_images')
     return JSONResponse(content=image_url, status_code=200)
