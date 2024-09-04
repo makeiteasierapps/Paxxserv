@@ -5,7 +5,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from app.utils.custom_json_encoder import CustomJSONEncoder
 from app.services.ChatService import ChatService
-from app.services.LocalStorageService import FirebaseStorageService as firebase_storage
+from app.services.LocalStorageService import LocalStorageService as local_storage
 from app.services.MongoDbClient import MongoDbClient
 
 router = APIRouter()
@@ -71,5 +71,5 @@ async def delete_all_messages(data: DeleteChatData, chat_service: ChatService = 
 
 @router.post("/messages/utils")
 async def upload_image(file: UploadFile = File(...), uid: str = Header(...)):
-    file_url = firebase_storage.upload_file(file.file, uid, 'gpt-vision')
-    return JSONResponse(content={'fileUrl': file_url})
+    path, base64_data = local_storage.upload_image(file.file, uid, 'gpt-vision')
+    return JSONResponse(content={'path': path, 'base64_data': base64_data})

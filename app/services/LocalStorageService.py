@@ -1,4 +1,5 @@
 import os
+import base64
 import uuid
 from werkzeug.utils import secure_filename
 
@@ -11,9 +12,19 @@ class LocalStorageService:
         path = os.path.join(LocalStorageService.BASE_PATH, 'users', uid, folder)
         os.makedirs(path, exist_ok=True)
         full_path = os.path.join(path, unique_filename)
+        
+        # Read and encode the image data
+        image_data = image.read()
         with open(full_path, 'wb') as f:
-            f.write(image.read())
-        return f'/users/{uid}/{folder}/{unique_filename}'
+            f.write(image_data)
+        
+        # Encode the image data to base64
+        base64_image = base64.b64encode(image_data).decode('utf-8')
+        
+        return {
+            'path': f'/users/{uid}/{folder}/{unique_filename}',
+            'base64_data': base64_image
+        }
 
     @staticmethod
     def delete_image(path):
