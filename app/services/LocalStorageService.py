@@ -23,15 +23,30 @@ class LocalStorageService:
             local_full_path = os.path.join(LocalStorageService.base_path, full_path)
 
             os.makedirs(os.path.dirname(local_full_path), exist_ok=True)
-            with open(local_full_path, 'wb') as f:
-                f.write(image.read())
 
-            image.seek(0)
-            base64_image = base64.b64encode(image.read()).decode('utf-8')
+            # Debug: Check the type of the image
+            print(f"Type of image: {type(image)}")
+
+            if isinstance(image, str):
+                # Handle base64 string
+                image_data = base64.b64decode(image)
+                with open(local_full_path, 'wb') as f:
+                    f.write(image_data)
+            elif isinstance(image, bytes):
+                # Handle bytes
+                with open(local_full_path, 'wb') as f:
+                    f.write(image)
+            elif hasattr(image, 'read'):
+                # Handle Blob (file-like object)
+                with open(local_full_path, 'wb') as f:
+                    f.write(image.read())
+                image.seek(0)
+            else:
+                print("Unsupported image type")
+                return None
 
             return {
                 'path': full_path,
-                'base64_data': base64_image
             }
         except Exception as e:
             print(f"Error in upload_image: {str(e)}")

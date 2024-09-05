@@ -71,5 +71,6 @@ async def delete_all_messages(data: DeleteChatData, chat_service: ChatService = 
 
 @router.post("/messages/utils")
 async def upload_image(file: UploadFile = File(...), uid: str = Header(...)):
+    print(file)
     path, base64_data = local_storage.upload_image(file.file, uid, 'gpt-vision')
     return JSONResponse(content={'path': path, 'base64_data': base64_data})

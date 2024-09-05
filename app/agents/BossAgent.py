@@ -1,4 +1,5 @@
 import tiktoken
+import base64
 from app.agents.OpenAiClient import OpenAiClient
 from app.agents.AnthropicClient import AnthropicClient
 
@@ -117,7 +118,7 @@ class BossAgent:
             'message_from': 'agent',
             'content': response_chunks,
             'type': 'end_of_stream',
-            'room': chat_id
+            'room': chat_id,
         }
         
         if self.sio:
@@ -136,11 +137,11 @@ class BossAgent:
                 'content': message,
             }
 
-    async def process_message(self, chat_history, chat_id, user_message, system_message=None, save_callback=None, image_url=None):
-        new_chat_history = self.manage_chat(chat_history, user_message, image_url)
+    async def process_message(self, chat_history, chat_id, user_message, system_message=None, save_callback=None, image_blob=None):
+        new_chat_history = self.manage_chat(chat_history, user_message, image_blob)
         await self.handle_streaming_response(chat_id, new_chat_history, save_callback, system_message)
      
-    def manage_chat(self, chat_history, new_user_message, image_url=None):
+    def manage_chat(self, chat_history, new_user_message, image_blob=None):
         """
         Takes a chat object extracts x amount of tokens and returns a message
         object ready to pass into OpenAI chat completion or Anthropic
@@ -165,7 +166,8 @@ class BossAgent:
                     "content": message['content'][0]['content'],
                 })
 
-        if image_url:
+        if image_blob:
+            base64_image = base64.b64encode(image_blob).decode('utf-8')
             formatted_messages.append({
                 "role": "user",
                 "content": [
@@ -175,7 +177,9 @@ class BossAgent:
                     },
                     {
                         "type": "image_url",
-                        "image_url": {"url": image_url}
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{base64_image}"
+                        }
                     },
                 ],
             })
