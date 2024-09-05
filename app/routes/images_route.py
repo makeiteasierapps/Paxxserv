@@ -38,13 +38,15 @@ async def get_images(uid: str = Header(...)):
 
 @router.get("/images/{image_path:path}")
 async def get_image(image_path: str):
-    print(image_path)
     full_path = os.path.join(LocalStorageService.base_path, image_path)
     if not os.path.exists(full_path):
         raise HTTPException(status_code=404, detail="Image not found")
     
-    with open(full_path, "rb") as image_file:
-        return StreamingResponse(image_file, media_type="image/jpeg")
+    def iterfile():
+        with open(full_path, "rb") as image_file:
+            yield from image_file
+
+    return StreamingResponse(iterfile(), media_type="image/jpeg")
 
 @router.delete("/images")
 async def delete_image(request: Request):
