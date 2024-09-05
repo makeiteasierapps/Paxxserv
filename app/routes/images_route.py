@@ -1,7 +1,8 @@
 import io
 from dotenv import load_dotenv
+import os
 from fastapi import APIRouter, Header, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 import requests
 from app.services.LocalStorageService import LocalStorageService
 from app.services.MongoDbClient import MongoDbClient
@@ -34,6 +35,16 @@ async def generate_image(request: Request, db_and_manager: tuple = Depends(get_d
 async def get_images(uid: str = Header(...)):
     images_list = LocalStorageService.fetch_all_images(uid, 'dalle_images')
     return JSONResponse(content=images_list, status_code=200)
+
+@router.get("/images/{image_path:path}")
+async def get_image(image_path: str):
+    print(image_path)
+    full_path = os.path.join(LocalStorageService.base_path, image_path)
+    if not os.path.exists(full_path):
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    with open(full_path, "rb") as image_file:
+        return StreamingResponse(image_file, media_type="image/jpeg")
 
 @router.delete("/images")
 async def delete_image(request: Request):
