@@ -3,6 +3,7 @@ import json
 import socketio
 from fastapi import HTTPException
 from app.services.ChatService import ChatService
+from app.services.LocalStorageService import LocalStorageService
 from app.services.ProfileService import ProfileService
 from app.agents.BossAgent import BossAgent
 from app.agents.AnthropicClient import AnthropicClient
@@ -67,7 +68,6 @@ def handle_extraction(urls: List[str], extraction_service, kb_id, kb_service, bo
 def setup_socketio_events(sio: socketio.AsyncServer):
     @sio.event
     async def chat(sid, data):
-        print(f"Received data: {data}")
         try:
             urls = data.get('urls', [])
             uid = data.get('uid')
@@ -77,7 +77,7 @@ def setup_socketio_events(sio: socketio.AsyncServer):
             db_name = data.get('dbName')
             user_message = data['userMessage']['content']
             chat_id = data['chatId']
-            image_url = data.get('imageUrl', None)
+            image_blob = data.get('imageBlob', None)
             system_message = None
             
             if save_to_db and not db_name:
@@ -88,8 +88,12 @@ def setup_socketio_events(sio: socketio.AsyncServer):
             chat_service, profile_service, kb_service, extraction_service = initialize_services(db, uid)
             boss_agent = create_boss_agent(chat_settings, sio, db, uid, profile_service)
 
+            image_path = None
+            if image_blob:
+                image_path = LocalStorageService.upload_image(image_blob, uid, 'chats')['path']
+
             if save_to_db:
-                chat_service.create_message(chat_id, 'user', user_message)
+                chat_service.create_message(chat_id, 'user', user_message, image_path)
                 async def save_agent_message(chat_id, message):
                     chat_service.create_message(chat_id, 'agent', message)
                     await sio.emit('agent_message', {"type": "agent_message", "content": message})
@@ -105,7 +109,7 @@ def setup_socketio_events(sio: socketio.AsyncServer):
             if urls:
                 system_message = handle_extraction(urls, extraction_service, kb_id, kb_service, boss_agent)
 
-            await boss_agent.process_message(data['chatHistory'], chat_id, user_message, system_message, save_agent_message, image_url)
+            await boss_agent.process_message(data['chatHistory'], chat_id, user_message, system_message, save_agent_message, image_blob)
 
         except Exception as e:
             await sio.emit('error', {"error": str(e)})
