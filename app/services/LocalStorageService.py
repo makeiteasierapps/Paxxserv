@@ -1,48 +1,46 @@
 import os
-import requests
 import base64
 import uuid
+import requests
 from dotenv import load_dotenv
 from werkzeug.utils import secure_filename
 
 load_dotenv()
 
 class LocalStorageService:
-    LOCAL_DEV = os.getenv('LOCAL_DEV', 'false').lower() == 'true'
-    MEDIA_STORAGE_URL = os.getenv('MEDIA_STORAGE_URL', 'http://myserver.local/mnt/media_storage')
-    BASE_PATH = MEDIA_STORAGE_URL if LOCAL_DEV else '/mnt/media_storage'
-
+    local_dev = os.getenv('LOCAL_DEV', 'false').lower() == 'true'
+    media_storage_url = os.getenv('MEDIA_STORAGE_URL', 'http://myserver.local/mnt/media_storage')
+    base_path = media_storage_url if local_dev else '/mnt/media_storage'
+    
+    @staticmethod
+    def directory_exists(path):
+        if LocalStorageService.local_dev:
+            url = f"{LocalStorageService.base_path}/{path}"
+            response = requests.head(url, timeout=10, allow_redirects=True)
+            return response.status_code == 200
+        else:
+            return os.path.isdir(os.path.join(LocalStorageService.base_path, path))
+    
     @staticmethod
     def upload_image(image, uid, folder):
         try:
-            print(f"Starting upload for user {uid} in folder {folder}")
             unique_filename = f"{uuid.uuid4()}.jpg"
             relative_path = os.path.join('users', uid, folder)
             full_path = os.path.join(relative_path, unique_filename)
-            
-            print(f"Full path: {full_path}")
-            print(f"Base path: {LocalStorageService.BASE_PATH}")
 
-            # Ensure the directory exists
-            create_dir_url = f"{LocalStorageService.BASE_PATH}/{relative_path}"
-            print(f"Creating directory: {create_dir_url}")
-            response = requests.request('MKCOL', create_dir_url, timeout=10)
-            print(f"Directory creation response: {response.status_code} - {response.text}")
+            if LocalStorageService.local_dev:
+                url = f"{LocalStorageService.base_path}/{full_path}"
+                response = requests.put(url, data=image.read(), timeout=10)
+                if response.status_code != 201:
+                    raise Exception(f"Failed to upload image: {response.text}")
+            else:
+                local_full_path = os.path.join(LocalStorageService.base_path, full_path)
+                os.makedirs(os.path.dirname(local_full_path), exist_ok=True)
+                with open(local_full_path, 'wb') as f:
+                    f.write(image.read())
 
-            # Read image data
-            image_data = image.read()
-
-            # Use HTTP PUT to upload file
-            upload_url = f"{LocalStorageService.BASE_PATH}/{full_path}"
-            print(f"Uploading to: {upload_url}")
-            response = requests.put(upload_url, data=image_data, timeout=10)
-            print(f"Upload response: {response.status_code} - {response.text}")
-
-            if response.status_code != 201:
-                raise Exception(f"Failed to upload image: {response.text}")
-
-            # Encode the image data to base64
-            base64_image = base64.b64encode(image_data).decode('utf-8')
+            image.seek(0)
+            base64_image = base64.b64encode(image.read()).decode('utf-8')
 
             return {
                 'path': f'/{full_path}',
@@ -51,25 +49,55 @@ class LocalStorageService:
         except Exception as e:
             print(f"Error in upload_image: {str(e)}")
             return None
+    
     @staticmethod
     def delete_image(path):
-        full_path = os.path.join(LocalStorageService.BASE_PATH, path.lstrip('/'))
-        if os.path.exists(full_path):
-            os.remove(full_path)
+        if LocalStorageService.local_dev:
+            url = f"{LocalStorageService.base_path}/{path.lstrip('/')}"
+            response = requests.delete(url, timeout=10)
+            if response.status_code != 204:
+                raise Exception(f"Failed to delete image: {response.text}")
+        else:
+            full_path = os.path.join(LocalStorageService.base_path, path.lstrip('/'))
+            if os.path.exists(full_path):
+                os.remove(full_path)
 
     @staticmethod
     def fetch_all_images(uid, folder):
-        path = os.path.join(LocalStorageService.BASE_PATH, 'users', uid, folder)
-        if not os.path.exists(path):
-            return []
-        files = os.listdir(path)
-        return [{'url': f'/users/{uid}/{folder}/{file}', 'path': f'users/{uid}/{folder}/{file}'} for file in files]
+        relative_path = os.path.join('users', uid, folder)
+        if LocalStorageService.local_dev:
+            url = f"{LocalStorageService.base_path}/{relative_path}"
+            response = requests.get(url, timeout=10)
+            print(response)
+            print(response.text)
+            if response.status_code == 200:
+                files = response.json()  # Assuming the response is a JSON list of file names
+            else:
+                raise Exception(f"Failed to fetch images: {response.text}")
+        else:
+            path = os.path.join(LocalStorageService.base_path, relative_path)
+            files = os.listdir(path) if os.path.exists(path) else []
+        
+        return [{'path': f'{relative_path}/{file}'} for file in files]
 
     @staticmethod
     def upload_file(file, uid, folder):
         original_filename = secure_filename(file.filename) if file.filename else f"{uuid.uuid4()}"
-        path = os.path.join(LocalStorageService.BASE_PATH, 'users', uid, folder)
-        os.makedirs(path, exist_ok=True)
-        full_path = os.path.join(path, original_filename)
-        file.save(full_path)
-        return f'/users/{uid}/{folder}/{original_filename}'
+        relative_path = os.path.join('users', uid, folder)
+        full_path = os.path.join(relative_path, original_filename)
+
+        if LocalStorageService.local_dev:
+            url = f"{LocalStorageService.base_path}/{full_path}"
+            response = requests.put(url, data=file.read(), timeout=10)
+            if response.status_code != 201:
+                raise Exception(f"Failed to upload file: {response.text}")
+        else:
+            local_full_path = os.path.join(LocalStorageService.base_path, full_path)
+            os.makedirs(os.path.dirname(local_full_path), exist_ok=True)
+            file.save(local_full_path)
+
+        return f'/{full_path}'
+
+# Ensure the local storage directory exists if we're not in local dev mode
+if not LocalStorageService.local_dev:
+    os.makedirs(LocalStorageService.base_path, exist_ok=True)
