@@ -1,5 +1,6 @@
 import io
 from dotenv import load_dotenv
+import mimetypes
 import os
 from fastapi import APIRouter, Header, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -59,10 +60,24 @@ async def delete_image(request: Request):
 async def save_image(request: Request, uid: str = Header(...)):
     data = await request.json()
     url = data.get('image')
+    prompt = data.get('prompt')
+    
+    # Fetch the image
     response = requests.get(url, timeout=10)
     if response.status_code != 200:
         raise HTTPException(status_code=400, detail='Failed to fetch image')
+    
+    # Determine file extension from content-type
+    content_type = response.headers.get('content-type')
+    ext = mimetypes.guess_extension(content_type) or ''
+    
+    # Create a file name from the prompt
+    safe_prompt = prompt.replace(' ', '_')[:50]  # Limit to 50 characters
+    file_name = f"{safe_prompt}{ext}"
+    # Prepare the image data
     image_data = response.content
     image_blob = io.BytesIO(image_data)
-    image_url = LocalStorageService.upload_image(image_blob, uid, 'dalle_images')
+    
+    # Save the image
+    image_url = await LocalStorageService.upload_file_async(image_blob, uid, 'dalle_images', file_name=file_name)
     return JSONResponse(content=image_url, status_code=200)

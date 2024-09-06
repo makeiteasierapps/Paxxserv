@@ -60,8 +60,8 @@ async def extract(
     extraction_service = ExtractionService(services["db"], services["uid"])
     
     if file:
-        if file.filename.endswith('.pdf'):
-            return extraction_service.extract_from_pdf(file.file, kb_id, services["uid"], services["kb_services"])
+        if file.filename.lower().endswith('.pdf'):
+            return await extraction_service.extract_from_pdf(file, kb_id, services["uid"], services["kb_services"])
         else:
             raise HTTPException(status_code=400, detail="Invalid file type. Only PDF files are allowed.")
     elif request:

@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 from canopy.tokenizer import Tokenizer
-from app.services.LocalStorageService import LocalStorageService as local_storage
+from app.services.LocalStorageService import LocalStorageService
 
 Tokenizer.initialize()
 tokenizer = Tokenizer()
@@ -17,25 +17,46 @@ class ExtractionService:
     def __init__(self, db, uid):
         self.db = db
         self.uid = uid
+        self.local_storage = LocalStorageService()
 
-    def extract_from_pdf(self, file, kb_id, uid, kb_services):
-        if os.getenv('LOCAL_DEV') == 'true':
-            firecrawl_url = os.getenv('FIRECRAWL_DEV_URL')
-        else:
-            firecrawl_url = os.getenv('FIRECRAWL_URL')
+    async def extract_from_pdf(self, file, kb_id, uid, kb_services):
+        is_local = os.getenv('LOCAL_DEV') == 'true'
+        firecrawl_url = os.getenv('FIRECRAWL_DEV_URL') if is_local else os.getenv('FIRECRAWL_URL')
+        base_path = '/mnt/media_storage' if not is_local else os.path.join(os.getcwd(), 'media_storage')
+        
         headers = {'api': os.getenv('PAXXSERV_API')}
 
         try:
-            pdf_url = local_storage.upload_file(file, uid, 'documents')
+            # Upload the file using LocalStorageService
+            file_path = await self.local_storage.upload_file_async(file, uid, 'documents')
+            if not file_path:
+                raise HTTPException(status_code=500, detail="Failed to save the PDF file")
+
+            # Construct the full URL to the uploaded file
+            pdf_url = f"file://{os.path.abspath(os.path.join(base_path, file_path['path']))}"
+            print(pdf_url)
+
+            # Send the PDF URL to Firecrawl for processing
             payload = {'url': pdf_url}
-            response = requests.post(f"{firecrawl_url}/scrape", json=payload, headers=headers, timeout=10)
+            response = requests.post(f"{firecrawl_url}/scrape", json=payload, headers=headers, timeout=60)
+            
             response.raise_for_status()
             response_data = response.json()
+            print(response_data)
+
+            # Extract content and metadata
             content = response_data['data']['content']
             source = response_data['data']['metadata']['sourceURL']
             cleaned_source = os.path.basename(source)
+
+            # Create a knowledge base document
             kb_doc = kb_services.create_kb_doc_in_db(kb_id, cleaned_source, 'pdf', content=content)
+
             return JSONResponse(content=kb_doc, status_code=200)
+
+        except requests.RequestException as e:
+            print(f"HTTP error occurred while extracting text from PDF: {e}")
+            raise HTTPException(status_code=500, detail="Failed to communicate with Firecrawl service")
         except Exception as e:
             print(f"Error extracting text from PDF: {e}")
             raise HTTPException(status_code=500, detail="Failed to extract text from PDF")
@@ -54,7 +75,7 @@ class ExtractionService:
         }
         
         try:
-            firecrawl_response = requests.post(f"{firecrawl_url}/{endpoint}", json=params, timeout=10)
+            firecrawl_response = requests.post(f"{firecrawl_url}/{endpoint}", json=params, timeout=60)
             if not firecrawl_response.ok:
                 error_message = firecrawl_response.json().get('message', 'Unknown error')
                 yield f'{{"status": "error", "message": "Failed to scrape url: {error_message}"}}'
