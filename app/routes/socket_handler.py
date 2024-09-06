@@ -91,7 +91,8 @@ def setup_socketio_events(sio: socketio.AsyncServer):
             image_path = None
             if image_blob:
                 image_path = LocalStorageService.upload_image(image_blob, uid, 'chats')['path']
-
+                boss_agent.image_path = image_path
+            
             if save_to_db:
                 chat_service.create_message(chat_id, 'user', user_message, image_path)
                 async def save_agent_message(chat_id, message):
