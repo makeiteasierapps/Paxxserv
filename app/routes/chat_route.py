@@ -1,11 +1,10 @@
 import json
-from fastapi import APIRouter, Depends, Header, HTTPException, File, UploadFile
+from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from app.utils.custom_json_encoder import CustomJSONEncoder
 from app.services.ChatService import ChatService
-from app.services.LocalStorageService import LocalStorageService as local_storage
 from app.services.MongoDbClient import MongoDbClient
 
 router = APIRouter()
@@ -68,9 +67,3 @@ async def delete_all_messages(data: DeleteChatData, chat_service: ChatService = 
     chat_service, _ = chat_service
     chat_service.delete_all_messages(data.chatId)
     return JSONResponse(content={'message': 'Memory Cleared'})
-
-@router.post("/messages/utils")
-async def upload_image(file: UploadFile = File(...), uid: str = Header(...)):
-    print(file)
-    path, base64_data = local_storage.upload_image(file.file, uid, 'gpt-vision')
-    return JSONResponse(content={'path': path, 'base64_data': base64_data})

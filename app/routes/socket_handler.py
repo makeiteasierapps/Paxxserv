@@ -78,6 +78,7 @@ def setup_socketio_events(sio: socketio.AsyncServer):
             user_message = data['userMessage']['content']
             chat_id = data['chatId']
             image_blob = data.get('imageBlob', None)
+            file_name = data.get('fileName', None)
             system_message = None
             
             if save_to_db and not db_name:
@@ -90,7 +91,8 @@ def setup_socketio_events(sio: socketio.AsyncServer):
 
             image_path = None
             if image_blob:
-                image_path = LocalStorageService.upload_image(image_blob, uid, 'chats')['path']
+                image_info = await LocalStorageService.upload_file_async(image_blob, uid, 'chats', file_name)
+                image_path = image_info['path']
                 boss_agent.image_path = image_path
             
             if save_to_db:
