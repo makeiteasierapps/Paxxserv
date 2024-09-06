@@ -11,6 +11,7 @@ class BossAgent:
         self.model = model
         self.chat_constants = chat_constants
         self.user_analysis = user_analysis
+        self.image_path = None
     
     async def handle_streaming_response(self, chat_id, new_chat_history, save_callback=None, system_message=None):
         system_content = f'''
@@ -119,6 +120,7 @@ class BossAgent:
             'content': response_chunks,
             'type': 'end_of_stream',
             'room': chat_id,
+            'image_path': self.image_path
         }
         
         if self.sio:
