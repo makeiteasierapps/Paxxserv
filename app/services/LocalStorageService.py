@@ -8,10 +8,6 @@ class LocalStorageService:
     base_path = '/mnt/media_storage' if not is_local else os.path.join(os.getcwd(), 'media_storage')
 
     @staticmethod
-    def upload_file(file, uid, folder):
-        return asyncio.run(LocalStorageService._upload_file_async(file, uid, folder))
-
-    @staticmethod
     async def upload_file_async(file, uid, folder, file_name=None):
         return await LocalStorageService._upload_file_async(file, uid, folder, file_name)
 

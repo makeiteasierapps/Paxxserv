@@ -1,4 +1,3 @@
-from io import BytesIO
 from .LocalStorageService import LocalStorageService
 
 class UserService:
@@ -18,28 +17,12 @@ class UserService:
     def delete_user(self, uid):
         return self.db['users'].delete_one({'_id': uid})
 
-    def update_user_avatar(self, uid, file_content):
-        print(uid)
-        # Convert the incoming file to a BytesIO object
-        file_data = BytesIO(file_content)
-        file_data.seek(0)
-
-        # Create a custom file-like object with a filename attribute
-        class CustomFile:
-            def __init__(self, file_data, filename):
-                self.file_data = file_data
-                self.filename = filename
-
-            def read(self):
-                return self.file_data.read()
-
-        custom_file = CustomFile(file_data, 'avatar.png')
-
-        avatar_url = LocalStorageService.upload_file(custom_file, uid, 'profile_images')
-        print(avatar_url)
+    async def update_user_avatar(self, uid, file):
+        path = await LocalStorageService.upload_file_async(file, uid, 'profile_images')
+        file_path = path['path']
         self.db['users'].update_one(
             {'_id': uid},
-            {'$set': {'avatar_url': avatar_url}},
+            {'$set': {'avatar_path': file_path}},
             upsert=True
         )
-        return avatar_url
+        return file_path
