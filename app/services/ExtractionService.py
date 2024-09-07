@@ -32,8 +32,9 @@ class ExtractionService:
             if not file_path:
                 raise HTTPException(status_code=500, detail="Failed to save the PDF file")
 
-            # Construct the full URL to the uploaded file
-            pdf_url = f"file://{os.path.abspath(os.path.join(base_path, file_path['path']))}"
+            cleaned_path = file_path['path'].lstrip('/')
+            full_path = os.path.join(base_path, cleaned_path)
+            pdf_url = f"file://{full_path}"
             print(pdf_url)
 
             # Send the PDF URL to Firecrawl for processing
