@@ -32,8 +32,7 @@ class ExtractionService:
             if not file_path:
                 raise HTTPException(status_code=500, detail="Failed to save the PDF file")
 
-            cleaned_path = file_path['path'].lstrip('/')
-            full_path = os.path.join(base_path, cleaned_path)
+            full_path = os.path.join(base_path, file_path['path'])
             pdf_url = f"file://{full_path}"
             print(pdf_url)
 
