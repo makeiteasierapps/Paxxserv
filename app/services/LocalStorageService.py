@@ -5,7 +5,7 @@ from werkzeug.utils import secure_filename
 
 class LocalStorageService:
     is_local = os.getenv('LOCAL_DEV') == 'true'
-    base_path = '/mnt/media_storage' if not is_local else os.path.join(os.getcwd(), 'media_storage')
+    base_path = 'mnt/media_storage' if not is_local else os.path.join(os.getcwd(), 'media_storage')
 
     @staticmethod
     async def upload_file_async(file, uid, folder, file_name=None):
