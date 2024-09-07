@@ -22,7 +22,7 @@ class ExtractionService:
     async def extract_from_pdf(self, file, kb_id, uid, kb_services):
         is_local = os.getenv('LOCAL_DEV') == 'true'
         firecrawl_url = os.getenv('FIRECRAWL_DEV_URL') if is_local else os.getenv('FIRECRAWL_URL')
-        base_path = '/mnt/media_storage' if not is_local else os.path.join(os.getcwd(), 'media_storage')
+        base_path = 'mnt/media_storage' if not is_local else os.path.join(os.getcwd(), 'media_storage')
         
         headers = {'api': os.getenv('PAXXSERV_API')}
 
