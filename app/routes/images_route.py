@@ -40,6 +40,7 @@ async def get_images(uid: str = Header(...)):
 @router.get("/images/{image_path:path}")
 async def get_image(image_path: str):
     full_path = os.path.join(LocalStorageService.base_path, image_path)
+    print(full_path)
     if not os.path.exists(full_path):
         raise HTTPException(status_code=404, detail="Image not found")
     
