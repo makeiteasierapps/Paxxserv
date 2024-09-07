@@ -51,7 +51,7 @@ class LocalStorageService:
                 f.write(contents)
 
             return {
-                'path': full_path,
+                'path': full_path.lstrip('/'),
             }
         except Exception as e:
             print(f"Error in upload_file: {str(e)}")
