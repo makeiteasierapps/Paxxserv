@@ -53,10 +53,11 @@ async def get_documents(kb_id: str = Header(..., alias="KB-ID"), services: dict 
 @router.post("/kb/extract")
 async def extract(
     file: Optional[UploadFile] = File(None),
-    kb_id: Optional[str] = Form(None),
     request: Request = None,
+    kb_id: Optional[str] = Form(None, alias="kbId"),
     services: dict = Depends(get_services)
 ):
+   
     extraction_service = ExtractionService(services["db"], services["uid"])
     
     if file:
@@ -65,17 +66,20 @@ async def extract(
             return JSONResponse(content=kb_doc)
         else:
             raise HTTPException(status_code=400, detail="Invalid file type. Only PDF files are allowed.")
-    elif request:
-        data = await request.json()
-        kb_id = data.get('kbId')
-        url = data.get('url')
-        endpoint = data.get('endpoint', 'scrape')
-        
-        result = extraction_service.extract_from_url(url, kb_id, endpoint, services["kb_services"])
-        return JSONResponse(content=result)
     else:
-        raise HTTPException(status_code=400, detail="No file or URL provided")
-    
+        try:
+            data = await request.json()
+            kb_id = data.get('kbId')
+            url = data.get('url')
+            endpoint = data.get('endpoint', 'scrape')
+            
+            if not url:
+                raise HTTPException(status_code=400, detail="URL is required when not uploading a file")
+            
+            result = extraction_service.extract_from_url(url, kb_id, endpoint, services["kb_services"])
+            return JSONResponse(content=result)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid JSON data")
 @router.post("/kb/embed")
 async def embed(request: Request, services: dict = Depends(get_services)):
     data = await request.json()
