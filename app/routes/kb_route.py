@@ -70,10 +70,8 @@ async def extract(
         url = data.get('url')
         endpoint = data.get('endpoint', 'scrape')
         
-        def generate():
-            yield from extraction_service.extract_from_url(url, kb_id, endpoint, services["kb_services"])
-
-        return StreamingResponse(generate(), media_type='text/event-stream')
+        result = extraction_service.extract_from_url(url, kb_id, endpoint, services["kb_services"])
+        return JSONResponse(content=result)
     else:
         raise HTTPException(status_code=400, detail="No file or URL provided")
     

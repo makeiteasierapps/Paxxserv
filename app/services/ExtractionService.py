@@ -63,10 +63,7 @@ class ExtractionService:
 
     def extract_from_url(self, url, kb_id, endpoint, kb_services):
         normalized_url = self.normalize_url(url)
-        if os.getenv('LOCAL_DEV') == 'true':
-            firecrawl_url = os.getenv('FIRECRAWL_DEV_URL')
-        else:
-            firecrawl_url = os.getenv('FIRECRAWL_URL')
+        firecrawl_url = os.getenv('FIRECRAWL_DEV_URL') if os.getenv('LOCAL_DEV') == 'true' else os.getenv('FIRECRAWL_URL')
         params = {
             'url': normalized_url,
             'pageOptions': {
@@ -76,13 +73,8 @@ class ExtractionService:
         
         try:
             firecrawl_response = requests.post(f"{firecrawl_url}/{endpoint}", json=params, timeout=60)
-            if not firecrawl_response.ok:
-                error_message = firecrawl_response.json().get('message', 'Unknown error')
-                yield f'{{"status": "error", "message": "Failed to scrape url: {error_message}"}}'
-                return
-
+            firecrawl_response.raise_for_status()
             firecrawl_data = firecrawl_response.json()
-            yield f'{{"status": "started", "message": "Crawl job started"}}'
 
             if 'jobId' in firecrawl_data:
                 content = self.poll_job_status(firecrawl_url, firecrawl_data['jobId'])
@@ -92,25 +84,18 @@ class ExtractionService:
                     'metadata': firecrawl_data['data']['metadata'],
                 }]
             
-            url_docs = []
-            for url_content in content:
-                metadata = url_content.get('metadata')
-                markdown = url_content.get('markdown')
-                source_url = metadata.get('sourceURL')
-                url_docs.append({
-                    'content': markdown,
-                    'token_count': tokenizer.token_count(markdown),
-                    'metadata': metadata
-                })
-                yield f'{{"status": "processing", "message": "Processing {source_url}"}}'
+            url_docs = [{
+                'content': url_content.get('markdown'),
+                'token_count': tokenizer.token_count(url_content.get('markdown')),
+                'metadata': url_content.get('metadata')
+            } for url_content in content]
 
             kb_doc = kb_services.create_kb_doc_in_db(kb_id, normalized_url, 'url', urls=url_docs)
-             
-            yield f'{{"status": "completed", "content": {json.dumps(kb_doc, ensure_ascii=False)}}}'
+            return kb_doc
 
-        except Exception as e:
+        except requests.RequestException as e:
             print(f"Error crawling site: {e}")
-            yield f'{{"status": "error", "message": "Failed to crawl site: {str(e)}"}}'
+            raise HTTPException(status_code=500, detail=f"Failed to crawl site: {str(e)}")
 
     def poll_job_status(self, firecrawl_url, job_id):
         while True:
