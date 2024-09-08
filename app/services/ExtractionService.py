@@ -1,10 +1,10 @@
 import os
 import time
-import json
+import pymupdf4llm
+import fitz
 import requests
 from dotenv import load_dotenv
 from fastapi import HTTPException
-from fastapi.responses import JSONResponse
 from canopy.tokenizer import Tokenizer
 from app.services.LocalStorageService import LocalStorageService
 
@@ -19,44 +19,17 @@ class ExtractionService:
         self.uid = uid
         self.local_storage = LocalStorageService()
 
-    async def extract_from_pdf(self, file, kb_id, uid, kb_services):
-        is_local = os.getenv('LOCAL_DEV') == 'true'
-        firecrawl_url = os.getenv('FIRECRAWL_DEV_URL') if is_local else os.getenv('FIRECRAWL_URL')
-        base_path = 'mnt/media_storage' if not is_local else os.path.join(os.getcwd(), 'media_storage')
-        
-        headers = {'api': os.getenv('PAXXSERV_API')}
-
+    async def extract_from_pdf(self, file, kb_id, kb_services):
         try:
-            # Upload the file using LocalStorageService
-            file_path = await self.local_storage.upload_file_async(file, uid, 'documents')
-            if not file_path:
-                raise HTTPException(status_code=500, detail="Failed to save the PDF file")
+            file_content = await file.read()
+            pdf_document = fitz.open(stream=file_content, filetype="pdf")
+            md_text = pymupdf4llm.to_markdown(pdf_document)
+            cleaned_source = file.filename
+            kb_doc = kb_services.create_kb_doc_in_db(kb_id, cleaned_source, 'pdf', content=md_text)
+            pdf_document.close()
 
-            full_path = os.path.join(base_path, file_path['path'])
-            pdf_url = f"file://{full_path}"
-            print(pdf_url)
+            return kb_doc
 
-            # Send the PDF URL to Firecrawl for processing
-            payload = {'url': pdf_url}
-            response = requests.post(f"{firecrawl_url}/scrape", json=payload, headers=headers, timeout=60)
-            
-            response.raise_for_status()
-            response_data = response.json()
-            print(response_data)
-
-            # Extract content and metadata
-            content = response_data['data']['content']
-            source = response_data['data']['metadata']['sourceURL']
-            cleaned_source = os.path.basename(source)
-
-            # Create a knowledge base document
-            kb_doc = kb_services.create_kb_doc_in_db(kb_id, cleaned_source, 'pdf', content=content)
-
-            return JSONResponse(content=kb_doc, status_code=200)
-
-        except requests.RequestException as e:
-            print(f"HTTP error occurred while extracting text from PDF: {e}")
-            raise HTTPException(status_code=500, detail="Failed to communicate with Firecrawl service")
         except Exception as e:
             print(f"Error extracting text from PDF: {e}")
             raise HTTPException(status_code=500, detail="Failed to extract text from PDF")

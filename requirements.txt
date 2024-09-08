@@ -13,3 +13,5 @@ uvicorn
 python-socketio
 python-multipart
 Werkzeug
+pymupdf
+pymupdf4llm
