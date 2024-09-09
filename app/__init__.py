@@ -30,7 +30,12 @@ def create_app():
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["https://paxxiumv1.web.app", "http://localhost:3000"],
+        allow_origins=[
+        "https://paxxiumv1.web.app",
+        "http://localhost:3000",
+        "https://paxxium.com",
+        "http://localhost:30333",
+    ],
         allow_credentials=True,
         allow_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE", "PATCH"],
         allow_headers=["Content-Type", "Accept", "dbName", "uid", 'Kb-ID'],
