@@ -7,7 +7,7 @@ from app.utils.custom_json_encoder import CustomJSONEncoder
 from app.services.ChatService import ChatService
 from app.services.MongoDbClient import MongoDbClient
 
-router = APIRouter(prefix="/api")
+router = APIRouter()
 
 def get_chat_service(dbName: str = Header(...), uid: str = Header(...)):
     try:

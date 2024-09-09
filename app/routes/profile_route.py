@@ -11,7 +11,7 @@ import traceback
 
 load_dotenv()
 
-router = APIRouter(prefix="/api")
+router = APIRouter()
 
 def get_services(dbName: str = Header(...), uid: str = Header(...)):
     try:
