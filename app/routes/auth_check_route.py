@@ -6,7 +6,7 @@ from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv(override=True)
 
-router = APIRouter()
+router = APIRouter(prefix="/api")
 
 def get_db(dbName: str = Header(...)):
     try:

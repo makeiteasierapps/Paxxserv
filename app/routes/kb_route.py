@@ -11,7 +11,7 @@ from app.services.ExtractionService import ExtractionService
 
 load_dotenv()
 
-router = APIRouter()
+router = APIRouter(prefix="/api")
 
 def get_services(dbName: str = Header(...), uid: str = Header(...)):
     mongo_client = MongoDbClient(dbName)

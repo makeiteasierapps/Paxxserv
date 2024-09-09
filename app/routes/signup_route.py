@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 load_dotenv()
 
-router = APIRouter()
+router = APIRouter(prefix="/api")
 
 class SignupData(BaseModel):
     username: str

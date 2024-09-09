@@ -9,7 +9,7 @@ from app.services.MomentService import MomentService
 from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
-router = APIRouter()
+router = APIRouter(prefix="/api")
 
 class Moment(BaseModel):
     momentId: Optional[str]

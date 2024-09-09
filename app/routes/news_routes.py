@@ -9,7 +9,7 @@ from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
 
-router = APIRouter()
+router = APIRouter(prefix="/api")
 
 def get_db(dbName: str = Header(...)):
     try:

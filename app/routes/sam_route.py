@@ -3,7 +3,7 @@ from fastapi import APIRouter, Response, Request, HTTPException
 from fastapi.responses import FileResponse
 from app.agents.OpenAiClient import OpenAiClient
 
-router = APIRouter()
+router = APIRouter(prefix="/api")
 
 @router.options("/sam")
 async def handle_socketio_options():

@@ -10,7 +10,7 @@ from app.services.MongoDbClient import MongoDbClient
 from app.agents.OpenAiClient import OpenAiClient
 load_dotenv()
 
-router = APIRouter()
+router = APIRouter(prefix="/api")
 
 def get_db_and_image_manager(dbName: str = Header(...), uid: str = Header(...)):
     try:
