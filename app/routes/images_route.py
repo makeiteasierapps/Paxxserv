@@ -1,4 +1,5 @@
 import io
+from PIL import Image
 from dotenv import load_dotenv
 import mimetypes
 import os
@@ -34,8 +35,21 @@ async def generate_image(request: Request, db_and_manager: tuple = Depends(get_d
 
 @router.get("/images")
 async def get_images(uid: str = Header(...)):
-    images_list = LocalStorageService.fetch_all_images(uid, 'dalle_images')
-    return JSONResponse(content=images_list, status_code=200)
+    full_images = LocalStorageService.fetch_all_images(uid, 'dalle_images')
+    thumbnails = LocalStorageService.fetch_all_images(uid, 'dalle_images/thumbnails')
+    result = []
+    for full_image in full_images:
+        file_name = os.path.basename(full_image['path'])
+        base_name, ext = os.path.splitext(file_name)
+        thumbnail_name = f"{base_name}_thumb{ext}"
+        
+        thumbnail = next((t['path'] for t in thumbnails if os.path.basename(t['path']) == thumbnail_name), None)
+        result.append({
+            "full_image": full_image['path'],
+            "thumbnail": thumbnail
+        })
+    
+    return JSONResponse(content=result, status_code=200)
 
 @router.get("/images/{image_path:path}")
 async def get_image(image_path: str):
@@ -75,10 +89,25 @@ async def save_image(request: Request, uid: str = Header(...)):
     # Create a file name from the prompt
     safe_prompt = prompt.replace(' ', '_')[:50]  # Limit to 50 characters
     file_name = f"{safe_prompt}{ext}"
+    thumbnail_name = f"{safe_prompt}_thumb{ext}"
+    
     # Prepare the image data
     image_data = response.content
     image_blob = io.BytesIO(image_data)
     
-    # Save the image
-    image_url = await LocalStorageService.upload_file_async(image_blob, uid, 'dalle_images', file_name=file_name)
-    return JSONResponse(content=image_url, status_code=200)
+    # Create thumbnail
+    with Image.open(image_blob) as img:
+        img.thumbnail((200, 200))  # This maintains aspect ratio
+        thumb_blob = io.BytesIO()
+        img.save(thumb_blob, format=img.format)
+        thumb_blob.seek(0)
+    
+    # Reset image_blob to the beginning
+    image_blob.seek(0)
+    
+    # Save both images
+    full_image_url = await LocalStorageService.upload_file_async(image_blob, uid, 'dalle_images', file_name=file_name)
+    thumb_url = await LocalStorageService.upload_file_async(thumb_blob, uid, 'dalle_images/thumbnails', file_name=thumbnail_name)
+
+    
+    return JSONResponse(content={"full_image": full_image_url, "thumbnail": thumb_url}, status_code=200)

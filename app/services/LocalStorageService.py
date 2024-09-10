@@ -8,6 +8,25 @@ class LocalStorageService:
     base_path = '/mnt/media_storage' if not is_local else os.path.join(os.getcwd(), 'media_storage')
 
     @staticmethod
+    async def download_file_async(path):
+        try:
+            full_path = os.path.join(LocalStorageService.base_path, path.lstrip('/'))
+            if not os.path.exists(full_path):
+                print(f"File not found: {full_path}")
+                return None
+
+            # Read the file content asynchronously
+            loop = asyncio.get_event_loop()
+            with open(full_path, 'rb') as file:
+                contents = await loop.run_in_executor(None, file.read)
+
+            return contents
+
+        except Exception as e:
+            print(f"Error in download_file_async: {str(e)}")
+            return None
+    
+    @staticmethod
     async def upload_file_async(file, uid, folder, file_name=None):
         return await LocalStorageService._upload_file_async(file, uid, folder, file_name)
 
@@ -50,9 +69,8 @@ class LocalStorageService:
             with open(local_full_path, 'wb') as f:
                 f.write(contents)
 
-            return {
-                'path': full_path.lstrip('/'),
-            }
+            return full_path.lstrip('/'),
+            
         except Exception as e:
             print(f"Error in upload_file: {str(e)}")
             return None
@@ -67,5 +85,12 @@ class LocalStorageService:
     def fetch_all_images(uid, folder):
         relative_path = os.path.join('users', uid, folder)
         path = os.path.join(LocalStorageService.base_path, relative_path)
-        files = os.listdir(path) if os.path.exists(path) else []
+        if not os.path.exists(path):
+            return []
+        
+        image_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp')
+        files = [file for file in os.listdir(path) 
+                 if os.path.isfile(os.path.join(path, file)) and 
+                 file.lower().endswith(image_extensions)]
+        
         return [{'path': f'{relative_path}/{file}'} for file in files]
