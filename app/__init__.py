@@ -25,7 +25,7 @@ except ValueError as e:
 
 def create_app():
     app = FastAPI()
-    sio = socketio.AsyncServer(logger=True, engineio_logger=True, async_mode='asgi', cors_allowed_origins='*', max_http_buffer_size=1e8)
+    sio = socketio.AsyncServer(logger=True, engineio_logger=True, async_mode='asgi', cors_allowed_origins='*', max_http_buffer_size=1e8, path='/socket.io')
     socket_app = socketio.ASGIApp(sio, app)
 
     app.add_middleware(
