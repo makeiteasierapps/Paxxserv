@@ -107,7 +107,9 @@ async def save_image(request: Request, uid: str = Header(...)):
     
     # Save both images
     full_image_url = await LocalStorageService.upload_file_async(image_blob, uid, 'dalle_images', file_name=file_name)
+    print(full_image_url)
     thumb_url = await LocalStorageService.upload_file_async(thumb_blob, uid, 'dalle_images/thumbnails', file_name=thumbnail_name)
+    print(thumb_url)
 
     
     return JSONResponse(content={"full_image": full_image_url, "thumbnail": thumb_url}, status_code=200)

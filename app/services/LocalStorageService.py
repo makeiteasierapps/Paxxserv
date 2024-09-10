@@ -69,13 +69,14 @@ class LocalStorageService:
             with open(local_full_path, 'wb') as f:
                 f.write(contents)
 
-            return full_path.lstrip('/'),
+            return full_path.lstrip('/')
             
         except Exception as e:
             print(f"Error in upload_file: {str(e)}")
             return None
         
     @staticmethod
+    #need to delete the thumbnail if it exists
     def delete_image(path):
         full_path = os.path.join(LocalStorageService.base_path, path.lstrip('/'))
         if os.path.exists(full_path):
