@@ -2,12 +2,10 @@
 from bson import ObjectId
 from datetime import datetime
 from dotenv import load_dotenv
-from canopy.tokenizer import Tokenizer
+from app.utils.token_counter import token_counter
 from app.agents.DocumentManager import DocumentManager
 
 load_dotenv()
-Tokenizer.initialize()
-tokenizer = Tokenizer()
 
 class KnowledgeBaseService:
     def __init__(self, db, uid):
@@ -71,7 +69,7 @@ class KnowledgeBaseService:
         
         if content is not None:
             kb_doc['content'] = content
-            kb_doc['token_count'] = tokenizer.token_count(content)
+            kb_doc['token_count'] = token_counter(content)
         elif urls:
             kb_doc['urls'] = urls
             kb_doc['token_count'] = sum(url_doc['token_count'] for url_doc in urls)

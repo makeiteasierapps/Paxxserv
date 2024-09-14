@@ -1,7 +1,7 @@
-import tiktoken
 import base64
 from app.agents.OpenAiClient import OpenAiClient
 from app.agents.AnthropicClient import AnthropicClient
+from app.utils.token_counter import token_counter
 
 class BossAgent:
     def __init__(self, ai_client,  model='gpt-4o-mini',chat_constants=None, user_analysis=None, sio=None):
@@ -12,7 +12,7 @@ class BossAgent:
         self.chat_constants = chat_constants
         self.user_analysis = user_analysis
         self.image_path = None
-    
+        self.token_counter = token_counter
     async def handle_streaming_response(self, chat_id, new_chat_history, save_callback=None, system_message=None):
         system_content = f'''
             ***USER ANALYSIS***
@@ -259,17 +259,4 @@ class BossAgent:
         }
         return system_message
     
-    def token_counter(self, message):
-        """Return the number of tokens in a string."""
-        try:
-            encoding = tiktoken.encoding_for_model(self.model)
-        except KeyError:
-            print("Warning: model not found. Using cl100k_base encoding.")
-            encoding = tiktoken.get_encoding("cl100k_base")
-        
-        tokens_per_message = 3
-        num_tokens = 0
-        num_tokens += tokens_per_message
-        num_tokens += len(encoding.encode(message))
-        num_tokens += 3  # every reply is primed with <|im_start|>assistant<|im_sep|>
-        return num_tokens
+    

@@ -1,15 +1,13 @@
 import uuid
-from canopy.tokenizer import Tokenizer
+from app.utils.token_counter import token_counter
 from canopy.models.data_models import Document
 from canopy.knowledge_base.models import KBEncodedDocChunk
 from canopy.knowledge_base.chunker.recursive_character import RecursiveCharacterChunker
-from .OpenAiClient import OpenAiClient
+from app.agents.OpenAiClient import OpenAiClient
 
-class DocumentManager(OpenAiClient):
+class DocumentManager:
     def __init__(self, db, uid):
-        super().__init__(db, uid)
-        Tokenizer.initialize()
-        self.tokenizer = Tokenizer()
+        self.openai_client = OpenAiClient(db, uid)
 
     def chunkify(self, source, content=None, highlights=None):
         if highlights:
@@ -17,7 +15,7 @@ class DocumentManager(OpenAiClient):
             return [Document(id=str(uuid.uuid4()), text=highlight['text'], source=source) for highlight in highlights]
         
         # No chunking
-        if content and self.tokenizer.token_count(content) < 1000:
+        if content and token_counter(content) < 1000:
             return [Document(id=str(uuid.uuid4()), text=content, source=source)]
         
         # Automatic chunking
@@ -28,7 +26,7 @@ class DocumentManager(OpenAiClient):
     def embed_chunks(self, chunks):
         encoded_chunks = []
         for chunk in chunks:
-            embeddings = self.embed_content(chunk.text)
+            embeddings = self.openai_client.embed_content(chunk.text)
             encoded_chunk = KBEncodedDocChunk(
                 id=chunk.id,
                 text=chunk.text,
@@ -43,11 +41,11 @@ class DocumentManager(OpenAiClient):
         return encoded_chunks
 
     def summarize_content(self, content):
-        token_count = self.tokenizer.token_count(content)
+        token_count = token_counter(content)
         if token_count > 10000:
             # Summarize each chunk individually
             return "Content is too long to summarize."
-        response = self.openai_client.chat.completions.create(
+        response = self.openai_client.generate_chat_completion(
             model='gpt-4o-mini',
             messages=[
                 {
