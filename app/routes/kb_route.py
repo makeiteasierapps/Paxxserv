@@ -1,6 +1,6 @@
 import json
 from fastapi import APIRouter, Depends, HTTPException, Header, Request, File, UploadFile, Form
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from typing import Optional
 from dotenv import load_dotenv
@@ -91,13 +91,14 @@ async def embed(request: Request, services: dict = Depends(get_services)):
     doc_id = data.get('id')
 
     kb_service = services["kb_services"]
-    index_path = kb_service.get_index_path(kb_id)
-    # Process content with ColbertService
-    results = kb_service.process_colbert_content(index_path, content)
     
-    if not index_path:    
-        index_path = results['index_path']
-        kb_service.update_knowledge_base(kb_id, index_path=index_path)
+    # Process content with ColbertService
+    results = kb_service.process_colbert_content(kb_id, content)
+    
+    if results.get('created', False):
+        print(f"New index created at: {results['index_path']}")
+    else:
+        print("Documents added to existing index")
 
     # Generate summaries
     summaries = kb_service.generate_summaries(content)

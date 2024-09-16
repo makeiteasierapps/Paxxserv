@@ -8,11 +8,28 @@ load_dotenv()
 
 class KnowledgeBaseService:
     def __init__(self, db, uid):
-        self.colbert_service = ColbertService()
+        self.colbert_service = None
         self.openai_client = OpenAiClient(db, uid)
         self.db = db
         self.uid = uid
-        self.index_path = None
+        self.index_path = self.get_index_path(None)
+
+    def get_index_path(self, kb_id):
+        kb = self.db['knowledge_bases'].find_one({'_id': ObjectId(kb_id)})
+        return kb['index_path'] if kb else None
+    
+    def process_colbert_content(self, kb_id, content):
+        index_path = self.get_index_path(kb_id)
+        self.colbert_service = ColbertService(index_path)
+        
+        if index_path is None:
+            results = self.colbert_service.process_content(None, content)
+            new_index_path = results['index_path']
+            self.update_knowledge_base(kb_id, index_path=new_index_path)
+            return {'index_path': new_index_path, 'created': True}
+        else:
+            status = self.colbert_service.process_content(index_path, content)
+            return {'status': status, 'created': False}
 
     def get_kb_list(self, uid):
         kb_list_cursor = self.db['knowledge_bases'].find({'uid': uid})
@@ -64,15 +81,7 @@ class KnowledgeBaseService:
         else:
             return 'knowledge base not found'
         
-    def process_colbert_content(self, kb_path, content):
-        if kb_path is None:
-            self.index_path = self.colbert_service.process_content(None, content)
-            return {'index_path': self.index_path}
-        else:
-            self.index_path = kb_path
-            status = self.colbert_service.process_content(self.index_path, content)
-        return {'status': status}
-
+    
     def generate_summaries(self, content):
         if isinstance(content, str):
             return [self.openai_client.summarize_content(content)]
@@ -92,10 +101,6 @@ class KnowledgeBaseService:
             ]
 
         return self.handle_doc_db_update(kb_id, source, doc_type, content, doc_id, update_data)
-
-    def get_index_path(self, kb_id):
-        kb = self.db['knowledge_bases'].find_one({'_id': ObjectId(kb_id)})
-        return kb['index_path']
     
     def handle_doc_db_update(self, kb_id, source, doc_type, content, doc_id=None, additional_data=None):
         kb_doc = {
