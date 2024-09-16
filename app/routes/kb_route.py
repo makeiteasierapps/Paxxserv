@@ -80,19 +80,32 @@ async def extract(
             return JSONResponse(content=result)
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid JSON data")
+
 @router.post("/kb/embed")
 async def embed(request: Request, services: dict = Depends(get_services)):
     data = await request.json()
     content = data.get('content')
-    urls = data.get('urls')
-    highlights = data.get('highlights')
-    doc_id = data.get('id')
     kb_id = data.get('kbId')
+    index_path = data.get('indexPath')
     source = data.get('source')
-    if content:
-        kb_doc = services["kb_services"].chunk_and_embed_content(source, kb_id, doc_id, highlights, content=content)
-    else:
-        kb_doc = services["kb_services"].chunk_and_embed_content(source, kb_id, doc_id, highlights, urls=urls)
+    doc_type = data.get('docType')
+    doc_id = data.get('docId')
+
+    kb_service = services["kb_services"]
+
+    # Process content with ColbertService
+    results = kb_service.process_colbert_content(index_path, content)
+
+    if index_path is None:
+        index_path = results['index_path']
+        kb_service.update_knowledge_base(kb_id, index_path=index_path)
+
+    # Generate summaries
+    summaries = kb_service.generate_summaries(content)
+
+    # Update the database
+    kb_doc = kb_service.update_kb_document(kb_id, source, doc_type, content, summaries, doc_id)
+
     return JSONResponse(content={"kb_doc": kb_doc})
 
 @router.delete("/kb/documents")
@@ -110,14 +123,13 @@ async def save_document(request: Request, services: dict = Depends(get_services)
     kb_id = data.get('kbId')
     urls = data.get('urls')
     content = data.get('content')
-    highlights = data.get('highlights')
     doc_id = data.get('id')
     source = data.get('source')
 
     if content:
-        result = services["kb_services"].create_kb_doc_in_db(kb_id, source, 'pdf', highlights, doc_id, content=content)
+        result = services["kb_services"].create_kb_doc_in_db(kb_id, source, 'pdf', doc_id, content=content)
     else:
-        result = services["kb_services"].create_kb_doc_in_db(kb_id, source, 'url', highlights, doc_id, urls=urls)
+        result = services["kb_services"].create_kb_doc_in_db(kb_id, source, 'url', doc_id, urls=urls)
     
     if result == 'not_found':
         raise HTTPException(status_code=404, detail="Document not found")

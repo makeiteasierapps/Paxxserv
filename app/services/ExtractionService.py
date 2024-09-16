@@ -5,11 +5,8 @@ import fitz
 import requests
 from dotenv import load_dotenv
 from fastapi import HTTPException
-from canopy.tokenizer import Tokenizer
+from app.utils.token_counter import token_counter
 from app.services.LocalStorageService import LocalStorageService
-
-Tokenizer.initialize()
-tokenizer = Tokenizer()
 
 load_dotenv()
 
@@ -59,7 +56,7 @@ class ExtractionService:
             
             url_docs = [{
                 'content': url_content.get('markdown'),
-                'token_count': tokenizer.token_count(url_content.get('markdown')),
+                'token_count': token_counter(url_content.get('markdown')),
                 'metadata': url_content.get('metadata')
             } for url_content in content]
 

@@ -12,7 +12,7 @@ def build_index():
         {"entity": "person", "source": "wikipedia"},
         {"entity": "organisation", "source": "wikipedia"},
     ]
-    RAG.index(
+    path = RAG.index(
         index_name="my_index_with_ids_and_metadata",
         collection=my_documents,
         document_ids=document_ids,

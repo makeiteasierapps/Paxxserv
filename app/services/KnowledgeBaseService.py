@@ -1,17 +1,18 @@
-# Seperate out the document logic into its own service file. 
 from bson import ObjectId
-from datetime import datetime
+from datetime import datetime, UTC
 from dotenv import load_dotenv
 from app.utils.token_counter import token_counter
-from app.agents.DocumentManager import DocumentManager
-
+from app.services.ColbertService import ColbertService
+from app.agents.OpenAiClient import OpenAiClient
 load_dotenv()
 
 class KnowledgeBaseService:
     def __init__(self, db, uid):
-        self.document_manager = DocumentManager(db, uid)
+        self.colbert_service = ColbertService()
+        self.openai_client = OpenAiClient(db, uid)
         self.db = db
         self.uid = uid
+        self.index_path = None
 
     def get_kb_list(self, uid):
         kb_list_cursor = self.db['knowledge_bases'].find({'uid': uid})
@@ -41,11 +42,11 @@ class KnowledgeBaseService:
     def create_new_kb(self, uid, name, objective):
         kb_details = {
                 'name': name,
+                'index_path': None,
                 'uid': uid,
                 'objective': objective,
                 'documents': [],
-                'urls': [],
-                'created_at': datetime.utcnow()
+                'created_at': datetime.now(UTC)
             }
         new_kb = self.db['knowledge_bases'].insert_one(kb_details)
         # Convert the '_id' to 'id' and remove '_id' from the dictionary
@@ -54,34 +55,64 @@ class KnowledgeBaseService:
         del kb_details['_id']
 
         return kb_details
-
-    def create_chunks_and_embeddings(self, source, content, highlights=None):
-        chunks = self.document_manager.chunkify(source=source, content=content, highlights=highlights)
-        chunks_with_embeddings = self.document_manager.embed_chunks(chunks)
-        return chunks_with_embeddings
     
-    def create_kb_doc_in_db(self, kb_id, source, doc_type, highlights=None, doc_id=None, urls=None, content=None):
+    def update_knowledge_base(self, kb_id, **kwargs):
+        knowledge_base = self.db['knowledge_bases'].find_one({'_id': ObjectId(kb_id)})
+        if knowledge_base:
+            self.db['knowledge_bases'].update_one({'_id': ObjectId(kb_id)}, {'$set': kwargs})
+            return 'knowledge base updated'
+        else:
+            return 'knowledge base not found'
+        
+    
+    def process_colbert_content(self, kb_path, content):
+        if kb_path is None:
+            self.index_path = self.colbert_service.process_content(None, content)
+            # Store kb_name and index_path in your database or wherever appropriate
+        else:
+            self.index_path = kb_path
+            status = self.colbert_service.process_content(self.index_path, content)
+        return {'index_path': self.index_path, 'status': status}
+
+    def generate_summaries(self, content):
+        if isinstance(content, str):
+            return [self.openai_client.summarize_content(content)]
+        elif isinstance(content, list):
+            return [self.openai_client.summarize_content(url['content']) for url in content]
+        else:
+            return []
+
+    def update_kb_document(self, kb_id, source, doc_type, content, summaries, doc_id=None):
+        update_data = {}
+        if isinstance(content, str):
+            update_data['summary'] = summaries[0]
+        else:
+            update_data['urls'] = [
+                {**url, 'summary': summary}
+                for url, summary in zip(content, summaries)
+            ]
+
+        return self.handle_doc_db_update(kb_id, source, doc_type, content, doc_id, update_data)
+
+    def handle_doc_db_update(self, kb_id, source, doc_type, content, doc_id=None, additional_data=None):
         kb_doc = {
             'type': doc_type,
             'kb_id': kb_id,
             'source': source,
         }
         
-        if content is not None:
+        if isinstance(content, str):
             kb_doc['content'] = content
             kb_doc['token_count'] = token_counter(content)
-        elif urls:
-            kb_doc['urls'] = urls
-            kb_doc['token_count'] = sum(url_doc['token_count'] for url_doc in urls)
+        elif isinstance(content, list):
+            kb_doc['urls'] = content
+            kb_doc['token_count'] = sum(url_doc.get('token_count', 0) for url_doc in content)
         else:
             kb_doc['content'] = ''
             kb_doc['token_count'] = 0
-        
-        if highlights is not None:
-            if len(highlights) > 0:
-                kb_doc['highlights'] = highlights
-            else:
-                kb_doc['highlights'] = []
+
+        if additional_data:
+            kb_doc.update(additional_data)
 
         if doc_id:
             result = self.db['kb_docs'].update_one(
@@ -97,78 +128,7 @@ class KnowledgeBaseService:
             else:
                 return 'not_found'
         else:
-            kb_doc['chunks'] = []
             result = self.db['kb_docs'].insert_one(kb_doc)
             kb_doc['id'] = str(result.inserted_id)
             kb_doc.pop('_id', None)
             return kb_doc
-    
-    def chunk_and_embed_content(self, source, kb_id, doc_id, highlights=None, content=None, urls=None):
-        # Check if the document has existing chunks and delete them
-        existing_doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
-        if existing_doc and 'chunks' in existing_doc:
-            self.db['chunks'].delete_many({'_id': {'$in': existing_doc['chunks']}})
-
-        chunk_ids = []
-        content_summaries = []
-        processed_urls = []
-
-        if content:
-            chunks_with_embeddings = self.create_chunks_and_embeddings(source, content, highlights)
-            content_summary = self.document_manager.summarize_content(content)
-            chunk_ids.extend(self._insert_chunks(chunks_with_embeddings, doc_id, kb_id, content_summary))
-            content_summaries.append(content_summary)
-        elif urls:
-            for url in urls:
-                chunks_with_embeddings = self.create_chunks_and_embeddings(url['metadata']['sourceURL'], url['content'], highlights)
-                content_summary = self.document_manager.summarize_content(url['content'])
-                url_chunk_ids = self._insert_chunks(chunks_with_embeddings, doc_id, kb_id, content_summary)
-                chunk_ids.extend(url_chunk_ids)
-                content_summaries.append(content_summary)
-                processed_urls.append({
-                    **url,
-                    'chunk_ids': [str(chunk_id) for chunk_id in url_chunk_ids],
-                    'summary': content_summary
-                })
-
-        update_data = {'chunks': chunk_ids}
-        if content:
-            update_data['summary'] = content_summaries[0]
-        else:
-            update_data['urls'] = processed_urls
-
-        if highlights:
-            update_data['highlights'] = highlights
-
-        self.db['kb_docs'].update_one({'_id': ObjectId(doc_id)}, {'$set': update_data})
-
-        updated_doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
-        
-        if '_id' in updated_doc:
-            updated_doc['id'] = str(updated_doc['_id'])
-            updated_doc.pop('_id', None)
-        if 'chunks' in updated_doc:
-            updated_doc['chunks'] = [str(chunk_id) for chunk_id in updated_doc['chunks']]
-        
-        return updated_doc
-
-    def _insert_chunks(self, chunks_with_embeddings, doc_id, kb_id, content_summary):
-        chunk_ids = []
-        for chunk in chunks_with_embeddings:
-            metadata_text = chunk['metadata']['text']
-            metadata_source = chunk['metadata']['source']
-            chunk_to_insert = {
-                **chunk,
-                'text': metadata_text,
-                'source': metadata_source,
-                'doc_id': str(doc_id),
-                'kb_id': kb_id,
-                'summary': content_summary
-            }
-            chunk_to_insert.pop('metadata', None)
-            chunk_to_insert.pop('id', None)
-            inserted_chunk = self.db['chunks'].insert_one(chunk_to_insert)
-            chunk_ids.append(inserted_chunk.inserted_id)
-        return chunk_ids
-    
-    

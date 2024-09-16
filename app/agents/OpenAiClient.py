@@ -1,5 +1,6 @@
 from openai import OpenAI
 from dotenv import load_dotenv
+from app.utils.token_counter import token_counter
 import os
 
 class OpenAiClient:
@@ -47,3 +48,26 @@ class OpenAiClient:
     def generate_image(self, prompt, size, quality, style):
         response = self.client.images.generate(prompt=prompt, size=size, quality=quality, style=style, model='dall-e-3', n=1, )
         return response.data[0].url
+    
+    def summarize_content(self, content):
+        token_count = token_counter(content)
+        if token_count > 10000:
+            # Summarize each chunk individually
+            return "Content is too long to summarize."
+        response = self.generate_chat_completion(
+            model='gpt-4o-mini',
+            messages=[
+                {
+                    'role': 'system', 
+                    'content': 'You are a helpful assistant that summarizes the content of a document.'
+                },
+                {
+                    'role': 'user',
+                    'content': f'''
+                    Please provide a detailed summary of the following document:
+                    {content}
+                    '''
+                }
+            ]
+        )
+        return response.choices[0].message.content
