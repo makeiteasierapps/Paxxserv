@@ -64,15 +64,14 @@ class KnowledgeBaseService:
         else:
             return 'knowledge base not found'
         
-    
     def process_colbert_content(self, kb_path, content):
         if kb_path is None:
             self.index_path = self.colbert_service.process_content(None, content)
-            # Store kb_name and index_path in your database or wherever appropriate
+            return {'index_path': self.index_path}
         else:
             self.index_path = kb_path
             status = self.colbert_service.process_content(self.index_path, content)
-        return {'index_path': self.index_path, 'status': status}
+        return {'status': status}
 
     def generate_summaries(self, content):
         if isinstance(content, str):
@@ -94,6 +93,10 @@ class KnowledgeBaseService:
 
         return self.handle_doc_db_update(kb_id, source, doc_type, content, doc_id, update_data)
 
+    def get_index_path(self, kb_id):
+        kb = self.db['knowledge_bases'].find_one({'_id': ObjectId(kb_id)})
+        return kb['index_path']
+    
     def handle_doc_db_update(self, kb_id, source, doc_type, content, doc_id=None, additional_data=None):
         kb_doc = {
             'type': doc_type,

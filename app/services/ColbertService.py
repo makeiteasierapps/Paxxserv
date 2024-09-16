@@ -6,11 +6,11 @@ class ColbertService:
     def __init__(self):
         self.rag = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0")
     
-    def process_content(self, kb_id, content):
-        if kb_id is None:
+    def process_content(self, index_path, content):
+        if index_path is None:
             return self.create_index(content)
         else:
-            return self.add_documents_to_index(kb_id, content)
+            return self.add_documents_to_index(index_path, content)
     
     def create_index(self, content):
         documents = self._prepare_documents(content)
@@ -19,11 +19,12 @@ class ColbertService:
             index_name=index_name,
             collection=documents,
         )
-        return index_name, path
+        return path
     
     def add_documents_to_index(self, index_name, content):
         try:
             documents = self._prepare_documents(content)
+            print(documents)
             self.rag.add_to_index(
                 index_name=index_name,
                 new_collection=documents,

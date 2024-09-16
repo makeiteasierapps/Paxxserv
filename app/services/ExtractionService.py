@@ -60,7 +60,7 @@ class ExtractionService:
                 'metadata': url_content.get('metadata')
             } for url_content in content]
 
-            kb_doc = kb_services.create_kb_doc_in_db(kb_id, normalized_url, 'url', urls=url_docs)
+            kb_doc = kb_services.handle_doc_db_update(kb_id, normalized_url, 'url', content=url_docs)
             return kb_doc
 
         except requests.RequestException as e:

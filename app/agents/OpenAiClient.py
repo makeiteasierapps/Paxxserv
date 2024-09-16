@@ -70,4 +70,4 @@ class OpenAiClient:
                 }
             ]
         )
-        return response.choices[0].message.content
+        return response

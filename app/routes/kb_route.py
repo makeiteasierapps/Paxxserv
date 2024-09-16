@@ -76,8 +76,8 @@ async def extract(
             if not url:
                 raise HTTPException(status_code=400, detail="URL is required when not uploading a file")
             
-            result = extraction_service.extract_from_url(url, kb_id, endpoint, services["kb_services"])
-            return JSONResponse(content=result)
+            kb_doc = extraction_service.extract_from_url(url, kb_id, endpoint, services["kb_services"])
+            return JSONResponse(content=kb_doc)
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid JSON data")
 
@@ -86,17 +86,16 @@ async def embed(request: Request, services: dict = Depends(get_services)):
     data = await request.json()
     content = data.get('content')
     kb_id = data.get('kbId')
-    index_path = data.get('indexPath')
     source = data.get('source')
     doc_type = data.get('docType')
-    doc_id = data.get('docId')
+    doc_id = data.get('id')
 
     kb_service = services["kb_services"]
-
+    index_path = kb_service.get_index_path(kb_id)
     # Process content with ColbertService
     results = kb_service.process_colbert_content(index_path, content)
-
-    if index_path is None:
+    
+    if not index_path:    
         index_path = results['index_path']
         kb_service.update_knowledge_base(kb_id, index_path=index_path)
 
