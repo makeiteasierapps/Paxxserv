@@ -11,13 +11,13 @@ class ColbertService:
             self.rag = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0")
         self.index_path = index_path
     
-    def process_content(self, index_path, content):
+    def process_content(self, index_path, doc_id, content):
         if index_path is None or not os.path.exists(index_path):
-            return self.create_index(content)
+            return self.create_index(doc_id, content)
         else:
-            return self.add_documents_to_index(content)
+            return self.add_documents_to_index(doc_id, content)
     
-    def create_index(self, content):
+    def create_index(self, doc_id, content):
         try:
             documents = self._prepare_documents(content)
             print('Creating index with documents:', documents)
@@ -25,18 +25,20 @@ class ColbertService:
             path = self.rag.index(
                 index_name=index_name,
                 collection=documents,
+                document_ids=[doc_id]
             )
             return {'index_path': path}
         except Exception as e:
             print(f"Error creating index: {e}")
             return None
     
-    def add_documents_to_index(self, content):
+    def add_documents_to_index(self, doc_id, content):
         try:
             documents = self._prepare_documents(content)
             print('Adding documents to index:', documents)
             self.rag.add_to_index(
                 new_collection=documents,
+                new_document_ids=[doc_id]
             )
             return 'Documents added to index'
         except Exception as e:

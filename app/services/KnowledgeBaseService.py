@@ -18,17 +18,17 @@ class KnowledgeBaseService:
         kb = self.db['knowledge_bases'].find_one({'_id': ObjectId(kb_id)})
         return kb['index_path'] if kb else None
     
-    def process_colbert_content(self, kb_id, content):
+    def process_colbert_content(self, kb_id, doc_id, content):
         index_path = self.get_index_path(kb_id)
         self.colbert_service = ColbertService(index_path)
         
         if index_path is None:
-            results = self.colbert_service.process_content(None, content)
+            results = self.colbert_service.process_content(None, doc_id, content)
             new_index_path = results['index_path']
             self.update_knowledge_base(kb_id, index_path=new_index_path)
             return {'index_path': new_index_path, 'created': True}
         else:
-            status = self.colbert_service.process_content(index_path, content)
+            status = self.colbert_service.process_content(index_path, doc_id, content)
             return {'status': status, 'created': False}
 
     def get_kb_list(self, uid):
@@ -72,7 +72,7 @@ class KnowledgeBaseService:
         del kb_details['_id']
 
         return kb_details
-    
+ 
     def update_knowledge_base(self, kb_id, **kwargs):
         knowledge_base = self.db['knowledge_bases'].find_one({'_id': ObjectId(kb_id)})
         if knowledge_base:
@@ -80,8 +80,7 @@ class KnowledgeBaseService:
             return 'knowledge base updated'
         else:
             return 'knowledge base not found'
-        
-    
+
     def generate_summaries(self, content):
         if isinstance(content, str):
             return [self.openai_client.summarize_content(content)]
@@ -95,7 +94,7 @@ class KnowledgeBaseService:
         if isinstance(content, str):
             update_data['summary'] = summaries[0]
         else:
-            update_data['urls'] = [
+            update_data['content'] = [
                 {**url, 'summary': summary}
                 for url, summary in zip(content, summaries)
             ]
@@ -113,7 +112,7 @@ class KnowledgeBaseService:
             kb_doc['content'] = content
             kb_doc['token_count'] = token_counter(content)
         elif isinstance(content, list):
-            kb_doc['urls'] = content
+            kb_doc['content'] = content
             kb_doc['token_count'] = sum(url_doc.get('token_count', 0) for url_doc in content)
         else:
             kb_doc['content'] = ''

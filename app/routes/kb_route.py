@@ -93,7 +93,7 @@ async def embed(request: Request, services: dict = Depends(get_services)):
     kb_service = services["kb_services"]
     
     # Process content with ColbertService
-    results = kb_service.process_colbert_content(kb_id, content)
+    results = kb_service.process_colbert_content(kb_id, doc_id, content)
     
     if results.get('created', False):
         print(f"New index created at: {results['index_path']}")
