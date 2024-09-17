@@ -74,6 +74,10 @@ async def delete_kb(
 ):
     if not kb_id:
         raise HTTPException(status_code=400, detail="KB ID is required")
+    
+    index_path = kb_service.set_kb_id(kb_id)
+    colbert_service = get_colbert_service(index_path)
+    kb_service.set_colbert_service(colbert_service)
     kb_service.delete_kb_by_id(kb_id)
     return JSONResponse(content={"message": "KB deleted"})
 

@@ -1,4 +1,5 @@
 import os
+import shutil
 import time
 from ragatouille import RAGPretrainedModel
 
@@ -31,6 +32,22 @@ class ColbertService:
         except Exception as e:
             print(f"Error creating index: {e}")
             return None
+    
+    def delete_index(self, index_path):
+        try:
+            if os.path.exists(index_path):
+                index_name = os.path.basename(index_path)
+                index_dir = os.path.join('.ragatouille', 'colbert', 'indexes', index_name)
+                if os.path.exists(index_dir):
+                    shutil.rmtree(index_dir)
+                    return f'Index {index_name} deleted'
+                else:
+                    return f'Index directory for {index_name} not found'
+            else:
+                return f'Index path {index_path} not found'
+        except Exception as e:
+            print(f"Error deleting index: {e}")
+            return False
     
     def add_documents_to_index(self, doc_id, content):
         try:

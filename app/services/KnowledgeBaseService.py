@@ -58,6 +58,9 @@ class KnowledgeBaseService:
         return docs_list
     
     def delete_kb_by_id(self, kb_id):
+        if not self.colbert_service:
+            raise ValueError("ColbertService not initialized")
+        self.colbert_service.delete_index(self.index_path)
         self.db['knowledge_bases'].delete_one({'_id': ObjectId(kb_id)})
         self.db['kb_docs'].delete_many({'kb_id': kb_id})
         
