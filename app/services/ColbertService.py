@@ -45,6 +45,14 @@ class ColbertService:
             print(f"Error adding documents to index: {e}")
             return False
     
+    def delete_document_from_index(self, doc_id):
+        try:
+            self.rag.delete_from_index(document_ids=[doc_id])
+            return 'Document deleted from index'
+        except Exception as e:
+            print(f"Error deleting document from index: {e}")
+            return False
+
     def _prepare_documents(self, content):
         if isinstance(content, str):
             return [content]

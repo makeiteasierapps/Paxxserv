@@ -31,7 +31,7 @@ class ExtractionService:
             print(f"Error extracting text from PDF: {e}")
             raise HTTPException(status_code=500, detail="Failed to extract text from PDF")
 
-    def extract_from_url(self, url, kb_id, endpoint, kb_services):
+    def extract_from_url(self, url, endpoint, kb_services):
         normalized_url = self.normalize_url(url)
         firecrawl_url = os.getenv('FIRECRAWL_DEV_URL') if os.getenv('LOCAL_DEV') == 'true' else os.getenv('FIRECRAWL_URL')
         params = {
@@ -60,7 +60,7 @@ class ExtractionService:
                 'metadata': url_content.get('metadata')
             } for url_content in content]
 
-            kb_doc = kb_services.handle_doc_db_update(kb_id, normalized_url, 'url', content=url_docs)
+            kb_doc = kb_services.handle_doc_db_update(normalized_url, 'url', content=url_docs)
             return kb_doc
 
         except requests.RequestException as e:
