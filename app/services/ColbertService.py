@@ -50,13 +50,14 @@ class ColbertService:
             print(f"Error deleting index: {e}")
             return False
     
-    def add_documents_to_index(self, doc_id, content):
+    def add_documents_to_index(self, content, source):
         try:
-            documents = self._prepare_documents(content)
-            print('Adding documents to index:', documents)
+            doc_objs = self._prepare_documents(content, source)
+            doc_ids = [doc['id'] for doc in doc_objs]
+            collection = [doc['content'] for doc in doc_objs]
             self.rag.add_to_index(
-                new_collection=documents,
-                new_document_ids=[doc_id]
+                new_collection=collection,
+                new_document_ids=doc_ids
             )
             return 'Documents added to index'
         except Exception as e:
