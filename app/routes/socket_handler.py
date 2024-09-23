@@ -11,7 +11,7 @@ from app.agents.OpenAiClient import OpenAiClient
 from app.services.MongoDbClient import MongoDbClient
 from app.services.ExtractionService import ExtractionService
 from app.services.KnowledgeBaseService import KnowledgeBaseService
-
+from app.services.ColbertService import ColbertService
 def get_db(dbName: str):
     try:
         mongo_client = MongoDbClient(dbName)
@@ -80,7 +80,7 @@ def setup_socketio_events(sio: socketio.AsyncServer):
             image_blob = data.get('imageBlob', None)
             file_name = data.get('fileName', None)
             system_message = None
-            
+
             if save_to_db and not db_name:
                 await sio.emit('error', {"error": "dbName is required when saveToDb is true"})
                 return
@@ -105,9 +105,10 @@ def setup_socketio_events(sio: socketio.AsyncServer):
                     await sio.emit('agent_message', {"type": "agent_message", "content": message})
 
             if kb_id:
-                query_pipeline = boss_agent.create_vector_pipeline(user_message, kb_id)
-                results = chat_service.query_snapshots(query_pipeline)
-                system_message = boss_agent.prepare_vector_response(results)
+                kb_service.set_kb_id(kb_id)
+                colbert_service = ColbertService(kb_service.get_index_path())
+                results = colbert_service.search_index(user_message)
+                system_message = colbert_service.prepare_vector_response(results)
 
             if urls:
                 system_message = handle_extraction(urls, extraction_service, kb_id, kb_service, boss_agent)

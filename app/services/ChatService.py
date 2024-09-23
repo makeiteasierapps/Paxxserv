@@ -89,6 +89,3 @@ class ChatService:
             {'$set': {'messages': []}}
         )
     
-    def query_snapshots(self, pipeline):
-        # need to pass in the collection name
-        return list(self.db["chunks"].aggregate(pipeline))

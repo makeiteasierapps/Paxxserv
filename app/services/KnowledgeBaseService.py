@@ -28,17 +28,17 @@ class KnowledgeBaseService:
         kb = self.db['knowledge_bases'].find_one({'_id': ObjectId(self.kb_id)})
         return kb['index_path'] if kb else None
     
-    def process_colbert_content(self, doc_id, content):
+    def process_colbert_content(self, content, source):
         if not self.colbert_service:
             raise ValueError("ColbertService not initialized")
         
         if self.index_path is None:
-            results = self.colbert_service.process_content(None, doc_id, content)
+            results = self.colbert_service.process_content(None, content, source)
             new_index_path = results['index_path']
             self.update_knowledge_base(index_path=new_index_path)
             return {'index_path': new_index_path, 'created': True}
         else:
-            status = self.colbert_service.process_content(self.index_path, doc_id, content)
+            status = self.colbert_service.process_content(self.index_path, content, source)
             return {'status': status, 'created': False}
 
     def get_kb_list(self, uid):

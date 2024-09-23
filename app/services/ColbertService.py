@@ -3,7 +3,6 @@ import shutil
 import time
 from ragatouille import RAGPretrainedModel
 
-
 class ColbertService:
     def __init__(self, index_path=None):
         if index_path and os.path.exists(index_path):
@@ -12,21 +11,23 @@ class ColbertService:
             self.rag = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0")
         self.index_path = index_path
     
-    def process_content(self, index_path, doc_id, content):
+    def process_content(self, index_path, content, source):
         if index_path is None or not os.path.exists(index_path):
-            return self.create_index(doc_id, content)
+            index_path = self.create_index(content, source)['index_path']
+            return {'index_path': index_path}
         else:
-            return self.add_documents_to_index(doc_id, content)
+            return self.add_documents_to_index(content, source)
     
-    def create_index(self, doc_id, content):
+    def create_index(self, content, source):
         try:
-            documents = self._prepare_documents(content)
-            print('Creating index with documents:', documents)
+            doc_objs = self._prepare_documents(content, source)
+            doc_ids = [doc['id'] for doc in doc_objs]
+            collection = [doc['content'] for doc in doc_objs]
             index_name = f"index_{int(time.time())}"  # Generate a unique name
             path = self.rag.index(
                 index_name=index_name,
-                collection=documents,
-                document_ids=[doc_id]
+                collection=collection,
+                document_ids=doc_ids
             )
             return {'index_path': path}
         except Exception as e:
@@ -70,10 +71,29 @@ class ColbertService:
             print(f"Error deleting document from index: {e}")
             return False
 
-    def _prepare_documents(self, content):
+    def _prepare_documents(self, content, source):
         if isinstance(content, str):
-            return [content]
+            return [{'content': content, 'id': source}]
         elif isinstance(content, list):
-            return [doc['content'] for doc in content if 'content' in doc]
+            return [{'content': doc['content'], 'id': doc['metadata']['sourceURL']} for doc in content if 'content' in doc and 'metadata' in doc and 'sourceURL' in doc['metadata']]
         else:
             raise ValueError("Content must be either a string or a list of dictionaries with 'content' key")
+        
+    def search_index(self, query):
+        if not self.index_path:
+            raise ValueError("An index path is required to query an index")
+        return self.rag.search(query)
+        
+    def prepare_vector_response(self, query_results):
+        text = []
+        for item in query_results:
+            if item['rank'] == 1:
+                text.append(item['content'])
+        combined_text = ' '.join(text)
+        query_instructions = f'''
+        \nAnswer the users question based off of the knowledge base provided below, provide 
+        a detailed response that is relevant to the users question.\n
+        KNOWLEDGE BASE: {combined_text}
+        '''
+
+        return query_instructions

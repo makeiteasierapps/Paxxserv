@@ -13,6 +13,7 @@ class BossAgent:
         self.user_analysis = user_analysis
         self.image_path = None
         self.token_counter = token_counter
+
     async def handle_streaming_response(self, chat_id, new_chat_history, save_callback=None, system_message=None):
         system_content = f'''
             ***USER ANALYSIS***
@@ -192,59 +193,7 @@ class BossAgent:
             })
         
         return formatted_messages
-    
-    def prepare_vector_response(self, query_results):
-        text = []
 
-        for item in query_results:
-            if item['score'] > 0.2:
-                if 'transcript' in item:
-                    text.append(item['transcript'])
-                if 'actionItems' in item:
-                    action_items = ', '.join(item['actionItems'])
-                    text.append(action_items)
-                if 'text' in item:
-                    text.append(item['text'])
-        combined_text = ' '.join(text)
-        query_instructions = f'''
-        \nAnswer the users question based off of the knowledge base provided below, provide 
-        a detailed response that is relevant to the users question.\n
-        KNOWLEDGE BASE: {combined_text}
-        '''
-        
-        system_message = {
-            'role': 'system',
-            'content': query_instructions
-        }
-        return system_message
-    
-    def create_vector_pipeline(self, query, kb_id):
-        embeddings = self.ai_client.embed_content(query)
-        pipeline = [
-            {
-                '$vectorSearch': {
-                    'index': 'personal-kb',
-                    'path': 'values',
-                    'queryVector': embeddings,
-                    'numCandidates': 100,
-                    'limit': 5,
-                    'filter': {
-                        'kb_id': kb_id
-                    }
-                }
-            }, {
-                '$project': {
-                    '_id': 0,
-                    'text': 1,
-                    'score': {
-                        '$meta': 'vectorSearchScore'
-                    }
-                }
-            }
-        ]
-    
-        return pipeline
-    
     def prepare_url_content_for_ai(self, url_content):
         query_instructions = f'''
         \nAnswer the users question using the content from the url they are interested in.

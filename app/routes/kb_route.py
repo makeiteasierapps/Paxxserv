@@ -132,7 +132,7 @@ async def embed(
     data = await request.json()
     content = data.get('content')
     source = data.get('source')
-    doc_type = data.get('docType')
+    doc_type = data.get('type')
     doc_id = data.get('id')
 
     index_path = kb_service.set_kb_id(kb_id)
@@ -141,7 +141,7 @@ async def embed(
     kb_service.set_openai_client(openai_client)
     
     # Process content with ColbertService
-    results = kb_service.process_colbert_content(doc_id, content)
+    results = kb_service.process_colbert_content(content, source)
     
     if results.get('created', False):
         print(f"New index created at: {results['index_path']}")
