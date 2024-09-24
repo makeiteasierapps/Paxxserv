@@ -1,4 +1,5 @@
 from typing import List
+from uuid import uuid4
 import json
 import socketio
 from fastapi import HTTPException
@@ -119,9 +120,71 @@ def setup_socketio_events(sio: socketio.AsyncServer):
             await sio.emit('error', {"error": str(e)})
 
     @sio.event
-    async def connect(sid, environ):
-        print(f"Client connected: {sid}")
+    async def process_document(sid, data):
+        try:
+            uid = data.get('uid')
+            kb_id = data.get('kbId')
+            db_name = data.get('dbName')
+            content = data.get('content')
+            source = data.get('source')
+            doc_type = data.get('type')
+            doc_id = data.get('id')
+            operation = data.get('operation', 'embed')  # 'embed' or 'save'
 
-    @sio.event
-    async def disconnect(sid):
-        print(f"Client disconnected: {sid}")
+            if not db_name:
+                await sio.emit('error', {"error": "dbName is required"}, room=sid)
+                return
+
+            db = get_db(db_name)
+            kb_service = KnowledgeBaseService(db, uid)
+            index_path = kb_service.set_kb_id(kb_id)
+            colbert_service = ColbertService(index_path)
+            openai_client = OpenAiClient(db, uid)
+            kb_service.set_colbert_service(colbert_service)
+            kb_service.set_openai_client(openai_client)
+
+            # Generate a unique process ID
+            process_id = str(uuid4())
+
+            # Start processing in the background
+            sio.start_background_task(
+                process_and_update_client,
+                sio,
+                sid,
+                process_id,
+                kb_service,
+                content,
+                source,
+                doc_type,
+                doc_id,
+                operation
+            )
+
+            await sio.emit('process_started', {"process_id": process_id}, room=sid)
+
+        except Exception as e:
+            await sio.emit('error', {"error": str(e)}, room=sid)
+
+async def process_and_update_client(
+    sio,
+    sid,
+    process_id: str,
+    kb_service: KnowledgeBaseService,
+    content: str,
+    source: str,
+    doc_type: str,
+    doc_id: str,
+    operation: str
+):
+    try:
+        await sio.emit('process_started', {"process_id": process_id, "status": "Processing started"}, room=sid)
+        
+        if operation == 'save' and not doc_id:
+            raise ValueError("Doc ID is required for save operation")
+
+        kb_doc = kb_service.process_and_save_document(content, source, doc_type, doc_id)
+        
+        await sio.emit('process_update', {"process_id": process_id, "status": "Processing completed"}, room=sid)
+        await sio.emit('process_complete', {"process_id": process_id, "status": "success", "kb_doc": kb_doc}, room=sid)
+    except Exception as e:
+        await sio.emit('process_error', {"process_id": process_id, "status": "error", "message": str(e)}, room=sid)

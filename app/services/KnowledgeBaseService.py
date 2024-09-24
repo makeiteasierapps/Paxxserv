@@ -1,4 +1,5 @@
 from bson import ObjectId
+from typing import Optional
 from datetime import datetime, UTC
 from dotenv import load_dotenv
 from app.utils.token_counter import token_counter
@@ -28,6 +29,34 @@ class KnowledgeBaseService:
         kb = self.db['knowledge_bases'].find_one({'_id': ObjectId(self.kb_id)})
         return kb['index_path'] if kb else None
     
+    def process_and_save_document(
+        self,
+        content: str,
+        source: str,
+        doc_type: str,
+        doc_id: Optional[str] = None
+    ):
+        
+        # If doc_id is provided, delete existing document
+        if doc_id:
+            self.delete_doc_by_id(doc_id)
+        
+        # Process content with ColbertService
+        results = self.process_colbert_content(content, source)
+        
+        if results.get('created', False):
+            print(f"New index created at: {results['index_path']}")
+        else:
+            print("Documents added to existing index")
+
+        # Generate summaries
+        summaries = self.generate_summaries(content)
+
+        # Update the database
+        kb_doc = self.add_summaries_to_document(source, doc_type, content, summaries, doc_id)
+
+        return kb_doc
+
     def process_colbert_content(self, content, source):
         if not self.colbert_service:
             raise ValueError("ColbertService not initialized")
@@ -69,7 +98,6 @@ class KnowledgeBaseService:
             raise ValueError("ColbertService not initialized")
         
         self.db['kb_docs'].delete_one({'_id': ObjectId(doc_id)})
-        self.db['chunks'].delete_many({'doc_id': doc_id})
         self.colbert_service.delete_document_from_index(doc_id)
     
     def create_new_kb(self, uid, name, objective):
@@ -106,7 +134,7 @@ class KnowledgeBaseService:
         else:
             return []
 
-    def update_kb_document(self, source, doc_type, content, summaries, doc_id=None):
+    def add_summaries_to_document(self, source, doc_type, content, summaries, doc_id=None):
         update_data = {}
         if isinstance(content, str):
             update_data['summary'] = summaries[0]

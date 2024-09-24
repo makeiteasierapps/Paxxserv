@@ -122,40 +122,6 @@ async def extract(
         except json.JSONDecodeError:
             raise HTTPException(status_code=400, detail="Invalid JSON data")
 
-@router.post("/kb/{kb_id}/embed")
-async def embed(
-    kb_id: str,
-    request: Request,
-    kb_service: KnowledgeBaseService = Depends(get_kb_service),
-    openai_client: OpenAiClient = Depends(get_openai_client)
-):
-    data = await request.json()
-    content = data.get('content')
-    source = data.get('source')
-    doc_type = data.get('type')
-    doc_id = data.get('id')
-
-    index_path = kb_service.set_kb_id(kb_id)
-    colbert_service = get_colbert_service(index_path)
-    kb_service.set_colbert_service(colbert_service)
-    kb_service.set_openai_client(openai_client)
-    
-    # Process content with ColbertService
-    results = kb_service.process_colbert_content(content, source)
-    
-    if results.get('created', False):
-        print(f"New index created at: {results['index_path']}")
-    else:
-        print("Documents added to existing index")
-
-    # Generate summaries
-    summaries = kb_service.generate_summaries(content)
-
-    # Update the database
-    kb_doc = kb_service.update_kb_document(source, doc_type, content, summaries, doc_id)
-
-    return JSONResponse(content={"kb_doc": kb_doc})
-
 @router.delete("/kb/{kb_id}/documents")
 async def delete_document(
     kb_id: str,
@@ -175,26 +141,30 @@ async def delete_document(
     return JSONResponse(content={"message": "Document deleted"})
 
 # This route has not been refactored to remove the url field yet.
-@router.post("/kb/{kb_id}/save_doc")
-async def save_document(
-    kb_id: str,
-    request: Request,
-    kb_service: KnowledgeBaseService = Depends(get_kb_service)
-):
-    data = await request.json()
-    urls = data.get('urls')
-    content = data.get('content')
-    doc_id = data.get('id')
-    source = data.get('source')
+# @router.post("/kb/{kb_id}/save_doc")
+# async def save_document(
+#     kb_id: str,
+#     request: Request,
+#     background_tasks: BackgroundTasks,
+#     kb_service: KnowledgeBaseService = Depends(get_kb_service)
+# ):
+#     data = await request.json()
+#     content = data.get('content')
+#     doc_id = data.get('id')
+#     source = data.get('source')
+#     doc_type = data.get('type')
 
-    kb_service.set_kb_id(kb_id)
-
-    if content:
-        result = kb_service.update_kb_doc_in_db(source, 'pdf', doc_id, content=content)
-    else:
-        result = kb_service.update_kb_doc_in_db(source, 'url', doc_id, urls=urls)
+#     if not doc_id:
+#         raise HTTPException(status_code=400, detail="Doc ID is required")
     
-    if result == 'not_found':
-        raise HTTPException(status_code=404, detail="Document not found")
-    else:
-        return JSONResponse(content={"message": "Text doc saved", "kb_doc": result})
+#     kb_service.set_kb_id(kb_id)
+    
+#     background_tasks.add_task(
+#         kb_service.process_and_save_document,
+#         content,
+#         source,
+#         doc_type,
+#         doc_id
+#     )
+
+#     return JSONResponse(content={"message": "Document update started"})
