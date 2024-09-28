@@ -129,7 +129,7 @@ def setup_socketio_events(sio: socketio.AsyncServer):
             source = data.get('source')
             doc_type = data.get('type')
             doc_id = data.get('id')
-            operation = data.get('operation', 'embed')  # 'embed' or 'save'
+            operation = data.get('operation', 'embed')
 
             if not db_name:
                 await sio.emit('error', {"error": "dbName is required"}, room=sid)
@@ -137,33 +137,42 @@ def setup_socketio_events(sio: socketio.AsyncServer):
 
             db = get_db(db_name)
             kb_service = KnowledgeBaseService(db, uid)
-            index_path = kb_service.set_kb_id(kb_id)
-            colbert_service = ColbertService(index_path)
-            openai_client = OpenAiClient(db, uid)
-            kb_service.set_colbert_service(colbert_service)
-            kb_service.set_openai_client(openai_client)
+            kb_service.set_kb_id(kb_id)
 
-            # Generate a unique process ID
-            process_id = str(uuid4())
+            if operation == 'save':
+                documents_to_change = data.get('documentsToChange', None)
+                if not doc_id:
+                    await sio.emit('error', {"error": "Doc ID is required for save operation"}, room=sid)
+                    return
+                result = await save_document(kb_service, documents_to_change, doc_id)
+                await sio.emit('save_complete', {"status": "success", "result": result}, room=sid)
+            elif operation == 'embed':
+                process_id = str(uuid4())
+                colbert_service = ColbertService(kb_service.get_index_path())
+                openai_client = OpenAiClient(db, uid)
+                kb_service.set_colbert_service(colbert_service)
+                kb_service.set_openai_client(openai_client)
 
-            # Start processing in the background
-            sio.start_background_task(
-                process_and_update_client,
-                sio,
-                sid,
-                process_id,
-                kb_service,
-                content,
-                source,
-                doc_type,
-                doc_id,
-                operation
-            )
-
-            await sio.emit('process_started', {"process_id": process_id}, room=sid)
+                sio.start_background_task(
+                    process_and_update_client,
+                    sio,
+                    sid,
+                    process_id,
+                    kb_service,
+                    content,
+                    source,
+                    doc_type,
+                    doc_id
+                )
+                await sio.emit('process_started', {"process_id": process_id}, room=sid)
+            else:
+                await sio.emit('error', {"error": f"Invalid operation: {operation}"}, room=sid)
 
         except Exception as e:
             await sio.emit('error', {"error": str(e)}, room=sid)
+
+async def save_document(kb_service, content, doc_id):
+    return kb_service.save_documents(content, doc_id)
 
 async def process_and_update_client(
     sio,
@@ -173,16 +182,12 @@ async def process_and_update_client(
     content: str,
     source: str,
     doc_type: str,
-    doc_id: str,
-    operation: str
+    doc_id: str
 ):
     try:
         await sio.emit('process_started', {"process_id": process_id, "status": "Processing started"}, room=sid)
         
-        if operation == 'save' and not doc_id:
-            raise ValueError("Doc ID is required for save operation")
-
-        kb_doc = kb_service.process_and_save_document(content, source, doc_type, doc_id)
+        kb_doc = kb_service.embed_document(content, source, doc_type, doc_id)
         
         await sio.emit('process_update', {"process_id": process_id, "status": "Processing completed"}, room=sid)
         await sio.emit('process_complete', {"process_id": process_id, "status": "success", "kb_doc": kb_doc}, room=sid)

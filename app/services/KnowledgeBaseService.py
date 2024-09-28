@@ -1,4 +1,5 @@
 from bson import ObjectId
+from pymongo import UpdateOne
 from typing import Optional
 from datetime import datetime, UTC
 from dotenv import load_dotenv
@@ -29,18 +30,14 @@ class KnowledgeBaseService:
         kb = self.db['knowledge_bases'].find_one({'_id': ObjectId(self.kb_id)})
         return kb['index_path'] if kb else None
     
-    def process_and_save_document(
+    def embed_document(
         self,
         content: str,
         source: str,
         doc_type: str,
         doc_id: Optional[str] = None
     ):
-        
-        # If doc_id is provided, delete existing document
-        if doc_id:
-            self.delete_doc_by_id(doc_id)
-        
+
         # Process content with ColbertService
         results = self.process_colbert_content(content, source)
         
@@ -53,9 +50,9 @@ class KnowledgeBaseService:
         summaries = self.generate_summaries(content)
 
         # Update the database
-        kb_doc = self.add_summaries_to_document(source, doc_type, content, summaries, doc_id)
-
-        return kb_doc
+        updated_doc = self.add_summaries_to_document(content, summaries)
+        self.handle_doc_db_update(source, doc_type, content, doc_id, updated_doc)
+        return updated_doc
 
     def process_colbert_content(self, content, source):
         if not self.colbert_service:
@@ -134,17 +131,17 @@ class KnowledgeBaseService:
         else:
             return []
 
-    def add_summaries_to_document(self, source, doc_type, content, summaries, doc_id=None):
-        update_data = {}
+    def add_summaries_to_document(self, content, summaries):
+        updated_data = {}
         if isinstance(content, str):
-            update_data['summary'] = summaries[0]
+            updated_data['summary'] = summaries[0]
         else:
-            update_data['content'] = [
+            updated_data['content'] = [
                 {**url, 'summary': summary}
                 for url, summary in zip(content, summaries)
             ]
 
-        return self.handle_doc_db_update(source, doc_type, content, doc_id, update_data)
+        return updated_data
     
     def handle_doc_db_update(self, source, doc_type, content, doc_id=None, additional_data=None):
         if not self.kb_id:
@@ -187,3 +184,33 @@ class KnowledgeBaseService:
             kb_doc['id'] = str(result.inserted_id)
             kb_doc.pop('_id', None)
             return kb_doc
+        
+    def save_documents(self, documents, doc_id):
+        print('documents', documents)
+        # Prepare the update operations
+        update_operations = []
+        for page in documents:
+            update_operations.append(UpdateOne(
+                {
+                    '_id': ObjectId(doc_id),
+                    'content.metadata.sourceURL': page['source']
+                },
+                {
+                    '$set': {
+                        'content.$.content': page['content']
+                    }
+                }
+            ))
+        
+        print('update_operations', update_operations)
+        # Execute the bulk update
+        result = self.db['kb_docs'].bulk_write(update_operations)
+        
+        if result.modified_count == 0:
+            raise ValueError(f"Failed to update document with id {doc_id}")
+        
+        # Fetch and return the updated document
+        updated_doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
+        updated_doc['id'] = str(updated_doc.pop('_id'))
+        
+        return 'updated_doc'

@@ -139,32 +139,3 @@ async def delete_document(
     
     kb_service.delete_doc_by_id(doc_id)
     return JSONResponse(content={"message": "Document deleted"})
-
-# This route has not been refactored to remove the url field yet.
-# @router.post("/kb/{kb_id}/save_doc")
-# async def save_document(
-#     kb_id: str,
-#     request: Request,
-#     background_tasks: BackgroundTasks,
-#     kb_service: KnowledgeBaseService = Depends(get_kb_service)
-# ):
-#     data = await request.json()
-#     content = data.get('content')
-#     doc_id = data.get('id')
-#     source = data.get('source')
-#     doc_type = data.get('type')
-
-#     if not doc_id:
-#         raise HTTPException(status_code=400, detail="Doc ID is required")
-    
-#     kb_service.set_kb_id(kb_id)
-    
-#     background_tasks.add_task(
-#         kb_service.process_and_save_document,
-#         content,
-#         source,
-#         doc_type,
-#         doc_id
-#     )
-
-#     return JSONResponse(content={"message": "Document update started"})
