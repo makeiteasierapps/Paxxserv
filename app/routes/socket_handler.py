@@ -125,9 +125,6 @@ def setup_socketio_events(sio: socketio.AsyncServer):
             uid = data.get('uid')
             kb_id = data.get('kbId')
             db_name = data.get('dbName')
-            content = data.get('content')
-            source = data.get('source')
-            doc_type = data.get('type')
             doc_id = data.get('id')
             operation = data.get('operation', 'embed')
 
@@ -159,9 +156,6 @@ def setup_socketio_events(sio: socketio.AsyncServer):
                     sid,
                     process_id,
                     kb_service,
-                    content,
-                    source,
-                    doc_type,
                     doc_id
                 )
                 await sio.emit('process_started', {"process_id": process_id}, room=sid)
@@ -179,15 +173,12 @@ async def process_and_update_client(
     sid,
     process_id: str,
     kb_service: KnowledgeBaseService,
-    content: str,
-    source: str,
-    doc_type: str,
     doc_id: str
 ):
     try:
         await sio.emit('process_started', {"process_id": process_id, "status": "Processing started"}, room=sid)
         
-        kb_doc = kb_service.embed_document(content, source, doc_type, doc_id)
+        kb_doc = kb_service.embed_document(doc_id)
         
         await sio.emit('process_update', {"process_id": process_id, "status": "Processing completed"}, room=sid)
         await sio.emit('process_complete', {"process_id": process_id, "status": "success", "kb_doc": kb_doc}, room=sid)

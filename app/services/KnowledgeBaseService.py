@@ -1,6 +1,5 @@
 from bson import ObjectId
 from pymongo import UpdateOne
-from typing import Optional
 from datetime import datetime, UTC
 from dotenv import load_dotenv
 from app.utils.token_counter import token_counter
@@ -30,41 +29,17 @@ class KnowledgeBaseService:
         kb = self.db['knowledge_bases'].find_one({'_id': ObjectId(self.kb_id)})
         return kb['index_path'] if kb else None
     
-    def embed_document(
-        self,
-        content: str,
-        source: str,
-        doc_type: str,
-        doc_id: Optional[str] = None
-    ):
-
-        # Process content with ColbertService
-        results = self.process_colbert_content(content, source)
-        
-        if results.get('created', False):
-            print(f"New index created at: {results['index_path']}")
-        else:
-            print("Documents added to existing index")
-
-        # Generate summaries
-        summaries = self.generate_summaries(content)
-
-        # Update the database
-        updated_doc = self.add_summaries_to_document(content, summaries)
-        self.handle_doc_db_update(source, doc_type, content, doc_id, updated_doc)
-        return updated_doc
-
-    def process_colbert_content(self, content, source):
+    def process_colbert_content(self, content):
         if not self.colbert_service:
             raise ValueError("ColbertService not initialized")
         
         if self.index_path is None:
-            results = self.colbert_service.process_content(None, content, source)
+            results = self.colbert_service.process_content(None, content)
             new_index_path = results['index_path']
             self.update_knowledge_base(index_path=new_index_path)
             return {'index_path': new_index_path, 'created': True}
         else:
-            status = self.colbert_service.process_content(self.index_path, content, source)
+            status = self.colbert_service.process_content(self.index_path, content)
             return {'status': status, 'created': False}
 
     def get_kb_list(self, uid):
@@ -131,18 +106,6 @@ class KnowledgeBaseService:
         else:
             return []
 
-    def add_summaries_to_document(self, content, summaries):
-        updated_data = {}
-        if isinstance(content, str):
-            updated_data['summary'] = summaries[0]
-        else:
-            updated_data['content'] = [
-                {**url, 'summary': summary}
-                for url, summary in zip(content, summaries)
-            ]
-
-        return updated_data
-    
     def handle_doc_db_update(self, source, doc_type, content, doc_id=None, additional_data=None):
         if not self.kb_id:
             raise ValueError("kb_id not set")
@@ -151,17 +114,9 @@ class KnowledgeBaseService:
             'type': doc_type,
             'kb_id': self.kb_id,
             'source': source,
+            'content': content,
+            'token_count': sum(url_doc.get('token_count', 0) for url_doc in content)
         }
-        
-        if isinstance(content, str):
-            kb_doc['content'] = content
-            kb_doc['token_count'] = token_counter(content)
-        elif isinstance(content, list):
-            kb_doc['content'] = content
-            kb_doc['token_count'] = sum(url_doc.get('token_count', 0) for url_doc in content)
-        else:
-            kb_doc['content'] = ''
-            kb_doc['token_count'] = 0
 
         if additional_data:
             kb_doc.update(additional_data)
@@ -174,8 +129,6 @@ class KnowledgeBaseService:
             if result.matched_count > 0:
                 updated_doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
                 updated_doc['id'] = str(updated_doc.pop('_id'))
-                if 'chunks' in updated_doc:
-                    updated_doc['chunks'] = [str(chunk_id) for chunk_id in updated_doc['chunks']]
                 return updated_doc
             else:
                 return 'not_found'
@@ -184,33 +137,89 @@ class KnowledgeBaseService:
             kb_doc['id'] = str(result.inserted_id)
             kb_doc.pop('_id', None)
             return kb_doc
-        
+
     def save_documents(self, documents, doc_id):
-        print('documents', documents)
-        # Prepare the update operations
-        update_operations = []
+        update_list = []
         for page in documents:
+            new_token_count = token_counter(page['content'])
+            update_list.append({
+                'source': page['source'],
+                'update': {
+                    'content.$.content': page['content'],
+                    'content.$.token_count': new_token_count,
+                    'content.$.isEmbedded': False
+                }
+            })
+
+        updated_doc = self._bulk_update_document(doc_id, update_list)
+        
+        # Calculate and update the new total token count
+        new_total_token_count = sum(page.get('token_count', 0) for page in updated_doc['content'])
+        self.db['kb_docs'].update_one(
+            {'_id': ObjectId(doc_id)},
+            {'$set': {'token_count': new_total_token_count}}
+        )
+        
+        updated_doc['token_count'] = new_total_token_count
+        
+        return updated_doc
+
+    def embed_document(self, doc_id, specific_sources=None):
+        doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
+        if not doc:
+            raise ValueError(f"Document with id {doc_id} not found")
+
+        # Determine which content needs to be embedded
+        content_to_embed = []
+        for url_doc in doc['content']:
+            if specific_sources is None:
+                # If no specific sources are provided, embed all non-embedded content
+                if not url_doc.get('isEmbedded', False):
+                    content_to_embed.append(url_doc)
+            elif url_doc['metadata']['sourceURL'] in specific_sources:
+                # If specific sources are provided, only embed those
+                content_to_embed.append(url_doc)
+
+        if not content_to_embed:
+            return doc  # Nothing to embed
+
+        # Process the content with ColBERT
+        results = self.process_colbert_content(content_to_embed)
+        
+        if results.get('created', False):
+            print(f"New index created at: {results['index_path']}")
+        else:
+            print("Documents added to existing index")
+
+        # Update the isEmbedded field for processed content
+        update_list = [
+            {
+                'source': url_doc['metadata']['sourceURL'],
+                'update': {'content.$.isEmbedded': True}
+            }
+            for url_doc in content_to_embed
+        ]
+        return self._bulk_update_document(doc_id, update_list)
+
+    def _bulk_update_document(self, doc_id, update_list):
+        update_operations = []
+        for item in update_list:
             update_operations.append(UpdateOne(
                 {
                     '_id': ObjectId(doc_id),
-                    'content.metadata.sourceURL': page['source']
+                    'content.metadata.sourceURL': item['source']
                 },
                 {
-                    '$set': {
-                        'content.$.content': page['content']
-                    }
+                    '$set': item['update']
                 }
             ))
-        
-        print('update_operations', update_operations)
-        # Execute the bulk update
+
         result = self.db['kb_docs'].bulk_write(update_operations)
         
         if result.modified_count == 0:
             raise ValueError(f"Failed to update document with id {doc_id}")
         
-        # Fetch and return the updated document
         updated_doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
         updated_doc['id'] = str(updated_doc.pop('_id'))
         
-        return 'updated_doc'
+        return updated_doc

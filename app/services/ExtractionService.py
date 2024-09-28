@@ -60,6 +60,12 @@ class ExtractionService:
                 'metadata': url_content.get('metadata')
             } for url_content in content]
 
+            # Generate summaries
+            summaries = kb_services.generate_summaries(url_docs)
+            for doc, summary in zip(url_docs, summaries):
+                doc['summary'] = summary
+                doc['isEmbedded'] = False
+   
             kb_doc = kb_services.handle_doc_db_update(normalized_url, 'url', content=url_docs)
             return kb_doc
 

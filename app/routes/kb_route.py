@@ -101,6 +101,8 @@ async def extract(
 ):
     extraction_service = ExtractionService(db, uid)
     kb_service.set_kb_id(kb_id)
+    openai_client = get_openai_client(db)
+    kb_service.set_openai_client(openai_client)
 
     if file:
         if file.filename.lower().endswith('.pdf'):

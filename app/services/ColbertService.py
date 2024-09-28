@@ -11,16 +11,16 @@ class ColbertService:
             self.rag = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0")
         self.index_path = index_path
     
-    def process_content(self, index_path, content, source):
+    def process_content(self, index_path, content):
         if index_path is None or not os.path.exists(index_path):
-            index_path = self.create_index(content, source)['index_path']
+            index_path = self.create_index(content)['index_path']
             return {'index_path': index_path}
         else:
-            return self.add_documents_to_index(content, source)
+            return self.add_documents_to_index(content)
     
-    def create_index(self, content, source):
+    def create_index(self, content):
         try:
-            doc_objs = self._prepare_documents(content, source)
+            doc_objs = self._prepare_documents(content)
             doc_ids = [doc['id'] for doc in doc_objs]
             collection = [doc['content'] for doc in doc_objs]
             index_name = f"index_{int(time.time())}"  # Generate a unique name
@@ -50,9 +50,9 @@ class ColbertService:
             print(f"Error deleting index: {e}")
             return False
     
-    def add_documents_to_index(self, content, source):
+    def add_documents_to_index(self, content):
         try:
-            doc_objs = self._prepare_documents(content, source)
+            doc_objs = self._prepare_documents(content)
             doc_ids = [doc['id'] for doc in doc_objs]
             collection = [doc['content'] for doc in doc_objs]
             self.rag.add_to_index(
@@ -72,10 +72,8 @@ class ColbertService:
             print(f"Error deleting document from index: {e}")
             return False
 
-    def _prepare_documents(self, content, source):
-        if isinstance(content, str):
-            return [{'content': content, 'id': source}]
-        elif isinstance(content, list):
+    def _prepare_documents(self, content):
+        if isinstance(content, list):
             return [{'content': doc['content'], 'id': doc['metadata']['sourceURL']} for doc in content if 'content' in doc and 'metadata' in doc and 'sourceURL' in doc['metadata']]
         else:
             raise ValueError("Content must be either a string or a list of dictionaries with 'content' key")
