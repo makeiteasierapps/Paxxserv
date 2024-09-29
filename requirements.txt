@@ -13,3 +13,4 @@ pymupdf
 pymupdf4llm
 Pillow
 ragatouille
+lxml-html-clean
