@@ -2,6 +2,7 @@ import os
 from dotenv import load_dotenv
 import shutil
 import time
+import logging
 from ragatouille import RAGPretrainedModel
 
 load_dotenv()
@@ -19,11 +20,15 @@ class ColbertService:
         self.index_path = index_path
     
     def process_content(self, index_path, content):
-        if index_path is None or not os.path.exists(index_path):
-            index_path = self.create_index(content)['index_path']
-            return {'index_path': index_path}
-        else:
-            return self.add_documents_to_index(content)
+        try:
+            if index_path is None or not os.path.exists(index_path):
+                index_path = self.create_index(content)['index_path']
+                return {'index_path': index_path}
+            else:
+                return self.add_documents_to_index(content)
+        except Exception as e:
+            logging.error(f"Error processing content: {str(e)}")
+            raise
     
     def create_index(self, content):
         try:

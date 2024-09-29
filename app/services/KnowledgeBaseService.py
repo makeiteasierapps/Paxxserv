@@ -41,6 +41,7 @@ class KnowledgeBaseService:
             
             if self.index_path is None:
                 results = self.colbert_service.process_content(None, content)
+                print(results)
                 new_index_path = results['index_path']
                 self.update_knowledge_base(index_path=new_index_path)
                 return {'index_path': new_index_path, 'created': True}
@@ -229,7 +230,6 @@ class KnowledgeBaseService:
             if not content_to_embed:
                 return doc  # Nothing to embed
 
-            print(content_to_embed)
             # Process the content with ColBERT
             results = self.process_colbert_content(content_to_embed)
             
