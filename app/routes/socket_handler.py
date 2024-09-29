@@ -179,6 +179,7 @@ async def process_and_update_client(
     try:
         await sio.emit('process_started', {"process_id": process_id, "status": "Processing started"}, room=sid)
         kb_doc = kb_service.embed_document(doc_id)
+        print(kb_doc)
         await sio.emit('process_update', {"process_id": process_id, "status": "Processing completed"}, room=sid)
         await sio.emit('process_complete', {"process_id": process_id, "status": "success", "kb_doc": kb_doc}, room=sid)
     except Exception as e:
