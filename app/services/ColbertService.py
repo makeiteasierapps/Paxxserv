@@ -43,6 +43,7 @@ class ColbertService:
                 document_ids=doc_ids,
                 use_faiss=True
             )
+            print(f"Index path: {path}")
             return {'index_path': path}
         except Exception as e:
             print(f"Error creating index: {e}")
