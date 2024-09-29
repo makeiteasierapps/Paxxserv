@@ -1,7 +1,10 @@
 import os
+from dotenv import load_dotenv
 import base64
 import asyncio
 from werkzeug.utils import secure_filename
+
+load_dotenv()
 
 class LocalStorageService:
     is_local = os.getenv('LOCAL_DEV') == 'true'

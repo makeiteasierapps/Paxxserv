@@ -5,14 +5,12 @@ firebase-admin
 newspaper3k
 lxml-html-clean
 requests
-canopy-sdk
-pymupdf
 anthropic
 fastapi
 uvicorn
 python-socketio
 python-multipart
-Werkzeug
 pymupdf
 pymupdf4llm
 Pillow
+ragatouille

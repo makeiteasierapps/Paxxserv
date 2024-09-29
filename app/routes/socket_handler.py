@@ -145,7 +145,8 @@ def setup_socketio_events(sio: socketio.AsyncServer):
                 await sio.emit('save_complete', {"status": "success", "result": result}, room=sid)
             elif operation == 'embed':
                 process_id = str(uuid4())
-                colbert_service = ColbertService(kb_service.get_index_path())
+                index_path = kb_service.get_index_path()
+                colbert_service = ColbertService(index_path=index_path, uid=uid)
                 openai_client = OpenAiClient(db, uid)
                 kb_service.set_colbert_service(colbert_service)
                 kb_service.set_openai_client(openai_client)
@@ -177,9 +178,7 @@ async def process_and_update_client(
 ):
     try:
         await sio.emit('process_started', {"process_id": process_id, "status": "Processing started"}, room=sid)
-        
         kb_doc = kb_service.embed_document(doc_id)
-        
         await sio.emit('process_update', {"process_id": process_id, "status": "Processing completed"}, room=sid)
         await sio.emit('process_complete', {"process_id": process_id, "status": "success", "kb_doc": kb_doc}, room=sid)
     except Exception as e:

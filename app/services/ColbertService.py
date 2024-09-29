@@ -1,14 +1,21 @@
 import os
+from dotenv import load_dotenv
 import shutil
 import time
 from ragatouille import RAGPretrainedModel
 
+load_dotenv()
+
 class ColbertService:
-    def __init__(self, index_path=None):
+    def __init__(self, index_path=None, uid=None):
+        is_local = os.getenv('LOCAL_DEV') == 'true'
+        base_path = f'/mnt/media_storage/users/{uid}' if not is_local else os.path.join(os.getcwd(), f'media_storage/users/{uid}')
+        self.index_root = os.path.join(base_path, '.ragatouille')
+
         if index_path and os.path.exists(index_path):
             self.rag = RAGPretrainedModel.from_index(index_path)
         else:
-            self.rag = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0")
+            self.rag = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0", index_root=self.index_root)
         self.index_path = index_path
     
     def process_content(self, index_path, content):
