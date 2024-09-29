@@ -1,6 +1,6 @@
 from bson import ObjectId
 from pymongo import UpdateOne
-from datetime import datetime, UTC
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 from app.utils.token_counter import token_counter
 load_dotenv()
@@ -79,7 +79,7 @@ class KnowledgeBaseService:
                 'uid': uid,
                 'objective': objective,
                 'documents': [],
-                'created_at': datetime.now(UTC)
+                'created_at': datetime.now(timezone.utc)
             }
         new_kb = self.db['knowledge_bases'].insert_one(kb_details)
         kb_id = str(new_kb.inserted_id)
