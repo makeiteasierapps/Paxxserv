@@ -3,7 +3,6 @@ python-dotenv
 pymongo[srv]
 firebase-admin
 newspaper3k
-lxml-html-clean
 requests
 anthropic
 fastapi
