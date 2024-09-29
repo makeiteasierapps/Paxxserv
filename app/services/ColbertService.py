@@ -13,9 +13,9 @@ class ColbertService:
         self.index_root = os.path.join(base_path, '.ragatouille')
 
         if index_path and os.path.exists(index_path):
-            self.rag = RAGPretrainedModel.from_index(index_path)
+            self.rag = RAGPretrainedModel.from_index(index_path, n_gpu=0)
         else:
-            self.rag = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0", index_root=self.index_root)
+            self.rag = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0", index_root=self.index_root, n_gpu=0)
         self.index_path = index_path
     
     def process_content(self, index_path, content):
@@ -34,7 +34,8 @@ class ColbertService:
             path = self.rag.index(
                 index_name=index_name,
                 collection=collection,
-                document_ids=doc_ids
+                document_ids=doc_ids,
+                use_faiss=True
             )
             return {'index_path': path}
         except Exception as e:
