@@ -23,6 +23,7 @@ class ColbertService:
         try:
             if index_path is None or not os.path.exists(index_path):
                 index_path = self.create_index(content)['index_path']
+                print(f"Index path: {index_path}")
                 return {'index_path': index_path}
             else:
                 return self.add_documents_to_index(content)
