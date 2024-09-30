@@ -15,16 +15,15 @@ class ColbertService:
         self.index_root = os.path.join(base_path, '.ragatouille')
 
         if index_path and os.path.exists(index_path):
-            self.rag = RAGPretrainedModel.from_index(index_path, n_gpu=0)
+            self.rag = RAGPretrainedModel.from_index(index_path)
         else:
-            self.rag = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0", n_gpu=0)
+            self.rag = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0", index_root=self.index_root)
         self.index_path = index_path
     
     def process_content(self, index_path, content):
         try:
             if index_path is None or not os.path.exists(index_path):
                 index_path = self.create_index(content)['index_path']
-                print(f"Index path: {index_path}")
                 return {'index_path': index_path}
             else:
                 return self.add_documents_to_index(content)
@@ -46,7 +45,6 @@ class ColbertService:
                 index_name=index_name,
                 collection=collection,
                 document_ids=doc_ids,
-                use_faiss=True
             )
             return {'index_path': path}
         except ValueError as ve:
