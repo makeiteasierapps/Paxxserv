@@ -11,18 +11,19 @@ from app.services.LocalStorageService import LocalStorageService
 load_dotenv()
 
 class ExtractionService:
-    def __init__(self, db, uid):
+    def __init__(self, db, uid, kb_document_service):
         self.db = db
         self.uid = uid
         self.local_storage = LocalStorageService()
+        self.kb_document_service = kb_document_service
 
-    async def extract_from_pdf(self, file, kb_id, kb_services):
+    async def extract_from_pdf(self, file, kb_id):
         try:
             file_content = await file.read()
             pdf_document = fitz.open(stream=file_content, filetype="pdf")
             md_text = pymupdf4llm.to_markdown(pdf_document)
             cleaned_source = file.filename
-            kb_doc = kb_services.create_kb_doc_in_db(kb_id, cleaned_source, 'pdf', content=md_text)
+            kb_doc = self.kb_document_service.create_kb_doc_in_db(kb_id, cleaned_source, 'pdf', content=md_text)
             pdf_document.close()
 
             return kb_doc
@@ -31,7 +32,7 @@ class ExtractionService:
             print(f"Error extracting text from PDF: {e}")
             raise HTTPException(status_code=500, detail="Failed to extract text from PDF")
 
-    def extract_from_url(self, url, endpoint, kb_services):
+    def extract_from_url(self, url, endpoint):
         normalized_url = self.normalize_url(url)
         firecrawl_url = os.getenv('FIRECRAWL_DEV_URL') if os.getenv('LOCAL_DEV') == 'true' else os.getenv('FIRECRAWL_URL')
         params = {
@@ -61,12 +62,12 @@ class ExtractionService:
             } for url_content in content]
 
             # Generate summaries
-            summaries = kb_services.generate_summaries(url_docs)
+            summaries = self.kb_document_service.generate_summaries(url_docs)
             for doc, summary in zip(url_docs, summaries):
                 doc['summary'] = summary
                 doc['isEmbedded'] = False
    
-            kb_doc = kb_services.handle_doc_db_update(normalized_url, 'url', content=url_docs)
+            kb_doc = self.kb_document_service.handle_doc_db_update(normalized_url, 'url', content=url_docs)
             return kb_doc
 
         except requests.RequestException as e:

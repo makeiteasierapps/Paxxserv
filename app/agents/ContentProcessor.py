@@ -55,6 +55,7 @@ class ContentProcessor:
         }
         return extracted_content
 
+    # This method is used for a mobile app and eventually will be removed from this project.
     def diff_snapshots(self, previous_snapshot, current_snapshot):
         # Takes the summary of the previous snapshot, combines it with the summary of the current snapshot, and generates a new summary.
         generate_new_summary_prompt = dspy.ChainOfThought('summary_1, summary_2 -> new_summary')

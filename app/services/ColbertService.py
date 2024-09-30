@@ -3,7 +3,6 @@ from dotenv import load_dotenv
 import shutil
 import time
 import logging
-import traceback
 from ragatouille import RAGPretrainedModel
 
 load_dotenv()
@@ -39,7 +38,7 @@ class ColbertService:
             if not doc_ids or not collection:
                 raise ValueError("No documents to index")
             
-            index_name = f"index_{int(time.time())}"  # Generate a unique name
+            index_name = f"index_{int(time.time())}"
             
             path = self.rag.index(
                 index_name=index_name,
@@ -52,8 +51,6 @@ class ColbertService:
             return None
         except Exception as e:
             print(f"Error creating index: {e}")
-            print("Traceback:")
-            print(traceback.format_exc())
             return None
     
     def delete_index(self, index_path):

@@ -12,7 +12,9 @@ from app.agents.OpenAiClient import OpenAiClient
 from app.services.MongoDbClient import MongoDbClient
 from app.services.ExtractionService import ExtractionService
 from app.services.KnowledgeBaseService import KnowledgeBaseService
+from app.services.KbDocumentService import KbDocumentService
 from app.services.ColbertService import ColbertService
+
 def get_db(dbName: str):
     try:
         mongo_client = MongoDbClient(dbName)
@@ -24,9 +26,7 @@ def get_db(dbName: str):
 def initialize_services(db, uid):
     chat_service = ChatService(db)
     profile_service = ProfileService(db, uid)
-    kb_service = KnowledgeBaseService(db, uid)
-    extraction_service = ExtractionService(db, uid)
-    return chat_service, profile_service, kb_service, extraction_service
+    return chat_service, profile_service
 
 def create_boss_agent(chat_settings, sio, db, uid, profile_service):
     if not chat_settings:
@@ -52,10 +52,10 @@ def create_boss_agent(chat_settings, sio, db, uid, profile_service):
 
     return boss_agent
 
-def handle_extraction(urls: List[str], extraction_service, kb_id, kb_service, boss_agent):
+def handle_extraction(urls, extraction_service, boss_agent):
     extracted_docs = []
     for url in urls:
-        for result in extraction_service.extract_from_url(url, kb_id, 'scrape', kb_service):
+        for result in extraction_service.extract_from_url(url, 'scrape'):
             result_dict = json.loads(result)
             if result_dict['status'] == 'completed':
                 extracted_docs.append(result_dict['content'])
@@ -87,7 +87,7 @@ def setup_socketio_events(sio: socketio.AsyncServer):
                 return
 
             db = get_db(db_name)
-            chat_service, profile_service, kb_service, extraction_service = initialize_services(db, uid)
+            chat_service, profile_service = initialize_services(db, uid)
             boss_agent = create_boss_agent(chat_settings, sio, db, uid, profile_service)
 
             image_path = None
@@ -106,13 +106,15 @@ def setup_socketio_events(sio: socketio.AsyncServer):
                     await sio.emit('agent_message', {"type": "agent_message", "content": message})
 
             if kb_id:
-                kb_service.set_kb_id(kb_id)
-                colbert_service = ColbertService(kb_service.get_index_path())
+                kb_service = KnowledgeBaseService(db, uid, kb_id)
+                colbert_service = ColbertService(kb_service.index_path)
                 results = colbert_service.search_index(user_message)
                 system_message = colbert_service.prepare_vector_response(results)
 
             if urls:
-                system_message = handle_extraction(urls, extraction_service, kb_id, kb_service, boss_agent)
+                kb_document_service = KbDocumentService(db, kb_id)
+                extraction_service = ExtractionService(db, uid, kb_document_service)
+                system_message = handle_extraction(urls, extraction_service, boss_agent)
 
             await boss_agent.process_message(data['chatHistory'], chat_id, user_message, system_message, save_agent_message, image_blob)
 
@@ -133,30 +135,28 @@ def setup_socketio_events(sio: socketio.AsyncServer):
                 return
 
             db = get_db(db_name)
-            kb_service = KnowledgeBaseService(db, uid)
-            kb_service.set_kb_id(kb_id)
+            kb_service = KnowledgeBaseService(db, uid, kb_id)
+            kb_document_service = KbDocumentService(db, kb_id)
 
             if operation == 'save':
                 documents_to_change = data.get('documentsToChange', None)
                 if not doc_id:
                     await sio.emit('error', {"error": "Doc ID is required for save operation"}, room=sid)
                     return
-                result = await save_document(kb_service, documents_to_change, doc_id)
+                result = await save_document(kb_document_service, documents_to_change, doc_id)
                 await sio.emit('save_complete', {"status": "success", "result": result}, room=sid)
             elif operation == 'embed':
                 process_id = str(uuid4())
                 index_path = kb_service.get_index_path()
                 colbert_service = ColbertService(index_path=index_path, uid=uid)
-                openai_client = OpenAiClient(db, uid)
-                kb_service.set_colbert_service(colbert_service)
-                kb_service.set_openai_client(openai_client)
+                kb_document_service.set_colbert_service(colbert_service)
 
                 sio.start_background_task(
                     process_and_update_client,
                     sio,
                     sid,
                     process_id,
-                    kb_service,
+                    kb_document_service,
                     doc_id
                 )
                 await sio.emit('process_started', {"process_id": process_id}, room=sid)
@@ -166,21 +166,19 @@ def setup_socketio_events(sio: socketio.AsyncServer):
         except Exception as e:
             await sio.emit('error', {"error": str(e)}, room=sid)
 
-async def save_document(kb_service, content, doc_id):
-    return kb_service.save_documents(content, doc_id)
+async def save_document(kb_document_service, content, doc_id):
+    return kb_document_service.save_documents(content, doc_id)
 
 async def process_and_update_client(
     sio,
     sid,
-    process_id: str,
-    kb_service: KnowledgeBaseService,
-    doc_id: str
+    process_id,
+    kb_document_service,
+    doc_id
 ):
     try:
         await sio.emit('process_started', {"process_id": process_id, "status": "Processing started"}, room=sid)
-        kb_doc = kb_service.embed_document(doc_id)
-        print(kb_doc)
-        await sio.emit('process_update', {"process_id": process_id, "status": "Processing completed"}, room=sid)
+        kb_doc = kb_document_service.embed_document(doc_id)
         await sio.emit('process_complete', {"process_id": process_id, "status": "success", "kb_doc": kb_doc}, room=sid)
     except Exception as e:
         await sio.emit('process_error', {"process_id": process_id, "status": "error", "message": str(e)}, room=sid)
