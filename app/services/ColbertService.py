@@ -17,7 +17,7 @@ class ColbertService:
         if index_path and os.path.exists(index_path):
             self.rag = RAGPretrainedModel.from_index(index_path, n_gpu=0)
         else:
-            self.rag = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0", index_root=self.index_root, n_gpu=0)
+            self.rag = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0", n_gpu=0)
         self.index_path = index_path
     
     def process_content(self, index_path, content):
@@ -37,15 +37,10 @@ class ColbertService:
             doc_objs = self._prepare_documents(content)
             doc_ids = [doc['id'] for doc in doc_objs]
             collection = [doc['content'] for doc in doc_objs]
-            
-            print(f"Number of documents: {len(doc_ids)}")
-            print(f"Number of collection items: {len(collection)}")
-            
             if not doc_ids or not collection:
                 raise ValueError("No documents to index")
             
             index_name = f"index_{int(time.time())}"  # Generate a unique name
-            print(f"Creating index: {index_name}")
             
             path = self.rag.index(
                 index_name=index_name,
@@ -53,7 +48,6 @@ class ColbertService:
                 document_ids=doc_ids,
                 use_faiss=True
             )
-            print(f"Index path: {path}")
             return {'index_path': path}
         except ValueError as ve:
             print(f"ValueError in create_index: {ve}")
