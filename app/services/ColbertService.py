@@ -19,13 +19,18 @@ class ColbertService:
             self.rag = RAGPretrainedModel.from_pretrained("colbert-ir/colbertv2.0", index_root=self.index_root)
         self.index_path = index_path
     
-    def process_content(self, index_path, content):
+    def process_content(self, content):
         try:
-            if index_path is None or not os.path.exists(index_path):
-                index_path = self.create_index(content)['index_path']
-                return {'index_path': index_path}
+            if self.index_path is None or not os.path.exists(self.index_path):
+                result = self.create_index(content)
+                if result and 'index_path' in result:
+                    self.index_path = result['index_path']
+                    return {'index_path': self.index_path}
+                else:
+                    raise ValueError("Failed to create index")
             else:
-                return self.add_documents_to_index(content)
+                result = self.add_documents_to_index(content)
+                return {'message': result}
         except Exception as e:
             logging.error(f"Error processing content: {str(e)}")
             raise

@@ -9,6 +9,7 @@ class KbDocumentService:
         self.kb_id = kb_id
         self.colbert_service = colbert_service
         self.openai_client = openai_client
+    
     def set_colbert_service(self, colbert_service):
         self.colbert_service = colbert_service
 
@@ -32,9 +33,15 @@ class KbDocumentService:
         try:
             if not self.colbert_service:
                 raise ValueError("ColbertService not initialized")
-            
-            self.db['kb_docs'].delete_one({'_id': ObjectId(doc_id)})
-            self.colbert_service.delete_document_from_index(doc_id)
+
+            doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
+            if doc:
+                self.db['kb_docs'].delete_one({'_id': ObjectId(doc_id)})
+                is_embedded = any(url_doc.get('isEmbedded', False) for url_doc in doc.get('content', []))
+                if is_embedded:
+                    self.colbert_service.delete_document_from_index(doc_id)
+            else:
+                logging.warning(f"Document with id {doc_id} not found")
         except Exception as e:
             logging.error(f"Error deleting doc by id: {str(e)}")
             raise
@@ -126,8 +133,11 @@ class KbDocumentService:
                 return doc  # Nothing to embed
 
             # Process the content with ColBERT
-            index_path = self.colbert_service.process_content(doc['kb_id'], content_to_embed)['index_path']
-            self.update_knowledge_base(index_path=index_path)
+            result = self.colbert_service.process_content(content_to_embed)
+            if 'index_path' in result:
+                self.update_knowledge_base(index_path=result['index_path'])
+            else:
+                logging.info(f"Documents added to existing index: {result['message']}")
             
             # Update the isEmbedded field for processed content
             update_list = [
