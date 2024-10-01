@@ -77,36 +77,44 @@ async def extract(
         kb_doc = extraction_service.extract_from_url(url, endpoint)
         return JSONResponse(content=kb_doc)
 
-@router.delete("/kb/{kb_id}/documents")
-async def delete_document(kb_id: str, request: Request, services: dict = Depends(get_services)):
-    data = await request.json()
-    doc_id = data.get('docId')
-    if not doc_id:
-        raise HTTPException(status_code=400, detail="Doc ID is required")
-    
-    kb_doc_service = KbDocumentService(services["db"], kb_id)
-    services["kb_service"].set_kb_id(kb_id)
-    index_path = services["kb_service"].index_path
-    colbert_service = ColbertService(index_path)
-    kb_doc_service.set_colbert_service(colbert_service)
-    kb_doc_service.delete_doc_by_id(doc_id)
-    return JSONResponse(content={"message": "Document deleted"})
-
 @router.delete("/kb/{kb_id}/documents/page")
 async def delete_page(kb_id: str, request: Request, services: dict = Depends(get_services)):
     data = await request.json()
     doc_id = data.get('docId')
     page_source = data.get('pageSource')
-    kb_doc_service = KbDocumentService(services["db"], kb_id)
-    kb_doc_service.delete_page_by_source(doc_id, page_source)
     
-    # Set up to delete from colbert index
-    services["kb_service"].set_kb_id(kb_id)
-    index_path = services["kb_service"].index_path
-    colbert_service = ColbertService(index_path)
-    kb_doc_service.set_colbert_service(colbert_service)
-
     if not page_source:
         raise HTTPException(status_code=400, detail="Page source is required")
     
+    kb_doc_service = KbDocumentService(services["db"], kb_id)
+    is_embedded = kb_doc_service.is_document_embedded(doc_id, page_source)
+    kb_doc_service.delete_page_by_source(doc_id, page_source)
+    if is_embedded:
+        services["kb_service"].set_kb_id(kb_id)
+        index_path = services["kb_service"].index_path
+        colbert_service = ColbertService(index_path)
+        colbert_service.delete_document_from_index([page_source])
     
+    return JSONResponse(content={"message": "Page deleted", "was_embedded": is_embedded})
+
+@router.delete("/kb/{kb_id}/documents/{doc_id}")
+async def delete_document(kb_id: str, doc_id: str, services: dict = Depends(get_services)):
+    kb_doc_service = KbDocumentService(services["db"], kb_id)
+    
+    # Delete the document and get embedded sources
+    embedded_sources = kb_doc_service.delete_doc_by_id(doc_id)
+
+    # If there are embedded sources, delete them from the Colbert index
+    if embedded_sources:
+        services["kb_service"].set_kb_id(kb_id)
+        index_path = services["kb_service"].index_path
+        colbert_service = ColbertService(index_path)
+        
+        # Delete all embedded sources at once
+        colbert_service.delete_document_from_index(embedded_sources)
+    
+    return JSONResponse(content={
+        "message": "Document deleted",
+        "embedded_sources_deleted": embedded_sources
+    })
+

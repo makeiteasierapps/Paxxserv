@@ -58,20 +58,23 @@ class ColbertService:
             print(f"Error creating index: {e}")
             return None
     
-    def delete_index(self, index_path):
+    def delete_index(self):
         try:
-            if os.path.exists(index_path):
-                index_name = os.path.basename(index_path)
-                index_dir = os.path.join('.ragatouille', 'colbert', 'indexes', index_name)
-                if os.path.exists(index_dir):
-                    shutil.rmtree(index_dir)
-                    return f'Index {index_name} deleted'
-                else:
-                    return f'Index directory for {index_name} not found'
-            else:
-                return f'Index path {index_path} not found'
+            if not os.path.exists(self.index_path):
+                logging.warning("Index path %s not found", self.index_path)
+                return f'Index path {self.index_path} not found'
+
+            logging.info("Attempting to delete index at: %s", self.index_path)
+            if not os.path.isdir(self.index_path):
+                logging.warning("Index path %s is not a directory", self.index_path)
+                return f'Index path {self.index_path} is not a directory'
+
+            shutil.rmtree(self.index_path)
+            logging.info("Index directory %s deleted", self.index_path)
+            return f'Index directory {self.index_path} deleted'
+
         except Exception as e:
-            print(f"Error deleting index: {e}")
+            logging.error("Error deleting index: %s", str(e))
             return False
     
     def add_documents_to_index(self, content):
@@ -88,12 +91,15 @@ class ColbertService:
             print(f"Error adding documents to index: {e}")
             return False
     
-    def delete_document_from_index(self, doc_id):
+    def delete_document_from_index(self, doc_sources):
         try:
-            self.rag.delete_from_index(document_ids=[doc_id])
-            return 'Document deleted from index'
+            if not self.index_path:
+                raise ValueError("No index path available")
+
+            self.rag.delete_from_index(document_ids=doc_sources)
+            return 'Documents deleted from index'
         except Exception as e:
-            print(f"Error deleting document from index: {e}")
+            logging.error(f"Error deleting documents from index: {e}")
             return False
 
     def _prepare_documents(self, content):

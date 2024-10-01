@@ -1,4 +1,5 @@
 from bson import ObjectId
+from bson.errors import InvalidId
 from pymongo import UpdateOne
 import logging
 from app.utils.token_counter import token_counter
@@ -31,17 +32,23 @@ class KbDocumentService:
 
     def delete_doc_by_id(self, doc_id):
         try:
-            if not self.colbert_service:
-                raise ValueError("ColbertService not initialized")
-
             doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
             if doc:
+                embedded_sources = [
+                    url_doc['metadata']['sourceURL']
+                    for url_doc in doc.get('content', [])
+                    if url_doc.get('isEmbedded', False)
+                ]
+                
                 self.db['kb_docs'].delete_one({'_id': ObjectId(doc_id)})
-                is_embedded = any(url_doc.get('isEmbedded', False) for url_doc in doc.get('content', []))
-                if is_embedded:
-                    self.colbert_service.delete_document_from_index(doc_id)
+                
+                return embedded_sources
             else:
                 logging.warning(f"Document with id {doc_id} not found")
+                return []
+        except InvalidId:
+            logging.error(f"Invalid document ID: {doc_id}")
+            raise
         except Exception as e:
             logging.error(f"Error deleting doc by id: {str(e)}")
             raise
@@ -204,6 +211,20 @@ class KbDocumentService:
             logging.error(f"Error bulk updating document: {str(e)}")
             raise
 
+    # Add this method to the KbDocumentService class
+    def is_document_embedded(self, doc_id, page_source):
+        try:
+            result = self.db['kb_docs'].find_one(
+                {'_id': ObjectId(doc_id), 'content.metadata.sourceURL': page_source},
+                {'content.$': 1}
+            )
+            if result and 'content' in result and len(result['content']) > 0:
+                return result['content'][0].get('isEmbedded', False)
+            return False
+        except Exception as e:
+            logging.error(f"Error checking if document is embedded: {str(e)}")
+            return False
+    
     def update_knowledge_base(self, **kwargs):
         try:
             knowledge_base = self.db['knowledge_bases'].find_one({'_id': ObjectId(self.kb_id)})

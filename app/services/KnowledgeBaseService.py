@@ -45,7 +45,7 @@ class KnowledgeBaseService:
         try:
             if not self.colbert_service:
                 raise ValueError("ColbertService not initialized")
-            self.colbert_service.delete_index(self.index_path)
+            self.colbert_service.delete_index()
             self.db['knowledge_bases'].delete_one({'_id': ObjectId(kb_id)})
             self.db['kb_docs'].delete_many({'kb_id': kb_id})
         except Exception as e:
