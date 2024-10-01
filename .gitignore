@@ -6,3 +6,4 @@ venv/
 fb_config/
 .ragatouille/**
 media_storage/**
+.DS_Store
