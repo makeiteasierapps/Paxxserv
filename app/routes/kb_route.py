@@ -91,3 +91,22 @@ async def delete_document(kb_id: str, request: Request, services: dict = Depends
     kb_doc_service.set_colbert_service(colbert_service)
     kb_doc_service.delete_doc_by_id(doc_id)
     return JSONResponse(content={"message": "Document deleted"})
+
+@router.delete("/kb/{kb_id}/documents/page")
+async def delete_page(kb_id: str, request: Request, services: dict = Depends(get_services)):
+    data = await request.json()
+    doc_id = data.get('docId')
+    page_source = data.get('pageSource')
+    kb_doc_service = KbDocumentService(services["db"], kb_id)
+    kb_doc_service.delete_page_by_source(doc_id, page_source)
+    
+    # Set up to delete from colbert index
+    services["kb_service"].set_kb_id(kb_id)
+    index_path = services["kb_service"].index_path
+    colbert_service = ColbertService(index_path)
+    kb_doc_service.set_colbert_service(colbert_service)
+
+    if not page_source:
+        raise HTTPException(status_code=400, detail="Page source is required")
+    
+    

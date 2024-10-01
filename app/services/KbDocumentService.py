@@ -46,6 +46,16 @@ class KbDocumentService:
             logging.error(f"Error deleting doc by id: {str(e)}")
             raise
 
+    def delete_page_by_source(self, doc_id, page_source):
+        try:
+            self.db['kb_docs'].update_one(
+                {'_id': ObjectId(doc_id)},
+                {'$pull': {'content': {'metadata.sourceURL': page_source}}}
+            )
+        except Exception as e:
+            logging.error(f"Error deleting page by source: {str(e)}")
+            raise
+
     def handle_doc_db_update(self, source, doc_type, content, doc_id=None, additional_data=None):
         try:
             kb_doc = {
