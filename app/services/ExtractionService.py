@@ -37,9 +37,6 @@ class ExtractionService:
         firecrawl_url = os.getenv('FIRECRAWL_DEV_URL') if os.getenv('LOCAL_DEV') == 'true' else os.getenv('FIRECRAWL_URL')
         params = {
             'url': normalized_url,
-            'pageOptions': {
-                'onlyMainContent': True,
-            },
         }
         
         try:
