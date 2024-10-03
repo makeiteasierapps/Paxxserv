@@ -38,6 +38,8 @@ class ExtractionService:
         params = {
             'url': normalized_url,
         }
+
+        print(params, endpoint)
         
         try:
             firecrawl_response = requests.post(f"{firecrawl_url}/{endpoint}", json=params, timeout=60)
