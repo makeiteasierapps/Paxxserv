@@ -38,14 +38,14 @@ class ExtractionService:
         params = {
             'url': normalized_url,
         }
-        
+
         try:
             firecrawl_response = requests.post(f"{firecrawl_url}/{endpoint}", json=params, timeout=60)
             firecrawl_response.raise_for_status()
             firecrawl_data = firecrawl_response.json()
 
-            if 'jobId' in firecrawl_data:
-                content = self.poll_job_status(firecrawl_url, firecrawl_data['jobId'])
+            if 'id' in firecrawl_data:
+                content = self.poll_job_status(firecrawl_url, firecrawl_data['id'])
             else:
                 content = [{
                     'markdown': firecrawl_data['data']['markdown'],
@@ -73,10 +73,10 @@ class ExtractionService:
 
     def poll_job_status(self, firecrawl_url, job_id):
         while True:
-            status_response = requests.get(f"{firecrawl_url}/crawl/status/{job_id}", timeout=10)
+            status_response = requests.get(f"{firecrawl_url}/crawl/{job_id}", timeout=10)
             status_response.raise_for_status()
             status_data = status_response.json()
-            
+
             if status_data['status'] == 'completed':
                 return status_data['data']
             elif status_data['status'] == 'failed':
