@@ -2,7 +2,7 @@ from typing import List
 from uuid import uuid4
 import json
 import socketio
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 from app.services.ChatService import ChatService
 from app.services.LocalStorageService import LocalStorageService
 from app.services.ProfileService import ProfileService
@@ -15,10 +15,10 @@ from app.services.KnowledgeBaseService import KnowledgeBaseService
 from app.services.KbDocumentService import KbDocumentService
 from app.services.ColbertService import ColbertService
 
-def get_db(dbName: str):
+def get_db(request: Request):
     try:
-        mongo_client = MongoDbClient(dbName)
-        db = mongo_client.connect()
+        mongo_client = request.app.state.mongo_client
+        db = mongo_client.db
         return db
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")

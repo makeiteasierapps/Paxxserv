@@ -6,7 +6,7 @@ from typing import List, Optional
 from app.agents.OpenAiClient import OpenAiClient
 from app.agents.ContentProcessor import ContentProcessor
 from app.services.MomentService import MomentService
-from app.services.MongoDbClient import MongoDbClient
+from fastapi import Request
 
 load_dotenv()
 router = APIRouter()
@@ -18,10 +18,10 @@ class Moment(BaseModel):
     actionItems: List[str] = []
     summary: Optional[str]
 
-def get_db(dbName: str = Header(...)):
+def get_db(request: Request):
     try:
-        mongo_client = MongoDbClient(dbName)
-        db = mongo_client.connect()
+        mongo_client = request.app.state.mongo_client
+        db = mongo_client.db
         return db
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")

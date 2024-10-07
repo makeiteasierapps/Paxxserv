@@ -5,14 +5,14 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from app.utils.custom_json_encoder import CustomJSONEncoder
 from app.services.ChatService import ChatService
-from app.services.MongoDbClient import MongoDbClient
+from fastapi import Request
 
 router = APIRouter()
 
-def get_chat_service(dbName: str = Header(...), uid: str = Header(...)):
+def get_chat_service(request: Request, dbName: str = Header(...), uid: str = Header(...)):
     try:
-        mongo_client = MongoDbClient(dbName)
-        db = mongo_client.connect()
+        mongo_client = request.app.state.mongo_client
+        db = mongo_client.db
         return ChatService(db), uid
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")

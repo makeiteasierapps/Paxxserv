@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from firebase_admin import credentials, initialize_app
 import logging
 import socketio
+from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
 
@@ -22,6 +23,8 @@ try:
     logger.info("Firebase initialized successfully")
 except ValueError as e:
     logger.error(f"Firebase initialization failed: {e}")
+
+mongo_client = MongoDbClient.get_instance(os.getenv('MONGO_DB_NAME', 'paxxium'))
 
 def create_app():
     app = FastAPI()
@@ -59,5 +62,5 @@ def create_app():
 
     # Setup Socket.IO event handlers
     socket_handler.setup_socketio_events(sio)
-
+    app.state.mongo_client = mongo_client
     return socket_app

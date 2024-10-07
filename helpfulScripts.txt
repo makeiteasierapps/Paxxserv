@@ -28,3 +28,6 @@ sudo systemctl restart paxxserv.service
 
 # Real time nginx access logs
 tail -f /var/log/nginx/access.log
+
+# MongoDB config file
+/etc/mongod.conf

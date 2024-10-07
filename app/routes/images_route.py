@@ -7,16 +7,15 @@ from fastapi import APIRouter, Header, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 import requests
 from app.services.LocalStorageService import LocalStorageService
-from app.services.MongoDbClient import MongoDbClient
 from app.agents.OpenAiClient import OpenAiClient
 load_dotenv()
 
 router = APIRouter()
 
-def get_db_and_image_manager(dbName: str = Header(...), uid: str = Header(...)):
+def get_db_and_image_manager(request: Request, dbName: str = Header(...), uid: str = Header(...)):
     try:
-        mongo_client = MongoDbClient(dbName)
-        db = mongo_client.connect()
+        mongo_client = request.app.state.mongo_client
+        db = mongo_client.db
         openai_client = OpenAiClient(db, uid)
         return db, openai_client
     except Exception as e:

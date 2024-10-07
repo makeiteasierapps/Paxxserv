@@ -3,7 +3,6 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from dotenv import load_dotenv
 from app.services.ProfileService import ProfileService
 from app.services.UserService import UserService
-from app.services.MongoDbClient import MongoDbClient
 from app.agents.QuestionGenerator import QuestionGenerator
 from app.agents.AnalyzeUser import AnalyzeUser
 import json
@@ -13,10 +12,10 @@ load_dotenv()
 
 router = APIRouter()
 
-def get_services(dbName: str = Header(...), uid: str = Header(...)):
+def get_services(request: Request, dbName: str = Header(...), uid: str = Header(...)):
     try:
-        mongo_client = MongoDbClient(dbName)
-        db = mongo_client.connect()
+        mongo_client = request.app.state.mongo_client
+        db = mongo_client.db
         profile_service = ProfileService(db, uid)
         user_service = UserService(db)
         analyze_user = AnalyzeUser(db, uid)

@@ -1,10 +1,9 @@
 from dotenv import load_dotenv
-from fastapi import APIRouter, Header, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
 from app.services.UserService import UserService
-from app.services.MongoDbClient import MongoDbClient
 from pydantic import BaseModel
-
+from typing import Any
 load_dotenv()
 
 router = APIRouter()
@@ -15,15 +14,15 @@ class SignupData(BaseModel):
     openAiApiKey: str
     authorized: bool
 
-def get_db(dbName: str = Header(...)):
+def get_db(request: Request):
     try:
-        mongo_client = MongoDbClient(dbName)
-        db = mongo_client.connect()
+        mongo_client = request.app.state.mongo_client
+        db = mongo_client.db
         return db
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")
 
-def get_user_service(db: MongoDbClient = Depends(get_db)):
+def get_user_service(db: Any = Depends(get_db)):
     return UserService(db)
 
 @router.post('/signup')

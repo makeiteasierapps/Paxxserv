@@ -3,16 +3,15 @@ from fastapi.responses import JSONResponse
 from typing import Optional
 from app.services.KnowledgeBaseService import KnowledgeBaseService
 from app.services.KbDocumentService import KbDocumentService
-from app.services.MongoDbClient import MongoDbClient
 from app.services.ExtractionService import ExtractionService
 from app.services.ColbertService import ColbertService
 from app.agents.OpenAiClient import OpenAiClient
 
 router = APIRouter()
 
-def get_services(dbName: str = Header(...), uid: str = Header(...)):
-    mongo_client = MongoDbClient(dbName)
-    db = mongo_client.connect()
+def get_services(request: Request, dbName: str = Header(...), uid: str = Header(...)):
+    mongo_client = request.app.state.mongo_client
+    db = mongo_client.db
     kb_service = KnowledgeBaseService(db, uid)
     openai_client = OpenAiClient(db, uid)
     return {

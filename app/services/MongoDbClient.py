@@ -1,32 +1,54 @@
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
+import logging
 
 class MongoDbClient:
+    _instance = None
+    _client = None
+    _db = None
+
+    @classmethod
+    def get_instance(cls, db_name):
+        if cls._instance is None:
+            cls._instance = cls(db_name)
+        return cls._instance
+
     def __init__(self, db_name):
+        if self._instance is not None:
+            raise RuntimeError("Use get_instance() instead")
+        self.logger = logging.getLogger(__name__)
         self.mongo_uri = self._load_mongo_uri()
         self.db_name = db_name
-        self.client = None
-        self.db = None
+        self._connect()
 
     def _load_mongo_uri(self):
-        load_dotenv()
-        return os.getenv('MONGO_URI')
+        load_dotenv(override=True)
+        uri = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
+        self.logger.info(f"Loaded MongoDB URI: {uri}")
+        return uri
 
-    def connect(self):
-        if not self.client:
-            self.client = MongoClient(self.mongo_uri)
-            self.db = self.client[self.db_name]
-        return self.db
+    def _connect(self):
+        if not self._client:
+            self.logger.info(f"Attempting to connect to MongoDB at {self.mongo_uri}")
+            try:
+                self._client = MongoClient(self.mongo_uri)
+                self._db = self._client[self.db_name]
+                # Force a command to check the connection
+                self._client.admin.command('ismaster')
+                self.logger.info(f"Successfully connected to MongoDB database: {self.db_name}")
+            except Exception as e:
+                self.logger.error(f"Failed to connect to MongoDB: {str(e)}")
+                raise
+
+    @property
+    def db(self):
+        if not self._db:
+            self._connect()
+        return self._db
 
     def close(self):
-        if self.client:
-            self.client.close()
-            self.client = None
-            self.db = None
-
-    def __enter__(self):
-        return self.connect()
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
+        if self._client:
+            self._client.close()
+            self._client = None
+            self._db = None
