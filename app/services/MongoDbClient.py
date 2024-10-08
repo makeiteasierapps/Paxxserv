@@ -24,7 +24,7 @@ class MongoDbClient:
 
     def _load_mongo_uri(self):
         load_dotenv(override=True)
-        uri = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
+        uri = os.getenv('MONGO_URI_DEV') if os.getenv('LOCAL_DEV') == 'true' else os.getenv('MONGO_URI')
         self.logger.info(f"Loaded MongoDB URI: {uri}")
         return uri
 
@@ -43,7 +43,7 @@ class MongoDbClient:
 
     @property
     def db(self):
-        if not self._db:
+        if self._db is None:
             self._connect()
         return self._db
 

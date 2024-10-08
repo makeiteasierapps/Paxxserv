@@ -24,7 +24,7 @@ try:
 except ValueError as e:
     logger.error(f"Firebase initialization failed: {e}")
 
-mongo_client = MongoDbClient.get_instance(os.getenv('MONGO_DB_NAME', 'paxxium'))
+mongo_client = MongoDbClient.get_instance('paxxium')
 
 def create_app():
     app = FastAPI()

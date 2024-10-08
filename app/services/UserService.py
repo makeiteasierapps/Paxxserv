@@ -18,8 +18,8 @@ class UserService:
         return self.db['users'].delete_one({'_id': uid})
 
     async def update_user_avatar(self, uid, file):
-        path = await LocalStorageService.upload_file_async(file, uid, 'profile_images')
-        file_path = path['path']
+        file_path = await LocalStorageService.upload_file_async(file, uid, 'profile_images')
+        
         self.db['users'].update_one(
             {'_id': uid},
             {'$set': {'avatar_path': file_path}},

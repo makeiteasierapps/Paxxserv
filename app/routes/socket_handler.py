@@ -9,19 +9,18 @@ from app.services.ProfileService import ProfileService
 from app.agents.BossAgent import BossAgent
 from app.agents.AnthropicClient import AnthropicClient
 from app.agents.OpenAiClient import OpenAiClient
-from app.services.MongoDbClient import MongoDbClient
 from app.services.ExtractionService import ExtractionService
 from app.services.KnowledgeBaseService import KnowledgeBaseService
 from app.services.KbDocumentService import KbDocumentService
 from app.services.ColbertService import ColbertService
+from app.services.MongoDbClient import MongoDbClient
 
-def get_db(request: Request):
+def get_db(db_name: str):
     try:
-        mongo_client = request.app.state.mongo_client
-        db = mongo_client.db
-        return db
+        mongo_client = MongoDbClient.get_instance(db_name)
+        return mongo_client.db
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")
+        raise Exception(f"Database connection failed: {str(e)}")
 
 def initialize_services(db, uid):
     chat_service = ChatService(db)
@@ -76,6 +75,9 @@ def setup_socketio_events(sio: socketio.AsyncServer):
             kb_id = data.get('kbId', None)
             chat_settings = data.get('chatSettings', None)
             db_name = data.get('dbName')
+            if not db_name:
+                await sio.emit('error', {"error": "dbName is required"}, room=sid)
+                return
             user_message = data['userMessage']['content']
             chat_id = data['chatId']
             image_blob = data.get('imageBlob', None)
