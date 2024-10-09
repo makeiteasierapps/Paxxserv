@@ -31,3 +31,7 @@ tail -f /var/log/nginx/access.log
 
 # MongoDB config file
 /etc/mongod.conf
+
+/usr/local/bin/write_config_file.sh
+
+find backup script location

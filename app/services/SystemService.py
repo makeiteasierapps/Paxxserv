@@ -1,99 +1,64 @@
 import os
+import subprocess
 import logging
 from fastapi import HTTPException
 from dotenv import load_dotenv
-from app.services.UserService import UserService
 
 load_dotenv()
 
 class SystemService:
-    def __init__(self, db, user_service: UserService):
+    def __init__(self, db, user_service, uid):
         self.db = db
         self.user_service = user_service
         self.logger = logging.getLogger(__name__)
         self.is_dev_mode = os.getenv('LOCAL_DEV') == 'true'
         self.dev_server_ip = 'myserver.local'
+        self.uid = uid
         
-        self.config_files = [
-            '/etc/nginx/sites-available/default',
-            '/etc/systemd/system/paxxserv.service',
-            '/etc/systemd/system/firecrawl.service'
-        ]
-
-    async def list_config_files(self, uid):
-        user = self.user_service.get_user(uid)
-        if not user or not user.get('is_admin', False):
-            raise HTTPException(status_code=403, detail="Unauthorized access")
-        return self.config_files
-
-    async def read_multiple_config_files(self, uid: str, filenames):
+        # Verify user and load config files on initialization
         user = self.user_service.get_user(uid)
         if not user or not user.get('is_admin', False):
             raise HTTPException(status_code=403, detail="Unauthorized access")
         
-        result = []
-        valid_filenames = [f for f in filenames if f in self.config_files]
-        
-        if self.is_dev_mode:
-            result = await self._read_multiple_remote_files(valid_filenames)
-        else:
-            for filename in valid_filenames:
-                try:
-                    with open(filename, 'r') as file:
-                        content = file.read()
-                    result.append({"filename": filename, "content": content})
-                except Exception as e:
-                    self.logger.error(f"Error reading file {filename}: {str(e)}")
-                    result.append({"filename": filename, "content": f"Error: {str(e)}"})
-        
-        # Add any invalid filenames to the result
-        for filename in filenames:
-            if filename not in valid_filenames:
-                result.append({"filename": filename, "content": "Error: File not found"})
-        
-        return result
-    
-    async def _read_multiple_remote_files(self, filenames):
-        ssh = None
-        try:
-            ssh = self._get_ssh_client()
-            sftp = ssh.open_sftp()
-            result = []
-            for filename in filenames:
-                try:
-                    with sftp.file(filename, 'r') as remote_file:
-                        content = remote_file.read().decode('utf-8')
-                    result.append({"filename": filename, "content": content})
-                except Exception as e:
-                    self.logger.error(f"Error reading remote file {filename}: {str(e)}")
-                    result.append({"filename": filename, "content": f"Error: {str(e)}"})
-            return result
-        except Exception as e:
-            self.logger.error(f"Error connecting to remote server: {str(e)}")
-            raise
-        finally:
-            if ssh:
-                ssh.close()
+        self.config_files = self._get_config_files_from_db()
 
-    async def write_config_file(self, uid: str, filename: str, content: str):
-        user = self.user_service.get_user(uid)
-        if not user or not user.get('is_admin', False):
-            raise HTTPException(status_code=403, detail="Unauthorized access")
-        
-        if filename not in self.config_files:
+    def _get_config_files_from_db(self):
+        config = self.db.system_config.find_one({"uid": self.uid})
+        if config:
+            return config.get('config_files', [])
+        return []
+
+    def refresh_config_files(self):
+        self.config_files = self._get_config_files_from_db()
+
+    async def write_config_file(self, filename: str, content: str):
+        filename = '/' + filename.lstrip('/')
+        if filename not in [item['path'] for item in self.config_files]:
             raise HTTPException(status_code=404, detail="File not found")
         
         try:
+            # Write to remote server or local file system
             if self.is_dev_mode:
                 await self._write_remote_file(filename, content)
             else:
-                with open(filename, 'w') as file:
-                    file.write(content)
-            self.logger.info(f"User {uid} updated file {filename}")
+                await self._write_local_file_with_sudo(filename, content)
+            
+            # Update the content in the database
+            self.db.system_config.update_one(
+                {"uid": self.uid, "config_files.path": filename},
+                {"$set": {"config_files.$.content": content}},
+                upsert=True
+            )
+            
+            self.logger.info(f"User {self.uid} updated file {filename}")
             return {"message": "File updated successfully"}
         except Exception as e:
             self.logger.error(f"Error writing to file {filename}: {str(e)}")
             raise HTTPException(status_code=500, detail="Error writing to configuration file")
+
+    def _read_local_file(self, filename):
+        with open(filename, 'r') as file:
+            return file.read()
 
     async def _read_remote_file(self, filename):
         ssh = None
@@ -114,15 +79,44 @@ class SystemService:
         ssh = None
         try:
             ssh = self._get_ssh_client()
-            sftp = ssh.open_sftp()
-            with sftp.file(filename, 'w') as remote_file:
-                remote_file.write(content)
+            # Use sudo to write the file content
+            sudo_command = f"sudo tee {filename}"
+            stdin, stdout, stderr = ssh.exec_command(sudo_command)
+            stdin.write(content)
+            stdin.channel.shutdown_write()
+            
+            # Check for any errors
+            error = stderr.read().decode('utf-8').strip()
+            if error:
+                raise Exception(f"Error writing file: {error}")
+            
+            self.logger.info(f"Successfully wrote to remote file {filename}")
         except Exception as e:
             self.logger.error(f"Error writing to remote file {filename}: {str(e)}")
             raise
         finally:
             if ssh:
                 ssh.close()
+
+    async def _write_local_file_with_sudo(self, filename: str, content: str):
+        try:
+            # Use a specific sudo command that only allows writing to certain files
+            sudo_command = f"sudo /usr/local/bin/write_config_file.sh {filename}"
+            
+            # Use subprocess.run with input parameter to avoid shell injection
+            result = subprocess.run(
+                sudo_command.split(),
+                input=content.encode(),
+                capture_output=True,
+                check=True
+            )
+            
+            if result.returncode != 0:
+                raise Exception(f"Sudo command failed: {result.stderr.decode()}")
+        except subprocess.CalledProcessError as e:
+            raise Exception(f"Error executing sudo command: {e.stderr.decode()}")
+        except Exception as e:
+            raise Exception(f"Unexpected error: {str(e)}")
 
     def _get_ssh_client(self):
         import paramiko
