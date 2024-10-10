@@ -10,6 +10,7 @@ router = APIRouter()
 class ConfigFileUpdate(BaseModel):
     filename: str
     content: str
+    category: str
 
 def get_db(request: Request):
     try:
@@ -45,7 +46,7 @@ async def write_config_file(
     system_service: SystemService = Depends(get_system_service)
 ):
     try:
-        result = await system_service.write_config_file(file_update.filename, file_update.content)
+        result = await system_service.write_config_file(file_update.filename, file_update.content, file_update.category)
         return JSONResponse(content=result, status_code=200)
     except HTTPException as he:
         raise he
