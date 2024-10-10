@@ -101,7 +101,7 @@ class SystemService:
     async def _write_local_file_with_sudo(self, filename: str, content: str):
         try:
             # Use a specific sudo command that only allows writing to certain files
-            sudo_command = f"sudo /usr/local/bin/write_config_file.sh {filename}"
+            sudo_command = f"sudo -n /usr/local/bin/write_config_file.sh {filename}"
             
             # Use subprocess.run with input parameter to avoid shell injection
             result = subprocess.run(
