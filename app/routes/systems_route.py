@@ -33,7 +33,7 @@ def get_system_service(
 async def get_config_files(system_service: SystemService = Depends(get_system_service)):
     try:
         config_files = system_service.config_files
-        return [ConfigFileUpdate(filename=item["path"], content=item["content"]) for item in config_files]
+        return JSONResponse(content=config_files, status_code=200)
     except HTTPException as he:
         raise he
     except Exception as e:
