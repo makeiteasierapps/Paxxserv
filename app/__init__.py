@@ -41,15 +41,14 @@ def create_app():
 
     # Import and include routers
     from .routes import (
-        chat_route, sam_route, moments_route, auth_check_route, 
-        images_route, news_routes, signup_route, profile_route, kb_route, socket_handler, systems_route
+        chat_route, sam_route, moments_route, auth_route, images_route, news_routes, signup_route, profile_route, kb_route, socket_handler, systems_route
     )
     
     routers = [
         chat_route.router,
         sam_route.router,
         moments_route.router,
-        auth_check_route.router,
+        auth_route.router,
         images_route.router,
         profile_route.router,
         news_routes.router,

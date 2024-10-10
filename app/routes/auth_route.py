@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from app.services.MongoDbClient import MongoDbClient
-
+from app.services.FirebaseService import FirebaseService
 load_dotenv(override=True)
 
 router = APIRouter()
@@ -49,5 +49,19 @@ async def check_auth(request: Request, db: MongoDbClient = Depends(get_db)):
         user_doc = db['users'].find_one({'_id': uid})
         auth_status = user_doc.get('authorized', False)
         return JSONResponse(content={'auth_status': auth_status})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error in POST handler: {str(e)}")
+
+@router.post("/update_password")
+async def update_password(request: Request):
+    """
+    Updates the user's password
+    """
+    try:
+        json_data = await request.json()
+        uid = json_data.get('uid')
+        new_password = json_data.get('newPassword')
+        FirebaseService.update_user_password(uid, new_password)
+        return JSONResponse(content={'message': 'Password updated successfully'})
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error in POST handler: {str(e)}")
