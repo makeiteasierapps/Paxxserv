@@ -12,6 +12,9 @@ class ConfigFileUpdate(BaseModel):
     content: str
     category: str
 
+class FileCheckRequest(BaseModel):
+    filename: str
+
 def get_db(request: Request):
     try:
         mongo_client = request.app.state.mongo_client
@@ -52,3 +55,20 @@ async def write_config_file(
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred while writing to the config file: {str(e)}")
+    
+@router.post('/config-files/check')
+async def check_if_config_file_exists_on_server(
+    file_check: FileCheckRequest,
+    system_service: SystemService = Depends(get_system_service)
+):
+    try:
+        result = await system_service.check_if_config_file_exists_on_server(file_check.filename)
+        if result:
+            content = await system_service.read_config_file(file_check.filename)
+            return JSONResponse(content={"exists": True, "content": content}, status_code=200)
+        else:
+            return JSONResponse(content={"exists": False}, status_code=200)
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred while checking if the config file exists: {str(e)}")

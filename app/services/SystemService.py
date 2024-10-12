@@ -204,6 +204,12 @@ class SystemService:
         # This could involve restoring from a backup or fetching the previous version from the database
         pass
 
+    async def read_config_file(self, filename: str):
+        if self.is_dev_mode:
+            return await self._read_remote_file(filename)
+        else:
+            return self._read_local_file(filename)
+        
     def _read_local_file(self, filename):
         with open(filename, 'r') as file:
             return file.read()
@@ -222,7 +228,18 @@ class SystemService:
         finally:
             if ssh:
                 ssh.close()
-
+    
+    async def create_new_config_file(self, filename: str):
+        try:
+            if self.is_dev_mode:
+                await self._write_remote_file(filename, '', self._get_ssh_client())
+            else:
+                await self._write_local_file_with_sudo(filename, '')
+            return {"filename": filename, "content": ""}
+        except Exception as e:
+            self.logger.error(f"Failed to create new config file {filename}: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Failed to create new config file: {str(e)}")
+            
     async def _write_remote_file(self, filename, content, ssh):
         try:
             # Use sudo to write the file content
@@ -256,6 +273,7 @@ class SystemService:
             
             if result.returncode != 0:
                 raise Exception(f"Sudo command failed: {result.stderr.decode()}")
+            self.logger.info(f"Successfully wrote to local file {filename}")
         except subprocess.CalledProcessError as e:
             raise Exception(f"Error executing sudo command: {e.stderr.decode()}")
         except Exception as e:
@@ -272,3 +290,16 @@ class SystemService:
             key_filename=ssh_key_path
         )
         return ssh
+    
+    async def check_if_config_file_exists_on_server(self, filename: str):
+        try:
+            if self.is_dev_mode:
+                await self._read_remote_file(filename)
+            else:
+                self._read_local_file(filename)
+            return True
+        except FileNotFoundError:
+            return False
+        except Exception as e:
+            self.logger.error(f"Error checking if file {filename} exists: {str(e)}")
+            return False
