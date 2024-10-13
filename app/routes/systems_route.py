@@ -82,7 +82,6 @@ async def check_if_config_file_exists_on_server(
             category_agent = CategoryAgent()
             result_obj = category_agent.does_file_belong_in_category(file_check.filename, CATEGORIES)
             if result_obj["belongs"] == True:
-                # Add the new file to the database
                 return JSONResponse(content={"exists": True, "content": content, "category": result_obj["category"]}, status_code=200)
             else:
                 new_category = category_agent.create_new_category(file_check.filename)

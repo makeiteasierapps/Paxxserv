@@ -26,6 +26,7 @@ class BossAgent:
         if system_message:
             system_content += f"\n{system_message}"
         
+        response = None
         if isinstance(self.ai_client, OpenAiClient):
             openai_messages = [{
                 'role': 'system',

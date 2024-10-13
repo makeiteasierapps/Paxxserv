@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from firebase_admin import credentials, initialize_app
 import logging
 import socketio
+from app.services.SocketClient import socket_client
 from app.services.MongoDbClient import MongoDbClient
 
 load_dotenv()
@@ -28,8 +29,7 @@ mongo_client = MongoDbClient.get_instance('paxxium')
 
 def create_app():
     app = FastAPI()
-    sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*', max_http_buffer_size=1e8)
-    socket_app = socketio.ASGIApp(sio, app)
+    socket_app = socketio.ASGIApp(socket_client, app)
 
     app.add_middleware(
         CORSMiddleware,
@@ -41,7 +41,7 @@ def create_app():
 
     # Import and include routers
     from .routes import (
-        chat_route, sam_route, moments_route, auth_route, images_route, news_routes, signup_route, profile_route, kb_route, socket_handler, systems_route
+        chat_route, sam_route, moments_route, auth_route, images_route, news_routes, signup_route, profile_route, kb_route, systems_route
     )
     
     routers = [
@@ -61,6 +61,7 @@ def create_app():
         app.include_router(router)
 
     # Setup Socket.IO event handlers
-    socket_handler.setup_socketio_events(sio)
+    from app.socket_handlers.setup_socket_handlers import setup_socket_handlers
+    setup_socket_handlers(socket_client)
     app.state.mongo_client = mongo_client
     return socket_app
