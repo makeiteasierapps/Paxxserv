@@ -2,24 +2,10 @@ from typing import Any, List
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from app.agents.CategoryAgent import CategoryAgent
 from app.services.SystemService import SystemService
 from app.services.UserService import UserService
 
 router = APIRouter()
-
-CATEGORIES = [
-    "NGINX Configuration",
-    "SystemD Service Files",
-    "FSTAB for File System Mounting",
-    "SSH Configuration",
-    "DNS and Networking",
-    "Logrotate for Log Management",
-    "User and Group Configuration",
-    "Sysctl for Kernel Parameters",
-    "Environment Variables",
-    "Fail2ban Configuration"
-]
 
 class ConfigFileUpdate(BaseModel):
     filename: str
@@ -69,26 +55,3 @@ async def write_config_file(
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred while writing to the config file: {str(e)}")
-    
-@router.post('/config-files/check')
-async def check_if_config_file_exists_on_server(
-    file_check: FileCheckRequest,
-    system_service: SystemService = Depends(get_system_service)
-):
-    try:
-        result = await system_service.check_if_config_file_exists_on_server(file_check.filename)
-        if result:
-            content = await system_service.read_config_file(file_check.filename)
-            category_agent = CategoryAgent()
-            result_obj = category_agent.does_file_belong_in_category(file_check.filename, CATEGORIES)
-            if result_obj["belongs"] == True:
-                return JSONResponse(content={"exists": True, "content": content, "category": result_obj["category"]}, status_code=200)
-            else:
-                new_category = category_agent.create_new_category(file_check.filename)
-                return JSONResponse(content={"exists": True, "content": content, "category": new_category}, status_code=200)
-        else:
-            return JSONResponse(content={"exists": False}, status_code=200)
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred while checking if the config file exists: {str(e)}")
