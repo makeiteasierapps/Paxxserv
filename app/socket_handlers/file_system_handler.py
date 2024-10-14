@@ -48,8 +48,8 @@ async def setup_file_system(sio, sid, data):
             if result_obj["belongs"]:
                 await sio.emit('file_check_result', {"exists": True, "content": content, "category": result_obj["category"]}, room=sid)
             else:
-                await sio.emit('file_check_update', {'message': 'Creating new category...'}, room=sid)
                 new_category = category_agent.create_new_category(filename)
+                await sio.emit('file_check_update', {'message': 'Creating new category...', 'category': new_category}, room=sid)
                 await sio.emit('file_check_result', {"exists": True, "content": content, "category": new_category}, room=sid)
         else:
             await sio.emit('file_check_result', {"exists": False}, room=sid)

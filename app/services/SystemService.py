@@ -87,49 +87,70 @@ class SystemService:
     def refresh_config_files(self):
         self.config_files = self._get_config_files_from_db()
 
-    async def write_config_file(self, filename: str, content: str, category: str):
+    async def write_config_file(self, file_path: str, content: str, category: str):
         mapped_category = self.category_mapping.get(category)
-        filename = '/' + filename.lstrip('/')
-        if filename not in [item['path'] for item in self.config_files]:
-            raise HTTPException(status_code=404, detail="File not found")
-        
+        file_path = '/' + file_path.lstrip('/')    
         ssh = None
         try:
             if self.is_dev_mode:
                 ssh = self._get_ssh_client()
-            
+
             # Write to remote server or local file system
             if self.is_dev_mode:
-                await self._write_remote_file(filename, content, ssh)
+                await self._write_remote_file(file_path, content, ssh)
             else:
-                await self._write_local_file_with_sudo(filename, content)
-            
-            # Update the content in the database
-            self.db.system_config.update_one(
-                {"uid": self.uid, "config_files.path": filename},
-                {"$set": {"config_files.$.content": content}},
-                upsert=True
+                await self._write_local_file_with_sudo(file_path, content)
+
+            # Update or insert the content in the database
+            update_result = self.db.system_config.update_one(
+                {"uid": self.uid, "config_files.path": file_path},
+                {
+                    "$set": {
+                        "config_files.$.content": content,
+                        "config_files.$.category": category
+                    }
+                }
             )
-            
+
+            self.logger.info(f"Database update result: matched={update_result.matched_count}, modified={update_result.modified_count}")
+
+            # If the file wasn't updated (i.e., it's new), add it to the array
+            if update_result.matched_count == 0:
+                push_result = self.db.system_config.update_one(
+                    {"uid": self.uid},
+                    {"$push": {"config_files": {"path": file_path, "content": content, "category": category}}},
+                    upsert=True
+                )
+                self.logger.info(f"New file pushed to database: matched={push_result.matched_count}, modified={push_result.modified_count}")
+
+            # Update the in-memory config_files list
+            existing_file = next((item for item in self.config_files if item['path'] == file_path), None)
+            if existing_file:
+                existing_file['content'] = content
+                existing_file['category'] = category
+            else:
+                self.config_files.append({"path": file_path, "content": content, "category": category})
+    
             # Validate and restart affected services
             if mapped_category in self.config_categories:
                 validation_result = await self._validate_and_restart_service(mapped_category, ssh)
                 if not validation_result['success']:
                     # Revert the changes if validation fails
-                    await self._revert_file_changes(filename, ssh)
+                    await self._revert_file_changes(file_path, ssh)
                     return {"message": "Configuration validation failed", "details": validation_result}
             else:
+                validation_result = {"success": True, "output": "No validation/restart configuration for category: " + category}
                 self.logger.warning(f"No validation/restart configuration for category: {mapped_category}")
             
-            self.logger.info(f"User {self.uid} updated file {filename}")
+            self.logger.info(f"User {self.uid} updated file {file_path}")
             return {"message": "File updated successfully and services restarted", "details": validation_result}
         except Exception as e:
-            self.logger.error(f"Error writing to file {filename}: {str(e)}")
+            self.logger.error(f"Error writing to file {file_path}: {str(e)}")
             raise HTTPException(status_code=500, detail="Error writing to configuration file")
         finally:
             if ssh:
                 ssh.close()
-    
+
     async def _validate_and_restart_service(self, category, ssh=None):
         service_info = self.config_categories[category]
         result = {
