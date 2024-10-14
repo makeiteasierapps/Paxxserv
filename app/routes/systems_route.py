@@ -48,7 +48,6 @@ async def write_config_file(
     file_update: ConfigFileUpdate,
     system_service: SystemService = Depends(get_system_service)
 ):
-    print(f"Received PUT request for /config-files with data: {file_update}")
     try:
         result = await system_service.write_config_file(file_update.path, file_update.content, file_update.category)
         return JSONResponse(content=result, status_code=200)

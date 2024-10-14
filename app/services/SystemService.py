@@ -4,7 +4,7 @@ import logging
 from fastapi import HTTPException
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 class SystemService:
     def __init__(self, db, user_service, uid):
@@ -21,74 +21,43 @@ class SystemService:
             raise HTTPException(status_code=403, detail="Unauthorized access")
         
         self.config_files = self._get_config_files_from_db()
+        self.config_categories = self._get_config_categories_from_db()
 
-        self.config_categories = {
-            'nginx': {
-                'validate_cmd': 'sudo nginx -t',
-                'restart_cmd': 'sudo systemctl restart nginx'
-            },
-            'systemd': {
-                'validate_cmd': 'sudo systemd-analyze verify',
-                'restart_cmd': 'sudo systemctl daemon-reload'
-            },
-            'fstab': {
-                'validate_cmd': 'sudo findmnt --verify',
-                'restart_cmd': 'sudo mount -a'
-            },
-            'ssh': {
-                'validate_cmd': 'sudo sshd -t',
-                'restart_cmd': 'sudo systemctl restart sshd'
-            },
-            'dns': {
-                'validate_cmd': 'sudo named-checkconf',
-                'restart_cmd': 'sudo systemctl restart named'
-            },
-            'logrotate': {
-                'validate_cmd': 'sudo logrotate -d /etc/logrotate.conf',
-                'restart_cmd': 'sudo systemctl restart logrotate'
-            },
-            'user_group': {
-                'validate_cmd': 'sudo pwck -r',
-                'restart_cmd': 'sudo nscd -i passwd -i group'
-            },
-            'sysctl': {
-                'validate_cmd': 'sudo sysctl --system',
-                'restart_cmd': 'sudo sysctl --system'
-            },
-            'environment': {
-                'validate_cmd': 'sudo -E bash -c "source /etc/environment && env"',
-                'restart_cmd': 'sudo systemctl daemon-reload'
-            },
-            'fail2ban': {
-                'validate_cmd': 'sudo fail2ban-client -t',
-                'restart_cmd': 'sudo systemctl restart fail2ban'
-            }
-        }
+    def _get_config_categories_from_db(self):
+        config = self.db.system_config.find_one({"uid": self.uid})
+        if config and 'config_categories' in config:
+            return {cat['name']: cat for cat in config['config_categories']}
+        return {}
 
-        self.category_mapping = {
-            'NGINX Configuration': 'nginx',
-            'SystemD Service Files': 'systemd',
-            'FSTAB for File System Mounting': 'fstab',
-            'SSH Configuration': 'ssh',
-            'DNS and Networking': 'dns',
-            'Logrotate for Log Management': 'logrotate',
-            'User and Group Configuration': 'user_group',
-            'Sysctl for Kernel Parameters': 'sysctl',
-            'Environment Variables': 'environment',
-            'Fail2ban Configuration': 'fail2ban'
-        }
-    
     def _get_config_files_from_db(self):
         config = self.db.system_config.find_one({"uid": self.uid})
         if config:
             return config.get('config_files', [])
         return []
 
+    def add_new_config_category(self, category: str, key: str, validate_cmd: str, restart_cmd: str):
+        # Check if the category already exists
+        if category in self.config_categories:
+            raise ValueError(f"Category with key '{category}' already exists")
+
+        # Add the new category
+        self.config_categories[category] = {
+            'name': category,
+            'key': key,
+            'validate_cmd': validate_cmd,
+            'restart_cmd': restart_cmd
+        }
+        
+        # Update the database
+        self.db.system_config.update_one(
+            {"uid": self.uid},
+            {"$set": {"config_categories": list(self.config_categories.values())}}
+        )
+
     def refresh_config_files(self):
         self.config_files = self._get_config_files_from_db()
 
     async def write_config_file(self, file_path: str, content: str, category: str):
-        mapped_category = self.category_mapping.get(category)
         file_path = '/' + file_path.lstrip('/')    
         ssh = None
         try:
@@ -121,6 +90,7 @@ class SystemService:
                     {"$push": {"config_files": {"path": file_path, "content": content, "category": category}}},
                     upsert=True
                 )
+
                 self.logger.info(f"New file pushed to database: matched={push_result.matched_count}, modified={push_result.modified_count}")
 
             # Update the in-memory config_files list
@@ -130,17 +100,17 @@ class SystemService:
                 existing_file['category'] = category
             else:
                 self.config_files.append({"path": file_path, "content": content, "category": category})
-    
+
             # Validate and restart affected services
-            if mapped_category in self.config_categories:
-                validation_result = await self._validate_and_restart_service(mapped_category, ssh)
+            if category in self.config_categories:
+                validation_result = await self._validate_and_restart_service(category, ssh)
                 if not validation_result['success']:
                     # Revert the changes if validation fails
                     await self._revert_file_changes(file_path, ssh)
                     return {"message": "Configuration validation failed", "details": validation_result}
             else:
-                validation_result = {"success": True, "output": "No validation/restart configuration for category: " + category}
-                self.logger.warning(f"No validation/restart configuration for category: {mapped_category}")
+                validation_result = {"success": True, "output": f"No validation/restart configuration for category: {category}"}
+                self.logger.warning(f"No validation/restart configuration for category: {category}")
             
             self.logger.info(f"User {self.uid} updated file {file_path}")
             return {"message": "File updated successfully and services restarted", "details": validation_result}
@@ -150,7 +120,7 @@ class SystemService:
         finally:
             if ssh:
                 ssh.close()
-
+    
     async def _validate_and_restart_service(self, category, ssh=None):
         service_info = self.config_categories[category]
         result = {
@@ -226,6 +196,7 @@ class SystemService:
         pass
 
     async def read_config_file(self, filename: str):
+        print(filename)
         if self.is_dev_mode:
             return await self._read_remote_file(filename)
         else:
@@ -249,18 +220,7 @@ class SystemService:
         finally:
             if ssh:
                 ssh.close()
-    
-    async def create_new_config_file(self, filename: str):
-        try:
-            if self.is_dev_mode:
-                await self._write_remote_file(filename, '', self._get_ssh_client())
-            else:
-                await self._write_local_file_with_sudo(filename, '')
-            return {"filename": filename, "content": ""}
-        except Exception as e:
-            self.logger.error(f"Failed to create new config file {filename}: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Failed to create new config file: {str(e)}")
-            
+
     async def _write_remote_file(self, filename, content, ssh):
         try:
             # Use sudo to write the file content

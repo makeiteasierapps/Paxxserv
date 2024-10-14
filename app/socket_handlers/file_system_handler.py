@@ -3,18 +3,6 @@ from app.services.UserService import UserService
 from app.services.SystemService import SystemService
 from app.agents.CategoryAgent import CategoryAgent
 
-CATEGORIES = [
-    "NGINX Configuration",
-    "SystemD Service Files",
-    "FSTAB for File System Mounting",
-    "SSH Configuration",
-    "DNS and Networking",
-    "Logrotate for Log Management",
-    "User and Group Configuration",
-    "Sysctl for Kernel Parameters",
-    "Environment Variables",
-    "Fail2ban Configuration"
-]
 def get_db(db_name: str):
     try:
         mongo_client = MongoDbClient.get_instance(db_name)
@@ -31,6 +19,7 @@ def get_system_service(data):
 async def setup_file_system(sio, sid, data):
     system_service = get_system_service(data)
     filename = data.get('filename')
+    categories = system_service.config_categories
 
     try:
         await sio.emit('file_check_update', {'message': 'Checking if file exists...'}, room=sid)
@@ -43,20 +32,20 @@ async def setup_file_system(sio, sid, data):
             
             await sio.emit('file_check_update', {'message': 'Categorizing file...'}, room=sid)
             category_agent = CategoryAgent()
-            result_obj = category_agent.does_file_belong_in_category(filename, CATEGORIES)
+            result_obj = category_agent.does_file_belong_in_category(filename, categories)
             
             if result_obj["belongs"]:
                 await sio.emit('file_check_result', {"exists": True, "content": content, "category": result_obj["category"]}, room=sid)
             else:
                 new_category = category_agent.create_new_category(filename)
                 await sio.emit('file_check_update', {'message': 'Creating new category...', 'category': new_category}, room=sid)
+                system_service.add_new_config_category(new_category, '', '', '')
                 await sio.emit('file_check_result', {"exists": True, "content": content, "category": new_category}, room=sid)
         else:
             await sio.emit('file_check_result', {"exists": False}, room=sid)
     
     except Exception as e:
         await sio.emit('file_check_error', {'error': f"An error occurred: {str(e)}"}, room=sid)
-
 
 def setup_file_system_handlers(sio):
     @sio.on('file_check')
