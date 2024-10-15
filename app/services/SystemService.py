@@ -1,6 +1,5 @@
 import os
 import asyncio
-import subprocess
 import logging
 from fastapi import HTTPException
 from dotenv import load_dotenv

@@ -1,4 +1,5 @@
 from typing import Any, List
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -50,6 +51,7 @@ async def write_config_file(
 ):
     try:
         result = await system_service.write_config_file(file_update.path, file_update.content, file_update.category)
+        logging.info(result)
         return JSONResponse(content=result, status_code=200)
     except HTTPException as he:
         raise he
