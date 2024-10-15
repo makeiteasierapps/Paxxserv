@@ -38,7 +38,7 @@ class SystemService:
     def add_new_config_category(self, category: str, key: str, validate_cmd: str, restart_cmd: str):
         # Check if the category already exists
         if category in self.config_categories:
-            raise ValueError(f"Category with key '{category}' already exists")
+            return
 
         # Add the new category
         self.config_categories[category] = {
@@ -211,12 +211,15 @@ class SystemService:
         try:
             ssh = self._get_ssh_client()
             sftp = ssh.open_sftp()
-            with sftp.file(filename, 'r') as remote_file:
-                content = remote_file.read().decode('utf-8')
-            return content
+            try:
+                with sftp.file(filename, 'r') as remote_file:
+                    content = remote_file.read().decode('utf-8')
+                return content
+            except FileNotFoundError:
+                return None
         except Exception as e:
-            self.logger.error(f"Error reading remote file {filename}: {str(e)}")
-            raise
+            self.logger.error(f"Error accessing remote file {filename}: {str(e)}")
+            return None
         finally:
             if ssh:
                 ssh.close()
@@ -273,14 +276,8 @@ class SystemService:
         return ssh
     
     async def check_if_config_file_exists_on_server(self, filename: str):
-        try:
-            if self.is_dev_mode:
-                await self._read_remote_file(filename)
-            else:
-                self._read_local_file(filename)
-            return True
-        except FileNotFoundError:
-            return False
-        except Exception as e:
-            self.logger.error(f"Error checking if file {filename} exists: {str(e)}")
-            return False
+        if self.is_dev_mode:
+            content = await self._read_remote_file(filename)
+            return content is not None
+        else:
+            return os.path.exists(filename)
