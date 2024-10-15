@@ -1,7 +1,8 @@
 from typing import Any, List
 import logging
+import json
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from app.services.SystemService import SystemService
 from app.services.UserService import UserService
@@ -51,9 +52,22 @@ async def write_config_file(
 ):
     try:
         result = await system_service.write_config_file(file_update.path, file_update.content, file_update.category)
-        logging.info(result)
-        return JSONResponse(content=result, status_code=200)
+        logging.info(f"Config file update result: {result}")
+        
+        # Convert result to a JSON string
+        result_json = json.dumps(result)
+        
+        # Set headers explicitly
+        headers = {
+            "Content-Type": "application/json",
+            "Content-Length": str(len(result_json))
+        }
+        
+        # Return a raw Response object
+        return Response(content=result_json, status_code=200, headers=headers)
     except HTTPException as he:
+        logging.error(f"HTTP Exception in write_config_file: {str(he)}")
         raise he
     except Exception as e:
+        logging.error(f"Unexpected error in write_config_file: {str(e)}")
         raise HTTPException(status_code=500, detail=f"An error occurred while writing to the config file: {str(e)}")
