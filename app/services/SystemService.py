@@ -1,4 +1,5 @@
 import os
+import asyncio
 import subprocess
 import logging
 from fastapi import HTTPException
@@ -14,113 +15,101 @@ class SystemService:
         self.is_dev_mode = os.getenv('LOCAL_DEV') == 'true'
         self.dev_server_ip = 'myserver.local'
         self.uid = uid
+
+        self._verify_user()
         
-        # Verify user and load config files on initialization
-        user = self.user_service.get_user(uid)
+        # Load configurations from database
+        config = self._fetch_user_config_from_db()
+        self.config_files = config.get('config_files', [])
+        self.config_categories = {cat['name']: cat for cat in config.get('config_categories', [])}
+
+    def _verify_user(self):
+        user = self.user_service.get_user(self.uid)
         if not user or not user.get('is_admin', False):
             raise HTTPException(status_code=403, detail="Unauthorized access")
-        
-        self.config_files = self._get_config_files_from_db()
-        self.config_categories = self._get_config_categories_from_db()
 
-    def _get_config_categories_from_db(self):
-        config = self.db.system_config.find_one({"uid": self.uid})
-        if config and 'config_categories' in config:
-            return {cat['name']: cat for cat in config['config_categories']}
-        return {}
-
-    def _get_config_files_from_db(self):
-        config = self.db.system_config.find_one({"uid": self.uid})
-        if config:
-            return config.get('config_files', [])
-        return []
+    def _fetch_user_config_from_db(self):
+        return self.db.system_config.find_one({"uid": self.uid}) or {}
 
     def add_new_config_category(self, category: str, key: str, validate_cmd: str, restart_cmd: str):
-        # Check if the category already exists
-        if category in self.config_categories:
-            return
+        if category not in self.config_categories:
+            self.config_categories[category] = {
+                'name': category,
+                'key': key,
+                'validate_cmd': validate_cmd,
+                'restart_cmd': restart_cmd
+            }
+            self._update_db_config_categories()
 
-        # Add the new category
-        self.config_categories[category] = {
-            'name': category,
-            'key': key,
-            'validate_cmd': validate_cmd,
-            'restart_cmd': restart_cmd
-        }
-        
-        # Update the database
+    def _update_db_config_categories(self):
         self.db.system_config.update_one(
             {"uid": self.uid},
             {"$set": {"config_categories": list(self.config_categories.values())}}
         )
 
-    def refresh_config_files(self):
-        self.config_files = self._get_config_files_from_db()
-
     async def write_config_file(self, file_path: str, content: str, category: str):
-        file_path = '/' + file_path.lstrip('/')    
-        ssh = None
+        file_path = '/' + file_path.lstrip('/')
+        ssh_client = self._get_ssh_client() if self.is_dev_mode else None
         try:
-            if self.is_dev_mode:
-                ssh = self._get_ssh_client()
-
-            # Write to remote server or local file system
-            if self.is_dev_mode:
-                await self._write_remote_file(file_path, content, ssh)
-            else:
-                await self._write_local_file_with_sudo(file_path, content)
-
-            # Update or insert the content in the database
-            update_result = self.db.system_config.update_one(
-                {"uid": self.uid, "config_files.path": file_path},
-                {
-                    "$set": {
-                        "config_files.$.content": content,
-                        "config_files.$.category": category
-                    }
-                }
-            )
-
-            self.logger.info(f"Database update result: matched={update_result.matched_count}, modified={update_result.modified_count}")
-
-            # If the file wasn't updated (i.e., it's new), add it to the array
-            if update_result.matched_count == 0:
-                push_result = self.db.system_config.update_one(
-                    {"uid": self.uid},
-                    {"$push": {"config_files": {"path": file_path, "content": content, "category": category}}},
-                    upsert=True
-                )
-
-                self.logger.info(f"New file pushed to database: matched={push_result.matched_count}, modified={push_result.modified_count}")
-
-            # Update the in-memory config_files list
-            existing_file = next((item for item in self.config_files if item['path'] == file_path), None)
-            if existing_file:
-                existing_file['content'] = content
-                existing_file['category'] = category
-            else:
-                self.config_files.append({"path": file_path, "content": content, "category": category})
-
-            # Validate and restart affected services
-            if category in self.config_categories:
-                validation_result = await self._validate_and_restart_service(category, ssh)
-                if not validation_result['success']:
-                    # Revert the changes if validation fails
-                    await self._revert_file_changes(file_path, ssh)
-                    return {"message": "Configuration validation failed", "details": validation_result}
-            else:
-                validation_result = {"success": True, "output": f"No validation/restart configuration for category: {category}"}
-                self.logger.warning(f"No validation/restart configuration for category: {category}")
-            
-            self.logger.info(f"User {self.uid} updated file {file_path}")
-            return {"message": "File updated successfully and services restarted", "details": validation_result}
+            await self._write_file(file_path, content, ssh_client)
+            self._update_or_insert_file_in_db(file_path, content, category)
+            return await self._handle_service_validation(category, file_path, ssh_client)
         except Exception as e:
             self.logger.error(f"Error writing to file {file_path}: {str(e)}")
             raise HTTPException(status_code=500, detail="Error writing to configuration file")
         finally:
-            if ssh:
-                ssh.close()
-    
+            if ssh_client:
+                ssh_client.close()
+
+    async def _write_file(self, file_path: str, content: str, ssh_client):
+        if self.is_dev_mode:
+            await self._write_remote_file(file_path, content, ssh_client)
+        else:
+            await self._write_local_file_with_sudo(file_path, content)
+
+    def _update_or_insert_file_in_db(self, file_path: str, content: str, category: str):
+        update_result = self.db.system_config.update_one(
+            {"uid": self.uid, "config_files.path": file_path},
+            {
+                "$set": {
+                    "config_files.$.content": content,
+                    "config_files.$.category": category
+                }
+            }
+        )
+
+        self.logger.info(f"Database update result: matched={update_result.matched_count}, modified={update_result.modified_count}")
+
+        if update_result.matched_count == 0:
+            push_result = self.db.system_config.update_one(
+                {"uid": self.uid},
+                {"$push": {"config_files": {"path": file_path, "content": content, "category": category}}},
+                upsert=True
+            )
+            self.logger.info(f"New file pushed to database: matched={push_result.matched_count}, modified={push_result.modified_count}")
+
+        self._update_in_memory_config(file_path, content, category)
+
+    def _update_in_memory_config(self, file_path: str, content: str, category: str):
+        existing_file = next((item for item in self.config_files if item['path'] == file_path), None)
+        if existing_file:
+            existing_file['content'] = content
+            existing_file['category'] = category
+        else:
+            self.config_files.append({"path": file_path, "content": content, "category": category})
+
+    async def _handle_service_validation(self, category: str, file_path: str, ssh_client):
+        if category in self.config_categories:
+            validation_result = await self._validate_and_restart_service(category, ssh_client)
+            if not validation_result['success']:
+                return {"message": "Configuration validation failed", "details": validation_result}
+        else:
+            validation_result = {"success": True, "output": f"No validation/restart configuration for category: {category}"}
+            self.logger.warning(f"No validation/restart configuration for category: {category}")
+        
+        self.logger.info(f"User {self.uid} updated file {file_path}")
+        return {"message": "File updated successfully and services restarted", "details": validation_result}
+
     async def _validate_and_restart_service(self, category, ssh=None):
         service_info = self.config_categories[category]
         result = {
@@ -153,20 +142,6 @@ class SystemService:
         else:
             return await self._run_local_command(command)
 
-    async def _run_local_command(self, command):
-        try:
-            result = subprocess.run(
-                command.split(),
-                capture_output=True,
-                check=True,
-                text=True
-            )
-            self.logger.info(f"Command executed successfully: {command}")
-            return result.stdout
-        except subprocess.CalledProcessError as e:
-            self.logger.error(f"Error executing command {command}: {e.stderr}")
-            raise Exception(f"Error executing command: {e.stderr}")
-
     async def _run_remote_command(self, command, ssh):
         try:
             stdin, stdout, stderr = ssh.exec_command(command)
@@ -189,11 +164,6 @@ class SystemService:
         except Exception as e:
             self.logger.error(f"Error executing remote command {command}: {str(e)}")
             raise
-    
-    async def _revert_file_changes(self, filename, ssh=None):
-        # Implement logic to revert file changes
-        # This could involve restoring from a backup or fetching the previous version from the database
-        pass
 
     async def read_config_file(self, filename: str):
         print(filename)
@@ -242,26 +212,48 @@ class SystemService:
             self.logger.error(f"Error writing to remote file {filename}: {str(e)}")
             raise
 
-    async def _write_local_file_with_sudo(self, filename: str, content: str):
+    async def _run_local_command(self, command):
         try:
-            # Use a specific sudo command that only allows writing to certain files
-            sudo_command = f"sudo -n /usr/local/bin/write_config_file.sh {filename}"
-            
-            # Use subprocess.run with input parameter to avoid shell injection
-            result = subprocess.run(
-                sudo_command.split(),
-                input=content.encode(),
-                capture_output=True,
-                check=True
+            # Run command asynchronously
+            process = await asyncio.create_subprocess_exec(
+                *command.split(),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
             
-            if result.returncode != 0:
-                raise Exception(f"Sudo command failed: {result.stderr.decode()}")
-            self.logger.info(f"Successfully wrote to local file {filename}")
-        except subprocess.CalledProcessError as e:
-            raise Exception(f"Error executing sudo command: {e.stderr.decode()}")
+            stdout, stderr = await process.communicate()
+
+            if process.returncode != 0:
+                self.logger.error(f"Error executing command {command}: {stderr.decode()}")
+                raise Exception(f"Error executing command: {stderr.decode()}")
+
+            self.logger.info(f"Command executed successfully: {command}")
+            return stdout.decode()
         except Exception as e:
-            raise Exception(f"Unexpected error: {str(e)}")
+            self.logger.error(f"Exception occurred: {str(e)}")
+            raise e
+
+    async def _write_local_file_with_sudo(self, filename: str, content: str):
+        try:
+            sudo_command = f"sudo -n /usr/local/bin/write_config_file.sh {filename}"
+
+            # Run sudo command asynchronously
+            process = await asyncio.create_subprocess_exec(
+                *sudo_command.split(),
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+
+            stdout, stderr = await process.communicate(input=content.encode())
+
+            if process.returncode != 0:
+                raise Exception(f"Sudo command failed: {stderr.decode()}")
+
+            self.logger.info(f"Successfully wrote to local file {filename}")
+        except Exception as e:
+            self.logger.error(f"Unexpected error: {str(e)}")
+            raise e
 
     def _get_ssh_client(self):
         import paramiko
