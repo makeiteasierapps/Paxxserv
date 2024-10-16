@@ -3,6 +3,7 @@ import asyncio
 import logging
 from fastapi import HTTPException
 from dotenv import load_dotenv
+from app.utils.token_counter import token_counter
 
 load_dotenv(override=True)
 
@@ -21,6 +22,7 @@ class SystemService:
         config = self._fetch_user_config_from_db()
         self.config_files = config.get('config_files', [])
         self.config_categories = {cat['name']: cat for cat in config.get('config_categories', [])}
+        print(self.config_categories)
 
     def _verify_user(self):
         user = self.user_service.get_user(self.uid)
@@ -30,6 +32,38 @@ class SystemService:
     def _fetch_user_config_from_db(self):
         return self.db.system_config.find_one({"uid": self.uid}) or {}
 
+    async def combine_config_files_by_category(self):
+        category_contents = {}
+
+        # Iterate over config_files and combine contents by category
+        for file in self.config_files:
+            category = file['category']
+            path = file['path']
+            content = file['content']
+
+            if category not in category_contents:
+                category_contents[category] = ""
+
+            category_contents[category] += f"{path}\n{content}\n\n"
+
+        # Create combined_files collection
+        combined_files = []
+        for category, content in category_contents.items():
+            token_count = token_counter(content)
+            combined_files.append({
+                "category": category,
+                "content": content,
+                "token_count": token_count
+            })
+
+        # Update the database
+        self.db.system_config.update_one(
+            {"uid": self.uid},
+            {"$set": {"combined_files": combined_files}},
+            upsert=True
+        )
+        return combined_files
+    
     def add_new_config_category(self, category: str, key: str, validate_cmd: str, restart_cmd: str):
         if category not in self.config_categories:
             self.config_categories[category] = {
