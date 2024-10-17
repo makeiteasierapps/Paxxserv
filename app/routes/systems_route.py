@@ -39,9 +39,9 @@ def get_system_service(
 async def get_config_files(system_service: SystemService = Depends(get_system_service)):
     try:
         config_files = system_service.config_files
-        system_agent = SystemAgent()
-        category_routing = system_agent.category_routing('will you look over my mongodb config and see how I can improve it?', system_service.config_categories)
-        print(category_routing)
+        # system_agent = SystemAgent()
+        # category_routing = system_agent.category_routing('will you look over my mongodb config and see how I can improve it?', system_service.config_categories)
+        # print(category_routing)
         # combined_files = await system_service.combine_config_files_by_category()
         return JSONResponse(content=config_files, status_code=200)
     except HTTPException as he:
@@ -56,7 +56,7 @@ async def write_config_file(
 ):
     try:
         result = await system_service.write_config_file(file_update.path, file_update.content, file_update.category)
-        logging.info(result)
+        print(result)
         return JSONResponse(content=result, status_code=200)
     except HTTPException as he:
         raise he
