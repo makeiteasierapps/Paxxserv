@@ -148,9 +148,10 @@ class KbDocumentService:
 
             if not content_to_embed:
                 return doc  # Nothing to embed
-
-            # Process the content with ColBERT
-            result = self.colbert_service.process_content(content_to_embed)
+        
+            prepared_documents = [{'content': doc['content'], 'id': doc['metadata']['sourceURL']} for doc in content_to_embed if 'content' in doc and 'metadata' in doc and 'sourceURL' in doc['metadata']]
+        
+            result = self.colbert_service.process_content(prepared_documents)
             if 'index_path' in result:
                 self.update_knowledge_base(index_path=result['index_path'])
             else:

@@ -1,3 +1,4 @@
+from typing import List
 import os
 from dotenv import load_dotenv
 import shutil
@@ -35,11 +36,12 @@ class ColbertService:
             logging.error(f"Error processing content: {str(e)}")
             raise
     
-    def create_index(self, content):
+    def create_index(self, content: List[dict]):
         try:
-            doc_objs = self._prepare_documents(content)
-            doc_ids = [doc['id'] for doc in doc_objs]
-            collection = [doc['content'] for doc in doc_objs]
+            doc_ids = [doc['id'] for doc in content]
+            collection = [doc['content'] for doc in content]
+            metadata = [doc['metadata'] for doc in content]
+            
             if not doc_ids or not collection:
                 raise ValueError("No documents to index")
             
@@ -49,6 +51,7 @@ class ColbertService:
                 index_name=index_name,
                 collection=collection,
                 document_ids=doc_ids,
+                document_metadatas=metadata
             )
             return {'index_path': path}
         except ValueError as ve:
@@ -79,12 +82,13 @@ class ColbertService:
     
     def add_documents_to_index(self, content):
         try:
-            doc_objs = self._prepare_documents(content)
-            doc_ids = [doc['id'] for doc in doc_objs]
-            collection = [doc['content'] for doc in doc_objs]
+            doc_ids = [doc['id'] for doc in content]
+            collection = [doc['content'] for doc in content]
+            metadata = [doc['metadata'] for doc in content] | []
             self.rag.add_to_index(
                 new_collection=collection,
-                new_document_ids=doc_ids
+                new_document_ids=doc_ids,
+                new_document_metadatas=metadata
             )
             return 'Documents added to index'
         except Exception as e:
@@ -101,12 +105,6 @@ class ColbertService:
         except Exception as e:
             logging.error(f"Error deleting documents from index: {e}")
             return False
-
-    def _prepare_documents(self, content):
-        if isinstance(content, list):
-            return [{'content': doc['content'], 'id': doc['metadata']['sourceURL']} for doc in content if 'content' in doc and 'metadata' in doc and 'sourceURL' in doc['metadata']]
-        else:
-            raise ValueError("Content must be either a string or a list of dictionaries with 'content' key")
         
     def search_index(self, query):
         if not self.index_path:

@@ -1,12 +1,12 @@
 from typing import Any, List
-import logging
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from app.services.SystemService import SystemService
+from app.services.System.SystemService import SystemService
 from app.services.UserService import UserService
 from app.agents.SystemAgent import SystemAgent
-
+from app.services.System.SystemIndexManager import SystemIndexManager
+from app.services.ColbertService import ColbertService
 router = APIRouter()
 
 class ConfigFileUpdate(BaseModel):
@@ -28,6 +28,11 @@ def get_db(request: Request):
 def get_user_service(db: Any = Depends(get_db)):
     return UserService(db)
 
+def get_colbert_service(
+    uid: str = Header(...)
+):
+    return ColbertService(uid)
+
 def get_system_service(
     db: Any = Depends(get_db),
     user_service: UserService = Depends(get_user_service),
@@ -36,9 +41,16 @@ def get_system_service(
     return SystemService(db, user_service, uid)
 
 @router.get('/config-files', response_model=List[ConfigFileUpdate])
-async def get_config_files(system_service: SystemService = Depends(get_system_service)):
+async def get_config_files(
+    system_service: SystemService = Depends(get_system_service),
+    colbert_service: ColbertService = Depends(get_colbert_service)
+):
     try:
         config_files = system_service.config_files
+        # system_index_manager = SystemIndexManager(system_service, colbert_service)
+        # prepared_data = system_index_manager.prepare_config_files_for_indexing()
+        # index_result = system_index_manager.create_system_index(prepared_data)
+        # print(index_result)
         # system_agent = SystemAgent()
         # category_routing = system_agent.category_routing('will you look over my mongodb config and see how I can improve it?', system_service.config_categories)
         # print(category_routing)

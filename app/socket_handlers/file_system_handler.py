@@ -1,7 +1,7 @@
 from app.services.MongoDbClient import MongoDbClient
 import asyncio
 from app.services.UserService import UserService
-from app.services.SystemService import SystemService
+from app.services.System.SystemService import SystemService
 from app.agents.CategoryAgent import CategoryAgent
 
 def get_db(db_name: str):
