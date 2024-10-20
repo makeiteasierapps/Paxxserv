@@ -11,9 +11,8 @@ from app.services.System.SystemConfigDatabase import SystemConfigDatabase
 load_dotenv(override=True)
 
 class SystemService:
-    def __init__(self, db, user_service, uid):
+    def __init__(self, db, uid):
         self.config_db = SystemConfigDatabase(db, uid)
-        self.user_service = user_service
         self.logger = logging.getLogger(__name__)
         self.is_dev_mode = os.getenv('LOCAL_DEV') == 'true'
         self.dev_server_ip = 'myserver.local'
@@ -31,9 +30,11 @@ class SystemService:
         self.service_validator = ServiceValidator(self.is_dev_mode, self.logger, self.config_categories)
 
     def _verify_user(self):
-        user = self.user_service.get_user(self.uid)
-        if not user or not user.get('is_admin', False):
-            raise HTTPException(status_code=403, detail="Unauthorized access")
+        try:
+            self.config_db.check_if_user_authorized()
+        except HTTPException as e:
+            self.logger.error(f"User {self.uid} is not authorized to access this resource")
+            raise e
 
     async def combine_config_files_by_category(self):
         category_contents = {}

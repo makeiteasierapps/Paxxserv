@@ -1,6 +1,5 @@
 from app.services.MongoDbClient import MongoDbClient
 import asyncio
-from app.services.UserService import UserService
 from app.services.System.SystemService import SystemService
 from app.agents.CategoryAgent import CategoryAgent
 
@@ -13,9 +12,8 @@ def get_db(db_name: str):
 
 def get_system_service(data):
     db = get_db(data.get('dbName'))
-    user_service = UserService(db)
     uid = data.get('uid')
-    return SystemService(db, user_service, uid)
+    return SystemService(db, uid)
 
 async def setup_file_system(sio, sid, data):
     system_service = get_system_service(data)
