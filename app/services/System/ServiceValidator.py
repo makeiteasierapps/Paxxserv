@@ -8,6 +8,25 @@ class ServiceValidator:
         self.config_categories = config_categories
         self.ssh_manager = SSHManager(self.is_dev_mode, self.logger)
 
+    async def check_systemd_services(self, services):
+            """
+            Check the active status of multiple SystemD services.
+            """
+            results = {}
+            ssh_client = self.ssh_manager.get_client() if self.is_dev_mode else None
+            for service in services:
+                command = f'systemctl show -p ActiveState {service}'
+                try:
+                    output = await self._run_command(command, ssh_client)
+                    # Output format is "ActiveState=active", so we split and take the value
+                    status = output.strip().split('=')[1]
+                    results[service] = status
+                except Exception as e:
+                    self.logger.error(f"Failed to check status for service {service}: {str(e)}")
+                    results[service] = "error"
+            
+            return results
+
     async def validate_and_restart_service(self, category):
         ssh_client = self.ssh_manager.get_client() if self.is_dev_mode else None
         try:

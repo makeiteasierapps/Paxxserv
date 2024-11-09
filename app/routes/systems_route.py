@@ -38,6 +38,17 @@ def get_system_service(
     except HTTPException as e:
         raise e
 
+@router.get('/system-health')
+async def get_system_health(
+    system_service: SystemService = Depends(get_system_service)
+):
+    try:
+        health_status = await system_service.check_systemd_services()
+        print(health_status)
+        return JSONResponse(content=health_status, status_code=200)
+    except HTTPException as e:
+        raise e
+
 @router.get('/config-files', response_model=List[ConfigFileUpdate])
 async def get_config_files(
     system_service: SystemService = Depends(get_system_service),

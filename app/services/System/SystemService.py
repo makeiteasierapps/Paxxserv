@@ -29,6 +29,14 @@ class SystemService:
         self.config_categories = {cat['name']: cat for cat in config.get('config_categories', [])}
         self.service_validator = ServiceValidator(self.is_dev_mode, self.logger, self.config_categories)
 
+    def get_systemd_services(self):
+        file_path_list = [file['path'] for file in self.config_files if file['category'] == 'SystemD Service Files']
+        file_names = [file_path.split('/')[-1] for file_path in file_path_list]
+        return file_names
+
+    def check_systemd_services(self):
+        return self.service_validator.check_systemd_services(self.get_systemd_services())
+    
     def _verify_user(self):
         try:
             self.config_db.check_if_user_authorized()
