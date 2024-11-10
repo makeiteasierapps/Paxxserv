@@ -90,7 +90,7 @@ class SystemService:
             update_result = self.config_db.update_or_insert_file(file_path, content, category)
             self._update_in_memory_config(file_path, content, category)
             self.logger.info(f"Database update result: matched={update_result.matched_count}, modified={update_result.modified_count}")
-            return await self._handle_service_validation(category, file_path)
+            return await self._handle_service_validation(category)
         except Exception as e:
             self.logger.error(f"Error writing to file {file_path}: {str(e)}")
             raise HTTPException(status_code=500, detail="Error writing to configuration file")
@@ -106,7 +106,7 @@ class SystemService:
         else:
             self.config_files.append({"path": file_path, "content": content, "category": category})
 
-    async def _handle_service_validation(self, category: str, file_path: str):
+    async def _handle_service_validation(self, category: str):
         if category in self.config_categories:
             validation_result = await self.service_validator.validate_and_restart_service(category)
             if not validation_result['success']:
@@ -115,7 +115,6 @@ class SystemService:
             validation_result = {"success": True, "output": f"No validation/restart configuration for category: {category}"}
             self.logger.warning(f"No validation/restart configuration for category: {category}")
         
-        self.logger.info(f"User {self.uid} updated file {file_path}")
         return {"message": "Configuration updated successfully", "details": validation_result}
 
     async def read_config_file(self, filename: str):
