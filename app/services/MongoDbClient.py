@@ -1,4 +1,5 @@
 from pymongo import MongoClient
+from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 import os
 import logging
@@ -32,10 +33,9 @@ class MongoDbClient:
         if not self._client:
             self.logger.info(f"Attempting to connect to MongoDB at {self.mongo_uri}")
             try:
-                self._client = MongoClient(self.mongo_uri)
+                self._client = AsyncIOMotorClient(self.mongo_uri)
                 self._db = self._client[self.db_name]
-                # Force a command to check the connection
-                self._client.admin.command('ismaster')
+                # For Motor, we can't do a sync command check
                 self.logger.info(f"Successfully connected to MongoDB database: {self.db_name}")
             except Exception as e:
                 self.logger.error(f"Failed to connect to MongoDB: {str(e)}")

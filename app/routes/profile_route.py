@@ -25,13 +25,13 @@ def get_services(request: Request, dbName: str = Header(...), uid: str = Header(
 
 @router.get("/profile")
 async def get_profile(services: dict = Depends(get_services)):
-    user_profile = services["profile_service"].get_profile(services["profile_service"].uid)
+    user_profile = await services["profile_service"].get_profile(services["profile_service"].uid)
     return JSONResponse(content=user_profile)
 
 @router.post("/profile/generate_questions")
 async def generate_questions(request: Request, services: dict = Depends(get_services)):
     content = await request.json()
-    services["db"]['users'].update_one({'_id': services["profile_service"].uid}, {'$set': {'userintro': content['userInput']}})
+    await services["db"]['users'].update_one({'_id': services["profile_service"].uid}, {'$set': {'userintro': content['userInput']}})
     
     async def generate():
         try:
@@ -49,7 +49,7 @@ async def generate_questions(request: Request, services: dict = Depends(get_serv
 
 @router.get("/profile/questions")
 async def get_questions(services: dict = Depends(get_services)):
-    questions = services["profile_service"].load_questions(services["profile_service"].uid)
+    questions = await services["profile_service"].load_questions(services["profile_service"].uid)
     return JSONResponse(content=questions)
 
 @router.post("/profile/answers")
@@ -57,19 +57,19 @@ async def update_answers(request: Request, services: dict = Depends(get_services
     data = await request.json()
     question_id = data['questionId']
     answer = data['answer']
-    services["profile_service"].update_profile_answer(question_id, answer)
+    await services["profile_service"].update_profile_answer(question_id, answer)
     return JSONResponse(content={'response': 'Profile questions/answers updated successfully'})
 
 @router.post("/profile/user")
 async def update_user_profile(request: Request, services: dict = Depends(get_services)):
     data = await request.json()
-    services["profile_service"].update_user_profile(services["profile_service"].uid, data)
+    await services["profile_service"].update_user_profile(services["profile_service"].uid, data)
     return JSONResponse(content={'response': 'User profile updated successfully'})
 
 @router.post("/profile/analyze")
 async def analyze_profile(services: dict = Depends(get_services)):
-    answered_questions = services["profile_service"].load_questions(services["profile_service"].uid, fetch_answered=True)
-    response = services["analyze_user"].analyze_cateogry(answered_questions)
+    answered_questions = await services["profile_service"].load_questions(services["profile_service"].uid, fetch_answered=True)
+    response = await services["analyze_user"].analyze_cateogry(answered_questions)
     return JSONResponse(content=response)
 
 @router.post("/profile/update_avatar")

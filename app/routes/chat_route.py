@@ -33,14 +33,15 @@ class UpdateSettingsData(BaseModel):
 @router.get("/chat")
 async def get_all_chats(chat_service: ChatService = Depends(get_chat_service)):
     chat_service, uid = chat_service
-    json_chats = jsonable_encoder(chat_service.get_all_chats(uid))
+    chats = await chat_service.get_all_chats(uid)
+    json_chats = jsonable_encoder(chats)
     json_str = json.dumps(json_chats, cls=CustomJSONEncoder)
     return JSONResponse(content=json.loads(json_str))
 
 @router.post("/chat")
 async def create_chat(data: ChatData, chat_service: ChatService = Depends(get_chat_service)):
     chat_service, _ = chat_service
-    chat_data = chat_service.create_chat_in_db(
+    chat_data = await chat_service.create_chat_in_db(
         data.uid,
     )
     return JSONResponse(content={
@@ -53,7 +54,7 @@ async def create_chat(data: ChatData, chat_service: ChatService = Depends(get_ch
 @router.delete("/chat")
 async def delete_chat(data: DeleteChatData, chat_service: ChatService = Depends(get_chat_service)):
     chat_service, _ = chat_service
-    chat_service.delete_chat(data.chatId)
+    await chat_service.delete_chat(data.chatId)
     return JSONResponse(content={'message': 'Conversation deleted'})
 
 @router.patch("/chat/update_settings")
@@ -65,5 +66,5 @@ async def update_settings(data: UpdateSettingsData, chat_service: ChatService = 
 @router.delete("/messages")
 async def delete_all_messages(data: DeleteChatData, chat_service: ChatService = Depends(get_chat_service)):
     chat_service, _ = chat_service
-    chat_service.delete_all_messages(data.chatId)
+    await chat_service.delete_all_messages(data.chatId)
     return JSONResponse(content={'message': 'Memory Cleared'})

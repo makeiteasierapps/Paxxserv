@@ -27,7 +27,7 @@ def get_services(db: Any = Depends(get_db), uid: str = Header(...)):
 @router.get("/news")
 async def get_news(services: tuple = Depends(get_services)):
     _, news_service = services
-    news_data = news_service.get_all_news_articles()
+    news_data = await news_service.get_all_news_articles()
     for article in news_data:
         article['_id'] = str(article['_id'])
     return JSONResponse(content=news_data)

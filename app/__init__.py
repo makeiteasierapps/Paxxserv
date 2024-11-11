@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 import os
 from fastapi import FastAPI
@@ -7,14 +8,14 @@ import logging
 import socketio
 from app.services.SocketClient import socket_client
 from app.services.MongoDbClient import MongoDbClient
-
-load_dotenv()
+from app.services.System.SystemStateManager import SystemStateManager
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Initialize Firebase
+load_dotenv()
 cred = credentials.Certificate(os.getenv('FIREBASE_ADMIN_SDK'))
 try:
     initialize_app(cred, {
@@ -25,10 +26,21 @@ try:
 except ValueError as e:
     logger.error(f"Firebase initialization failed: {e}")
 
-mongo_client = MongoDbClient.get_instance('paxxium')
-
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    mongo_client = MongoDbClient.get_instance('paxxium')
+    app.state.mongo_client = mongo_client
+    app.state.system_state_manager = await SystemStateManager.get_instance(mongo_client)
+    
+    # Setup Socket.IO event handlers after system_state_manager is initialized
+    from app.socket_handlers.setup_socket_handlers import setup_socket_handlers
+    setup_socket_handlers(socket_client, app)
+    
+    yield
+    
 def create_app():
-    app = FastAPI()
+    app = FastAPI(lifespan=lifespan)
     socket_app = socketio.ASGIApp(socket_client, app)
 
     app.add_middleware(
@@ -41,7 +53,8 @@ def create_app():
 
     # Import and include routers
     from .routes import (
-        chat_route, sam_route, moments_route, auth_route, images_route, news_routes, signup_route, profile_route, kb_route, systems_route
+        chat_route, sam_route, moments_route, auth_route, images_route, 
+        news_routes, signup_route, profile_route, kb_route, systems_route
     )
     
     routers = [
@@ -60,8 +73,4 @@ def create_app():
     for router in routers:
         app.include_router(router)
 
-    # Setup Socket.IO event handlers
-    from app.socket_handlers.setup_socket_handlers import setup_socket_handlers
-    setup_socket_handlers(socket_client)
-    app.state.mongo_client = mongo_client
     return socket_app

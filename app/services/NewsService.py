@@ -100,32 +100,31 @@ class NewsService:
 
         return summarized_articles
 
-    def upload_news_data(self, news_data_list):
+    async def upload_news_data(self, news_data_list):
         for news_data in news_data_list:
             url = news_data['url']
-            existing_article = self.db['newsArticles'].find_one({'url': url, 'uid': self.uid})
+            existing_article = await self.db['newsArticles'].find_one({'url': url, 'uid': self.uid})
 
             if existing_article is None:
-                self.db['newsArticles'].insert_one(news_data)
-                news_data['_id'] = str(news_data['_id'])
+                result = await self.db['newsArticles'].insert_one(news_data)
+                news_data['_id'] = str(result.inserted_id)
             else:
                 print(f"URL '{url}' already exists, skipping...")
 
-    def get_all_news_articles(self):
+    async def get_all_news_articles(self):
         articles_cursor = self.db['newsArticles'].find({'uid': self.uid})
-        all_news = list(articles_cursor)
-
+        all_news = await articles_cursor.to_list(length=None)
         return all_news
 
-    def get_user_topics(self):
-        user_document = self.db['users'].find_one({'_id': self.uid})
+    async def get_user_topics(self):
+        user_document = await self.db['users'].find_one({'_id': self.uid})
         if user_document:
             return user_document.get('topics', [])
         return []
 
-    def mark_is_read(self, doc_id, is_read):
+    async def mark_is_read(self, doc_id, is_read):
         try:
-            result = self.db['newsArticles'].update_one(
+            result = await self.db['newsArticles'].update_one(
                 {'_id': ObjectId(doc_id)},  
                 {'$set': {'is_read': is_read}}  
             )
@@ -137,9 +136,9 @@ class NewsService:
         except Exception as e:
             return f"Update failed: {str(e)}"
 
-    def delete_news_article(self, doc_id):
+    async def delete_news_article(self, doc_id):
         try:
-            result = self.db['newsArticles'].delete_one({'_id': ObjectId(doc_id)})
+            result = await self.db['newsArticles'].delete_one({'_id': ObjectId(doc_id)})
 
             if result.deleted_count == 0:
                 return "No matching document found"

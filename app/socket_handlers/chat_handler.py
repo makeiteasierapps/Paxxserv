@@ -83,9 +83,9 @@ async def handle_chat(sio, sid, data):
             image_path = image_info['path']
             boss_agent.image_path = image_path
 
-        chat_service.create_message(chat_id, 'user', user_message, image_path)
+        await chat_service.create_message(chat_id, 'user', user_message, image_path)
         async def save_agent_message(chat_id, message):
-            chat_service.create_message(chat_id, 'agent', message)
+            await chat_service.create_message(chat_id, 'agent', message)
             await sio.emit('agent_message', {"type": "agent_message", "content": message})
 
         if kb_id:

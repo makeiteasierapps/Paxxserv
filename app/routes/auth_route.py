@@ -46,9 +46,15 @@ async def check_auth(request: Request, db: MongoDbClient = Depends(get_db)):
     try:
         json_data = await request.json()
         uid = json_data.get('uid')
-        user_doc = db['users'].find_one({'_id': uid})
+        user_doc = await db['users'].find_one({'_id': uid})
+        
+        if user_doc is None:
+            raise HTTPException(status_code=404, detail="User not found")
+            
         auth_status = user_doc.get('authorized', False)
         return JSONResponse(content={'auth_status': auth_status})
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error in POST handler: {str(e)}")
 

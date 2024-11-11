@@ -1,4 +1,4 @@
-from typing import Any, List
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -29,14 +29,14 @@ def get_colbert_service(
 ):
     return ColbertService(uid=uid)
 
-def get_system_service(
-    db: Any = Depends(get_db),
+async def get_system_service(
+    request: Request,
     uid: str = Header(...)
-):
-    try:
-        return SystemService(db, uid)
-    except HTTPException as e:
-        raise e
+) -> SystemService:
+    system_manager = request.app.state.system_state_manager
+    service = SystemService(system_manager, uid)
+    await service.initialize()
+    return service
 
 @router.get('/system-health')
 async def get_system_health(
@@ -44,7 +44,6 @@ async def get_system_health(
 ):
     try:
         health_status = await system_service.check_systemd_services()
-        print(health_status)
         return JSONResponse(content=health_status, status_code=200)
     except HTTPException as e:
         raise e
@@ -55,7 +54,7 @@ async def get_config_files(
     colbert_service: ColbertService = Depends(get_colbert_service)
 ):
     try:
-        config_files = system_service.config_files
+        config_files = await system_service.system_manager.get_config_files()
         # system_index_manager = SystemIndexManager(system_service, colbert_service)
         # prepared_data = system_index_manager.prepare_config_files_for_indexing()
         # index_result = system_index_manager.create_system_index(prepared_data)

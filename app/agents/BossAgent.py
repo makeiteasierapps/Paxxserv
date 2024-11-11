@@ -32,9 +32,9 @@ class BossAgent:
                 'role': 'system',
                 'content': system_content
             }, *new_chat_history]
-            response = self.ai_client.generate_chat_completion(openai_messages, model=self.model, stream=True)
+            response = await self.ai_client.generate_chat_completion(openai_messages, model=self.model, stream=True)
         elif isinstance(self.ai_client, AnthropicClient):
-            response = self.ai_client.generate_chat_completion(messages=new_chat_history, model=self.model, stream=True, system=system_content)
+            response = await self.ai_client.generate_chat_completion(messages=new_chat_history, model=self.model, stream=True, system=system_content)
         
         response_chunks = await self.process_streaming_response(chat_id, response)
         collapsed_response = self.collapse_response_chunks(response_chunks)

@@ -7,35 +7,45 @@ class ServiceValidator:
         self.logger = logger
         self.config_categories = config_categories
         self.ssh_manager = SSHManager(self.is_dev_mode, self.logger)
+        self._ssh_client = None
+
+    async def __aenter__(self):
+        if self.is_dev_mode:
+            self._ssh_client = self.ssh_manager.get_client()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self._ssh_client:
+            self._ssh_client.close()
+            self._ssh_client = None
 
     async def check_systemd_services(self, services):
-            """
-            Check the active status of multiple SystemD services.
-            """
-            results = {}
-            ssh_client = self.ssh_manager.get_client() if self.is_dev_mode else None
-            for service in services:
-                command = f'systemctl show -p ActiveState {service}'
-                try:
-                    output = await self._run_command(command, ssh_client)
-                    # Output format is "ActiveState=active", so we split and take the value
-                    status = output.strip().split('=')[1]
-                    results[service] = status
-                except Exception as e:
-                    self.logger.error(f"Failed to check status for service {service}: {str(e)}")
-                    results[service] = "error"
-            
-            return results
+        """
+        Check the active status of multiple SystemD services.
+        """
+        results = {}
+        for service in services:
+            command = f'systemctl show -p ActiveState {service}'
+            try:
+                output = await self._run_command(command)
+                # Output format is "ActiveState=active", so we split and take the value
+                status = output.strip().split('=')[1]
+                results[service] = status
+            except Exception as e:
+                self.logger.error(f"Failed to check status for service {service}: {str(e)}")
+                results[service] = "error"
+        
+        return results
 
     async def validate_and_restart_service(self, category):
         ssh_client = self.ssh_manager.get_client() if self.is_dev_mode else None
         try:
-            return await self._validate_and_restart_service(category, ssh_client)
+            return await self._validate_and_restart_service(category)
         finally:
             if ssh_client:
                 ssh_client.close()
 
-    async def _validate_and_restart_service(self, category, ssh=None):
+    async def _validate_and_restart_service(self, category):
         service_info = self.config_categories.get(category)
         if not service_info:
             self.logger.warning(f"No validation/restart configuration for category: {category}")
@@ -49,11 +59,11 @@ class ServiceValidator:
         
         try:
             # Validate configuration
-            validation_output = await self._run_command(service_info['validate_cmd'], ssh)
+            validation_output = await self._run_command(service_info['validate_cmd'])
             result['validation'] = {'success': True, 'output': validation_output}
             
             # Restart service
-            restart_output = await self._run_command(service_info['restart_cmd'], ssh)
+            restart_output = await self._run_command(service_info['restart_cmd'])
             result['restart'] = {'success': True, 'output': restart_output}
             
             self.logger.info(f"Validated and restarted service for category: {category}")
@@ -65,15 +75,17 @@ class ServiceValidator:
         
         return result
 
-    async def _run_command(self, command, ssh=None):
+    async def _run_command(self, command):
         if self.is_dev_mode:
-            return await self._run_remote_command(command, ssh)
+            return await self._run_remote_command(command)
         else:
             return await self._run_local_command(command)
 
-    async def _run_remote_command(self, command, ssh):
+    async def _run_remote_command(self, command):
+        if not self._ssh_client:
+            self._ssh_client = self.ssh_manager.get_client()
         try:
-            stdin, stdout, stderr = ssh.exec_command(command)
+            stdin, stdout, stderr = self._ssh_client.exec_command(command)
             
             # Read both stdout and stderr
             output = stdout.read().decode('utf-8').strip()

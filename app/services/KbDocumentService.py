@@ -17,22 +17,21 @@ class KbDocumentService:
     def set_openai_client(self, openai_client):
         self.openai_client = openai_client
 
-    def get_docs_by_kbId(self):
+    async def get_docs_by_kbId(self):
         try:
-            docs_cursor = self.db['kb_docs'].find({'kb_id': self.kb_id})
-            docs_list = [{'id': str(doc['_id']), **doc} for doc in docs_cursor]
-            for doc in docs_list:
-                if 'chunks' in doc:
-                    doc['chunks'] = [str(chunk_id) for chunk_id in doc['chunks']]
-                doc.pop('_id', None)
+            docs_list = []
+            async for doc in self.db['kb_docs'].find({'kb_id': self.kb_id}):
+                doc_dict = {'id': str(doc['_id']), **doc}
+                doc_dict.pop('_id', None)
+                docs_list.append(doc_dict)
             return docs_list
         except Exception as e:
             logging.error(f"Error getting docs by kbId: {str(e)}")
             raise
 
-    def delete_doc_by_id(self, doc_id):
+    async def delete_doc_by_id(self, doc_id):
         try:
-            doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
+            doc = await self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
             if doc:
                 embedded_sources = [
                     url_doc['metadata']['sourceURL']
@@ -40,7 +39,7 @@ class KbDocumentService:
                     if url_doc.get('isEmbedded', False)
                 ]
                 
-                self.db['kb_docs'].delete_one({'_id': ObjectId(doc_id)})
+                await self.db['kb_docs'].delete_one({'_id': ObjectId(doc_id)})
                 
                 return embedded_sources
             else:
@@ -53,9 +52,9 @@ class KbDocumentService:
             logging.error(f"Error deleting doc by id: {str(e)}")
             raise
 
-    def delete_page_by_source(self, doc_id, page_source):
+    async def delete_page_by_source(self, doc_id, page_source):
         try:
-            self.db['kb_docs'].update_one(
+            await self.db['kb_docs'].update_one(
                 {'_id': ObjectId(doc_id)},
                 {'$pull': {'content': {'metadata.sourceURL': page_source}}}
             )
@@ -63,7 +62,7 @@ class KbDocumentService:
             logging.error(f"Error deleting page by source: {str(e)}")
             raise
 
-    def handle_doc_db_update(self, source, doc_type, content, doc_id=None, additional_data=None):
+    async def handle_doc_db_update(self, source, doc_type, content, doc_id=None, additional_data=None):
         try:
             kb_doc = {
                 'type': doc_type,
@@ -77,18 +76,18 @@ class KbDocumentService:
                 kb_doc.update(additional_data)
 
             if doc_id:
-                result = self.db['kb_docs'].update_one(
+                result = await self.db['kb_docs'].update_one(
                     {'_id': ObjectId(doc_id)},
                     {'$set': kb_doc}
                 )
                 if result.matched_count > 0:
-                    updated_doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
+                    updated_doc = await self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
                     updated_doc['id'] = str(updated_doc.pop('_id'))
                     return updated_doc
                 else:
                     return 'not_found'
             else:
-                result = self.db['kb_docs'].insert_one(kb_doc)
+                result = await self.db['kb_docs'].insert_one(kb_doc)
                 kb_doc['id'] = str(result.inserted_id)
                 kb_doc.pop('_id', None)
                 return kb_doc
@@ -96,7 +95,7 @@ class KbDocumentService:
             logging.error(f"Error handling doc db update: {str(e)}")
             raise
 
-    def save_documents(self, documents, doc_id):
+    async def save_documents(self, documents, doc_id):
         try:
             update_list = []
             for page in documents:
@@ -110,11 +109,11 @@ class KbDocumentService:
                     }
                 })
 
-            updated_doc = self._bulk_update_document(doc_id, update_list)
+            updated_doc = await self._bulk_update_document(doc_id, update_list)
             
             # Calculate and update the new total token count
             new_total_token_count = sum(page.get('token_count', 0) for page in updated_doc['content'])
-            self.db['kb_docs'].update_one(
+            await self.db['kb_docs'].update_one(
                 {'_id': ObjectId(doc_id)},
                 {'$set': {'token_count': new_total_token_count}}
             )
@@ -126,12 +125,12 @@ class KbDocumentService:
             logging.error(f"Error saving documents: {str(e)}")
             raise
 
-    def embed_document(self, doc_id, specific_sources=None):
+    async def embed_document(self, doc_id, specific_sources=None):
         if not self.colbert_service:
             raise ValueError("ColbertService not initialized")
 
         try:
-            doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
+            doc = await self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
             if not doc:
                 raise ValueError(f"Document with id {doc_id} not found")
 
@@ -153,7 +152,7 @@ class KbDocumentService:
         
             result = self.colbert_service.process_content(prepared_documents)
             if 'index_path' in result:
-                self.update_knowledge_base(index_path=result['index_path'])
+                await self.update_knowledge_base(index_path=result['index_path'])
             else:
                 logging.info(f"Documents added to existing index: {result['message']}")
             
@@ -165,31 +164,30 @@ class KbDocumentService:
                 }
                 for url_doc in content_to_embed
             ]
-            return self._bulk_update_document(doc_id, update_list)
+            return await self._bulk_update_document(doc_id, update_list)
         except Exception as e:
             logging.error(f"Error embedding document: {str(e)}")
             raise
 
-    def generate_summaries(self, content):
+    async def generate_summaries(self, content):
         try:
             if not self.openai_client:
                 raise ValueError("OpenAiClient not initialized")
         
             if isinstance(content, str):
-                return [self.openai_client.summarize_content(content)]
+                return [await self.openai_client.summarize_content(content)]
             elif isinstance(content, list):
-                return [self.openai_client.summarize_content(url['content']) for url in content]
+                return [await self.openai_client.summarize_content(url['content']) for url in content]
             else:
                 return []
         except Exception as e:
             logging.error(f"Error generating summaries: {str(e)}")
             raise
     
-    def _bulk_update_document(self, doc_id, update_list):
+    async def _bulk_update_document(self, doc_id, update_list):
         try:
-            update_operations = []
-            for item in update_list:
-                update_operations.append(UpdateOne(
+            update_operations = [
+                UpdateOne(
                     {
                         '_id': ObjectId(doc_id),
                         'content.metadata.sourceURL': item['source']
@@ -197,14 +195,15 @@ class KbDocumentService:
                     {
                         '$set': item['update']
                     }
-                ))
+                ) for item in update_list
+            ]
 
-            result = self.db['kb_docs'].bulk_write(update_operations)
+            result = await self.db['kb_docs'].bulk_write(update_operations)
             
             if result.modified_count == 0:
                 raise ValueError(f"Failed to update document with id {doc_id}")
             
-            updated_doc = self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
+            updated_doc = await self.db['kb_docs'].find_one({'_id': ObjectId(doc_id)})
             updated_doc['id'] = str(updated_doc.pop('_id'))
             
             return updated_doc
@@ -213,9 +212,9 @@ class KbDocumentService:
             raise
 
     # Add this method to the KbDocumentService class
-    def is_document_embedded(self, doc_id, page_source):
+    async def is_document_embedded(self, doc_id, page_source):
         try:
-            result = self.db['kb_docs'].find_one(
+            result = await self.db['kb_docs'].find_one(
                 {'_id': ObjectId(doc_id), 'content.metadata.sourceURL': page_source},
                 {'content.$': 1}
             )
@@ -226,11 +225,11 @@ class KbDocumentService:
             logging.error(f"Error checking if document is embedded: {str(e)}")
             return False
     
-    def update_knowledge_base(self, **kwargs):
+    async def update_knowledge_base(self, **kwargs):
         try:
-            knowledge_base = self.db['knowledge_bases'].find_one({'_id': ObjectId(self.kb_id)})
+            knowledge_base = await self.db['knowledge_bases'].find_one({'_id': ObjectId(self.kb_id)})
             if knowledge_base:
-                self.db['knowledge_bases'].update_one({'_id': ObjectId(self.kb_id)}, {'$set': kwargs})
+                await self.db['knowledge_bases'].update_one({'_id': ObjectId(self.kb_id)}, {'$set': kwargs})
                 return 'knowledge base updated'
             else:
                 return 'knowledge base not found'

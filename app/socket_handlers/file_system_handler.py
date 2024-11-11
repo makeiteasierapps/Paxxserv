@@ -10,22 +10,23 @@ def get_db(db_name: str):
     except Exception as e:
         raise Exception(f"Database connection failed: {str(e)}")
 
-def get_system_service(data):
-    db = get_db(data.get('dbName'))
+async def get_system_service(data, system_state_manager) -> SystemService:
     uid = data.get('uid')
-    return SystemService(db, uid)
+    service = SystemService(system_state_manager, uid)
+    await service.initialize()
+    return service
 
-async def setup_file_system(sio, sid, data):
-    system_service = get_system_service(data)
+async def setup_file_system(sio, sid, data, system_state_manager):
+    system_service = await get_system_service(data, system_state_manager)
     filename = data.get('filename')
-    categories = system_service.config_categories
+    categories = system_service.system_manager.config_categories
     category_agent = CategoryAgent()
 
     try:
         await sio.emit('file_check_update', {'message': 'Checking if file exists...'}, room=sid)
         await asyncio.sleep(0.01)
 
-        does_exist = await system_service.check_if_config_file_exists_on_server(filename)
+        does_exist = await system_service.system_manager.check_if_config_file_exists_on_server(filename)
         
         await sio.emit('file_check_update', {'message': f'File exists: {does_exist}'}, room=sid)
         await asyncio.sleep(0.01)
@@ -58,7 +59,7 @@ def determine_category(category_agent, filename, categories):
         new_category = category_agent.create_new_category(filename)
         return new_category, True
 
-def setup_file_system_handlers(sio):
+def setup_file_system_handlers(sio, system_state_manager):
     @sio.on('file_check')
     async def setup_file_system_handler(sid, data):
-        await setup_file_system(sio, sid, data)
+        await setup_file_system(sio, sid, data, system_state_manager)

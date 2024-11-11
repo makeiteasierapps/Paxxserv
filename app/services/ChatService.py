@@ -5,7 +5,7 @@ class ChatService:
     def __init__(self, db):
         self.db = db
         
-    def create_chat_in_db(self, uid):
+    async def create_chat_in_db(self, uid):
         new_chat = {
             'uid': uid,
             'chat_name': 'New Chat',
@@ -13,10 +13,11 @@ class ChatService:
             'updated_at': datetime.utcnow()
         }
 
-        self.db['chats'].insert_one(new_chat)
+        result = await self.db['chats'].insert_one(new_chat)
+        new_chat['_id'] = result.inserted_id
         return new_chat
         
-    def get_all_chats(self, uid):
+    async def get_all_chats(self, uid):
         # Query the conversations collection for conversations belonging to the user
         chats_cursor = self.db['chats'].find({'uid': uid}).sort('created_at', -1)
         
@@ -31,36 +32,36 @@ class ChatService:
             else:
                 return obj
 
-        # Create a list of dictionaries with all fields, converting ObjectId to string
+        # Get all chats and convert to list
         chats = []
-        for conv in chats_cursor:
+        async for conv in chats_cursor:
             chat = convert_objectid(conv)
             chat['chatId'] = chat.pop('_id')  # Rename '_id' to 'chatId'
             chats.append(chat)
         return chats
 
-    def get_single_chat(self, uid, chat_id):
-        chat = self.db['chats'].find_one({'_id': ObjectId(chat_id), 'uid': uid})
+    async def get_single_chat(self, uid, chat_id):
+        chat = await self.db['chats'].find_one({'_id': ObjectId(chat_id), 'uid': uid})
         return chat if chat else None
 
-    def delete_chat(self, chat_id):
-        result = self.db['chats'].delete_one({'_id': ObjectId(chat_id)})
+    async def delete_chat(self, chat_id):
+        result = await self.db['chats'].delete_one({'_id': ObjectId(chat_id)})
         return result.deleted_count
 
-    def update_settings(self, chat_id, **kwargs):
+    async def update_settings(self, chat_id, **kwargs):
         """
         Updates a chat in the database with only the provided settings
         """
         update_fields = {k: v for k, v in kwargs.items() if v is not None}
         if update_fields:
-            update_result = self.db['chats'].update_one(
+            update_result = await self.db['chats'].update_one(
                 {'_id': ObjectId(chat_id)},
                 {'$set': update_fields}
             )
             return update_result
         return None
 
-    def create_message(self, chat_id, message_from, message_content, image_path=None):
+    async def create_message(self, chat_id, message_from, message_content, image_path=None):
         current_time = datetime.utcnow()
         new_message = {
             '_id': ObjectId(),
@@ -72,7 +73,7 @@ class ChatService:
         }
 
         # Update the chat document to append the new message and update the 'updated_at' field
-        self.db.chats.update_one(
+        await self.db.chats.update_one(
             {'_id': ObjectId(chat_id)}, 
             {
                 '$push': {'messages': new_message},
@@ -82,10 +83,9 @@ class ChatService:
 
         return new_message
 
-    def delete_all_messages(self, chat_id):
+    async def delete_all_messages(self, chat_id):
         # Update the chat document to clear the 'messages' array
-        self.db.chats.update_one(
+        await self.db.chats.update_one(
             {'_id': ObjectId(chat_id)},
             {'$set': {'messages': []}}
         )
-    
