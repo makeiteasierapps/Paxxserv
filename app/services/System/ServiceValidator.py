@@ -37,39 +37,40 @@ class ServiceValidator:
         
         return results
 
-    async def validate_and_restart_service(self, category):
+    async def validate_and_restart_service(self, test_command: str = None, restart_command: str = None):
         ssh_client = self.ssh_manager.get_client() if self.is_dev_mode else None
         try:
-            return await self._validate_and_restart_service(category)
+            return await self._validate_and_restart_service(test_command, restart_command)
         finally:
             if ssh_client:
                 ssh_client.close()
 
-    async def _validate_and_restart_service(self, category):
-        service_info = self.config_categories.get(category)
-        if not service_info:
-            self.logger.warning(f"No validation/restart configuration for category: {category}")
-            return {"success": True, "output": f"No validation/restart configuration for category: {category}"}
-
+    async def _validate_and_restart_service(self, test_command: str = None, restart_command: str = None):
         result = {
-            'category': category,
             'validation': {'success': False, 'output': ''},
             'restart': {'success': False, 'output': ''}
         }
+        print(test_command, restart_command)
         
         try:
-            # Validate configuration
-            validation_output = await self._run_command(service_info['validate_cmd'])
-            result['validation'] = {'success': True, 'output': validation_output}
+            # Validate configuration if test command exists
+            if test_command:
+                validation_output = await self._run_command(test_command)
+                result['validation'] = {'success': True, 'output': validation_output}
+            else:
+                result['validation'] = {'success': True, 'output': 'No test command configured'}
             
-            # Restart service
-            restart_output = await self._run_command(service_info['restart_cmd'])
-            result['restart'] = {'success': True, 'output': restart_output}
+            # Restart service if restart command exists
+            if restart_command:
+                restart_output = await self._run_command(restart_command)
+                result['restart'] = {'success': True, 'output': restart_output}
+            else:
+                result['restart'] = {'success': True, 'output': 'No restart command configured'}
             
-            self.logger.info(f"Validated and restarted service for category: {category}")
+            self.logger.info("Validated and restarted service successfully")
             result['success'] = True
         except Exception as e:
-            self.logger.error(f"Error during validation or restart for category {category}: {str(e)}")
+            self.logger.error(f"Error during validation or restart: {str(e)}")
             result['success'] = False
             result['error'] = str(e)
         

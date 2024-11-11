@@ -19,6 +19,7 @@ class SystemConfigDatabase:
         """Update restart and test commands for a specific config file"""
         # Build the update object dynamically based on provided values
         update_fields = {}
+        print(restart_command, test_command)
         if restart_command is not None:
             update_fields["config_files.$[elem].restart_command"] = restart_command
         if test_command is not None:

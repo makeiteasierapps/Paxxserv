@@ -53,17 +53,21 @@ class SystemStateManager:
             self.config_categories = {}
         self.service_validator = ServiceValidator(self.is_dev_mode, self.logger, self.config_categories)
 
-    async def update_file_commands(self, uid: str, file_path: str, restart_command: str = None, test_command: str = None) -> None:
-        """Update the restart and test commands for a specific config file"""
-        print(file_path, restart_command, test_command)
+    async def update_file_commands(self, uid: str, file_obj: dict):
+        """Update the restart and test commands for a specific file"""
         await self.config_db.check_if_user_authorized(uid)
-        await self.config_db.update_file_commands(file_path, restart_command, test_command)
-
-        if file_path in self.config_files:
-            if restart_command is not None:
-                self.config_files[file_path]['restart_command'] = restart_command
-            if test_command is not None:
-                self.config_files[file_path]['test_command'] = test_command
+        await self.config_db.update_file_commands(
+            file_path=file_obj['path'],
+            restart_command=file_obj.get('restart_command'),
+            test_command=file_obj.get('test_command')
+        )
+        
+        # Update in-memory state
+        if file_obj['path'] in self.config_files:
+            if 'restart_command' in file_obj:
+                self.config_files[file_obj['path']]['restart_command'] = file_obj['restart_command']
+            if 'test_command' in file_obj:
+                self.config_files[file_obj['path']]['test_command'] = file_obj['test_command']
 
     async def get_config_files(self):
         """Fetch config files from database"""
@@ -126,30 +130,36 @@ class SystemStateManager:
                 self.config_categories[category] = category_data
                 await self.config_db.update_config_categories(list(self.config_categories.values()))
 
-    async def update_config_file(self, file_path: str, content: str, category: str, uid: str):
+    async def update_config_file(self, file_obj: dict, uid: str):
         """Update a configuration file"""
         async with self._lock:
-            file_path = '/' + file_path.lstrip('/')
+            file_path = '/' + file_obj['path'].lstrip('/')
             ssh_client = self.ssh_manager.get_client() if self.is_dev_mode else None
             
             try:
                 # Write to file system
-                await self.config_file_manager.write_file(file_path, content, ssh_client)
+                await self.config_file_manager.write_file(file_path, file_obj['content'], ssh_client)
                 
                 # Update database
-                update_result = await self.config_db.update_or_insert_file(file_path, content, category)
+                update_result = await self.config_db.update_or_insert_file(
+                    file_path, 
+                    file_obj['content'], 
+                    file_obj['category']
+                )
                 
                 # Update in-memory state
                 self.config_files[file_path] = {
                     "path": file_path,
-                    "content": content,
-                    "category": category
+                    "content": file_obj['content'],
+                    "category": file_obj['category'],
+                    "restart_command": file_obj.get('restart_command'),
+                    "test_command": file_obj.get('test_command')
                 }
                 
                 self.logger.info(f"Database update result: matched={update_result.matched_count}, modified={update_result.modified_count}")
                 
                 # Handle service validation
-                validation_result = await self._handle_service_validation(category, file_path, uid)
+                validation_result = await self._handle_service_validation(file_obj, uid)
                 return validation_result
 
             except Exception as e:
@@ -159,17 +169,23 @@ class SystemStateManager:
                 if ssh_client:
                     ssh_client.close()
 
-    async def _handle_service_validation(self, category: str, file_path: str, uid: str):
+    async def _handle_service_validation(self, file_obj: dict, uid: str):
         """Handle service validation and restart"""
-        if category in self.config_categories:
-            validation_result = await self.service_validator.validate_and_restart_service(category)
+        test_command = file_obj.get('test_command')
+        restart_command = file_obj.get('restart_command')
+        
+        if test_command or restart_command:
+            validation_result = await self.service_validator.validate_and_restart_service(
+                test_command=test_command,
+                restart_command=restart_command
+            )
             if not validation_result['success']:
                 return {"message": "Configuration validation failed", "details": validation_result}
         else:
-            validation_result = {"success": True, "output": f"No validation/restart configuration for category: {category}"}
-            self.logger.warning(f"No validation/restart configuration for category: {category}")
+            validation_result = {"success": True, "output": "No validation/restart commands configured"}
+            self.logger.info("No validation/restart commands configured for this file")
         
-        self.logger.info(f"User {uid} updated file {file_path}")
+        self.logger.info(f"User {uid} updated file {file_obj['path']}")
         return {"message": "Configuration updated successfully", "details": validation_result}
 
     async def read_config_file(self, filename: str):

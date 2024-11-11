@@ -10,13 +10,15 @@ router = APIRouter()
 
 class FileCommandsUpdate(BaseModel):
     path: str
-    restartCommand: Optional[str] = None
-    testCommand: Optional[str] = None 
+    restart_command: Optional[str] = None
+    test_command: Optional[str] = None 
 
 class ConfigFileUpdate(BaseModel):
     path: str
     content: str
     category: str
+    restart_command: Optional[str] = None
+    test_command: Optional[str] = None   
 
 class FileCheckRequest(BaseModel):
     filename: str
@@ -48,12 +50,8 @@ async def update_file_commands(
     file_commands: FileCommandsUpdate,
     system_service: SystemService = Depends(get_system_service)
 ):
-    # Convert camelCase to snake_case for internal use
-    await system_service.update_file_commands(
-        file_path=file_commands.path,
-        restart_command=file_commands.restartCommand,
-        test_command=file_commands.testCommand
-    )
+
+    await system_service.update_file_commands(file_commands.dict())
     return {"status": "success"}
 @router.get('/system-health')
 async def get_system_health(
@@ -92,9 +90,9 @@ async def write_config_file(
     file_update: ConfigFileUpdate,
     system_service: SystemService = Depends(get_system_service)
 ):
+    print(file_update.dict())
     try:
-        result = await system_service.write_config_file(file_update.path, file_update.content, file_update.category)
-        print(result)
+        result = await system_service.write_config_file(file_update.dict())
         return JSONResponse(content=result, status_code=200)
     except HTTPException as he:
         raise he
