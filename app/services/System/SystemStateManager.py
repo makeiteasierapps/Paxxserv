@@ -53,6 +53,18 @@ class SystemStateManager:
             self.config_categories = {}
         self.service_validator = ServiceValidator(self.is_dev_mode, self.logger, self.config_categories)
 
+    async def update_file_commands(self, uid: str, file_path: str, restart_command: str = None, test_command: str = None) -> None:
+        """Update the restart and test commands for a specific config file"""
+        print(file_path, restart_command, test_command)
+        await self.config_db.check_if_user_authorized(uid)
+        await self.config_db.update_file_commands(file_path, restart_command, test_command)
+
+        if file_path in self.config_files:
+            if restart_command is not None:
+                self.config_files[file_path]['restart_command'] = restart_command
+            if test_command is not None:
+                self.config_files[file_path]['test_command'] = test_command
+
     async def get_config_files(self):
         """Fetch config files from database"""
         config_data = await self.config_db.config_collection.find_one({})

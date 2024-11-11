@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Request, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -7,6 +7,11 @@ from app.agents.SystemAgent import SystemAgent
 from app.services.System.SystemIndexManager import SystemIndexManager
 from app.services.ColbertService import ColbertService
 router = APIRouter()
+
+class FileCommandsUpdate(BaseModel):
+    path: str
+    restartCommand: Optional[str] = None
+    testCommand: Optional[str] = None 
 
 class ConfigFileUpdate(BaseModel):
     path: str
@@ -38,6 +43,18 @@ async def get_system_service(
     await service.initialize()
     return service
 
+@router.put('/file-commands')
+async def update_file_commands(
+    file_commands: FileCommandsUpdate,
+    system_service: SystemService = Depends(get_system_service)
+):
+    # Convert camelCase to snake_case for internal use
+    await system_service.update_file_commands(
+        file_path=file_commands.path,
+        restart_command=file_commands.restartCommand,
+        test_command=file_commands.testCommand
+    )
+    return {"status": "success"}
 @router.get('/system-health')
 async def get_system_health(
     system_service: SystemService = Depends(get_system_service)

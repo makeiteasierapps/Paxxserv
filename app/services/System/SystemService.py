@@ -19,6 +19,10 @@ class SystemService:
             self.system_manager.logger.error(f"User {self.uid} is not authorized to access this resource")
             raise e
 
+    async def update_file_commands(self, file_path: str, restart_command: str = None, test_command: str = None):
+        """Update the restart and test commands for a specific config file"""
+        await self.system_manager.update_file_commands(self.uid, file_path, restart_command, test_command)
+
     async def write_config_file(self, file_path: str, content: str, category: str):
         """Write content to a configuration file"""
         return await self.system_manager.update_config_file(file_path, content, category, self.uid)

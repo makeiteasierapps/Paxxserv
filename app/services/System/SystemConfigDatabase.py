@@ -15,13 +15,25 @@ class SystemConfigDatabase:
             raise HTTPException(status_code=403, detail="User not authorized for system operations")
         return True
 
+    async def update_file_commands(self, file_path: str, restart_command: str = None, test_command: str = None) -> UpdateResult:
+        """Update restart and test commands for a specific config file"""
+        # Build the update object dynamically based on provided values
+        update_fields = {}
+        if restart_command is not None:
+            update_fields["config_files.$[elem].restart_command"] = restart_command
+        if test_command is not None:
+            update_fields["config_files.$[elem].test_command"] = test_command
+        
+        return await self.config_collection.update_one(
+            {},
+            {"$set": update_fields},
+            array_filters=[{"elem.path": file_path}]
+        )
+
     async def update_or_insert_file(self, file_path: str, content: str, category: str) -> UpdateResult:
         """Update or insert a config file in the database"""
         return await self.config_collection.update_one(
-            {
-                "type": "system_config",
-                "config_files.path": file_path
-            },
+            {"config_files.path": file_path},
             {
                 "$set": {
                     "config_files.$.content": content,
@@ -34,7 +46,7 @@ class SystemConfigDatabase:
     async def update_combined_files(self, combined_files: List[Dict[str, Any]]) -> UpdateResult:
         """Update combined files in the database"""
         return await self.config_collection.update_one(
-            {"type": "system_config"},
+            {},
             {"$set": {"combined_files": combined_files}},
             upsert=True
         )
@@ -42,7 +54,7 @@ class SystemConfigDatabase:
     async def update_config_categories(self, categories: List[Dict[str, Any]]) -> UpdateResult:
         """Update config categories in the database"""
         return await self.config_collection.update_one(
-            {"type": "system_config"},
+            {},
             {"$set": {"config_categories": categories}},
             upsert=True
         )
@@ -50,13 +62,13 @@ class SystemConfigDatabase:
     async def get_files_by_category(self, category: str) -> Optional[Dict[str, Any]]:
         """Get files by category"""
         return await self.config_collection.find_one(
-            {"type": "system_config", "config_files.category": category}
+            {"config_files.category": category}
         )
 
     async def get_index_path(self) -> Optional[str]:
         """Get index path from config"""
         try:
-            config = await self.config_collection.find_one({"type": "system_config"})
+            config = await self.config_collection.find_one({})
             return config.get('index_path', None) if config else None
         except Exception as e:
             raise Exception(f"Error getting index path: {str(e)}")
@@ -65,7 +77,7 @@ class SystemConfigDatabase:
         """Add or update index path"""
         try:
             await self.config_collection.update_one(
-                {"type": "system_config"},
+                {},
                 {"$set": {"index_path": index_path}},
                 upsert=True
             )
