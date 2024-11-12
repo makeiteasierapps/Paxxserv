@@ -1,6 +1,6 @@
 dspy-ai
 python-dotenv
-pymongo[srv]
+pymongo
 firebase-admin
 newspaper3k
 requests
