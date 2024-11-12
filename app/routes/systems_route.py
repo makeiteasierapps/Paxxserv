@@ -98,3 +98,16 @@ async def write_config_file(
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An error occurred while writing to the config file: {str(e)}")
+    
+@router.post('/config-files')
+async def create_config_file(
+    file_update: ConfigFileUpdate,
+    system_service: SystemService = Depends(get_system_service)
+):
+    try:
+        await system_service.create_config_file(file_update.dict())
+        return JSONResponse(content=file_update.dict(), status_code=200)
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"An error occurred while creating the config file: {str(e)}")

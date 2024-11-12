@@ -23,6 +23,10 @@ class SystemService:
         """Update the restart and test commands for a specific file"""
         await self.system_manager.update_file_commands(self.uid, file_obj)
 
+    async def create_config_file(self, file_obj: dict):
+        """Create a configuration file"""
+        return await self.system_manager.create_config_file(file_obj['path'], file_obj['content'], file_obj['category'])
+
     async def write_config_file(self, file_obj: dict):
         """Write configuration file using file object"""
         return await self.system_manager.update_config_file(file_obj, self.uid)

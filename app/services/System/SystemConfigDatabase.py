@@ -1,6 +1,6 @@
 from fastapi import HTTPException
-from typing import List, Dict, Any, Optional
-from pymongo.results import UpdateResult
+from typing import List, Dict, Any, Optional, Union
+from pymongo.results import UpdateResult, InsertOneResult
 
 class SystemConfigDatabase:
     def __init__(self, mongo_client):
@@ -31,8 +31,8 @@ class SystemConfigDatabase:
             array_filters=[{"elem.path": file_path}]
         )
 
-    async def update_or_insert_file(self, file_path: str, content: str, category: str) -> UpdateResult:
-        """Update or insert a config file in the database"""
+    async def update_file(self, file_path: str, content: str, category: str) -> UpdateResult:
+        """Update a config file in the database"""
         return await self.config_collection.update_one(
             {"config_files.path": file_path},
             {
@@ -40,9 +40,36 @@ class SystemConfigDatabase:
                     "config_files.$.content": content,
                     "config_files.$.category": category
                 }
+            }
+        )
+
+    async def insert_file(self, file_path: str, content: str, category: str) -> UpdateResult:
+        """Insert a new config file into the existing document's config_files array"""
+        return await self.config_collection.update_one(
+            {},
+            {
+                "$push": {
+                    "config_files": {
+                        "path": file_path,
+                        "content": content,
+                        "category": category
+                    }
+                }
             },
             upsert=True
         )
+
+    async def update_or_insert_file(self, file_path: str, content: str, category: str) -> Union[UpdateResult, InsertOneResult]:
+        """Update or insert a config file based on existence"""
+        # Check if the file exists
+        existing_file = await self.config_collection.find_one({"config_files.path": file_path})
+
+        if existing_file:
+            # Update the file if it exists
+            return await self.update_file(file_path, content, category)
+        else:
+            # Insert a new file if it doesn't exist
+            return await self.insert_file(file_path, content, category)
 
     async def update_combined_files(self, combined_files: List[Dict[str, Any]]) -> UpdateResult:
         """Update combined files in the database"""

@@ -205,3 +205,13 @@ class SystemStateManager:
         finally:
             if ssh_client:
                 ssh_client.close()
+
+    async def create_config_file(self, path: str, content: str, category: str):
+        """Create a configuration file"""
+        ssh_client = self.ssh_manager.get_client() if self.is_dev_mode else None
+        try:
+            await self.config_db.update_or_insert_file(path, content, category)
+            return await self.config_file_manager.create_file(path, ssh_client)
+        finally:
+            if ssh_client:
+                ssh_client.close()
