@@ -69,7 +69,7 @@ async def get_config_files(
     colbert_service: ColbertService = Depends(get_colbert_service)
 ):
     try:
-        config_files = await system_service.system_manager.get_config_files()
+        config_files = system_service.get_config_files()
         # system_index_manager = SystemIndexManager(system_service, colbert_service)
         # prepared_data = system_index_manager.prepare_config_files_for_indexing()
         # index_result = system_index_manager.create_system_index(prepared_data)

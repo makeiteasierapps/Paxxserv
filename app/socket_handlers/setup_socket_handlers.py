@@ -7,4 +7,4 @@ def setup_socket_handlers(sio, app):
     setup_chat_handlers(sio)
     setup_document_handlers(sio)
     setup_file_system_handlers(sio, app.state.system_state_manager)
-    setup_system_agent_handlers(sio)
+    setup_system_agent_handlers(sio, app.state.system_state_manager)

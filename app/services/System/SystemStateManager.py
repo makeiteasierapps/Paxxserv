@@ -24,7 +24,7 @@ class SystemStateManager:
         
         # Shared state
         self.config_files: Dict = {}
-        self.config_categories: Dict = {}
+        self.config_categories: List[str] = []
         
         # Managers
         self.ssh_manager = SSHManager(self.is_dev_mode, self.logger)
@@ -42,15 +42,14 @@ class SystemStateManager:
 
     async def initialize(self):
         """Load initial configuration from database"""
-        print(self.config_db.config_collection)
         # Find all documents in the collection
         config_data = await self.config_db.config_collection.find_one({})
         if config_data:
             self.config_files = {file['path']: file for file in config_data.get('config_files', [])}
-            self.config_categories = {cat['name']: cat for cat in config_data.get('config_categories', [])}
+            self.config_categories = list(set(file['category'] for file in config_data.get('config_files', [])))
         else:
             self.config_files = {}
-            self.config_categories = {}
+            self.config_categories = []
         self.service_validator = ServiceValidator(self.is_dev_mode, self.logger, self.config_categories)
 
     async def update_file_commands(self, uid: str, file_obj: dict):
@@ -71,8 +70,11 @@ class SystemStateManager:
 
     async def get_config_files(self):
         """Fetch config files from database"""
-        config_data = await self.config_db.config_collection.find_one({})
-        return config_data.get('config_files', []) if config_data else []
+        return self.config_files
+
+    async def get_config_categories(self):
+        """Get all configuration categories"""
+        return self.config_categories
 
     def get_systemd_services(self) -> List[str]:
         """Get list of SystemD service file names"""
@@ -83,9 +85,17 @@ class SystemStateManager:
         ]
         return file_names
 
+    def get_config_files_as_list(self) -> List[Dict[str, str]]:
+        """Convert config files dictionary to a list of file objects"""
+        return list(self.config_files.values())
+    
     def check_systemd_services(self):
         """Check status of SystemD services"""
         return self.service_validator.check_systemd_services(self.get_systemd_services())
+
+    async def get_config_files_by_category(self, category: str):
+        """Get config files by category"""
+        return await self.config_db.get_files_by_category(category)
 
     async def combine_config_files_by_category(self):
         """Combine and update config files by category"""
@@ -116,19 +126,6 @@ class SystemStateManager:
             # Update database
             await self.config_db.update_combined_files(combined_files)
             return combined_files
-
-    async def add_new_config_category(self, category: str, key: str, validate_cmd: str, restart_cmd: str):
-        """Add a new configuration category"""
-        async with self._lock:
-            if category not in self.config_categories:
-                category_data = {
-                    'name': category,
-                    'key': key,
-                    'validate_cmd': validate_cmd,
-                    'restart_cmd': restart_cmd
-                }
-                self.config_categories[category] = category_data
-                await self.config_db.update_config_categories(list(self.config_categories.values()))
 
     async def update_config_file(self, file_obj: dict, uid: str):
         """Update a configuration file"""

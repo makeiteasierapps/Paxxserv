@@ -28,7 +28,7 @@ class ServiceValidator:
             command = f'systemctl show -p ActiveState {service}'
             try:
                 output = await self._run_command(command)
-                # Output format is "ActiveState=active", so we split and take the value
+                # Output format is "ActiveState=active"
                 status = output.strip().split('=')[1]
                 results[service] = status
             except Exception as e:
@@ -99,9 +99,7 @@ class ServiceValidator:
             exit_status = stdout.channel.recv_exit_status()
             if exit_status != 0:
                 raise Exception(f"Command failed with exit status {exit_status}: {full_output}")
-            
-            self.logger.info(f"Command executed successfully on remote: {command}")
-            self.logger.info(f"Command output: {full_output}")
+
             return full_output
         except Exception as e:
             self.logger.error(f"Error executing remote command {command}: {str(e)}")

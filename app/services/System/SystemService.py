@@ -50,7 +50,15 @@ class SystemService:
     async def combine_config_files_by_category(self):
         """Combine and update config files by category"""
         return await self.system_manager.combine_config_files_by_category()
+    
+    async def get_config_categories(self):
+        """Get all configuration categories"""
+        return await self.system_manager.get_config_categories()
 
-    async def add_new_config_category(self, category: str, key: str, validate_cmd: str, restart_cmd: str):
-        """Add a new configuration category"""
-        return await self.system_manager.add_new_config_category(category, key, validate_cmd, restart_cmd)
+    async def get_config_files_by_category(self, category: str):
+        """Get config files by category"""
+        return await self.system_manager.get_config_files_by_category(category)
+
+    def get_config_files(self):
+        """Get all configuration files"""
+        return self.system_manager.get_config_files_as_list()

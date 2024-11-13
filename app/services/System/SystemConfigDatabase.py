@@ -79,19 +79,19 @@ class SystemConfigDatabase:
             upsert=True
         )
 
-    async def update_config_categories(self, categories: List[Dict[str, Any]]) -> UpdateResult:
-        """Update config categories in the database"""
-        return await self.config_collection.update_one(
-            {},
-            {"$set": {"config_categories": categories}},
-            upsert=True
-        )
-
-    async def get_files_by_category(self, category: str) -> Optional[Dict[str, Any]]:
+    async def get_files_by_category(self, category: str) -> List[Dict[str, str]]:
         """Get files by category"""
-        return await self.config_collection.find_one(
+        document = await self.config_collection.find_one(
             {"config_files.category": category}
         )
+        if not document:
+            return []
+
+        matching_files = [
+            file for file in document.get('config_files', [])
+            if file.get('category') == category
+        ]
+        return matching_files
 
     async def get_index_path(self) -> Optional[str]:
         """Get index path from config"""
