@@ -7,37 +7,38 @@ load_dotenv()
 
 class SystemCategoryRoutingSignature(Signature):
     """
-    From a user query and a list of categories, return a list of categories relevant to the user query.
+    Direct the user to where they need to go.
     """
     user_query: str = InputField()
-    category_list: List[str] = InputField()
-    categories_list: List[str] = OutputField()
+    users_file_categories: List[str] = InputField()
+    suggested_categories_list: List[str] = OutputField()
 
 class SystemFileRoutingSignature(Signature):
     """
-    From a user query and a list of files, return a list of files relevant to the user query.
+    Direct the user to the file(s) they need.
     """
     user_query: str = InputField()
-    file_list: List[str] = InputField()
-    files_list: List[str] = OutputField()
+    users_file_paths: List[str] = InputField()
+    suggested_file_paths_list: List[str] = OutputField()
 
 class SystemAgent:
     def __init__(self):
         self.openai_key = os.getenv('OPENAI_API_KEY')
 
         try:
-            lm = LM('openai/gpt-4o')
+            lm = LM('openai/gpt-4o-mini')
             configure(lm=lm)
         except Exception as e:
             print(f"Failed to initialize dspy: {e}")
 
     def category_routing(self, user_query, category_list):
+        print(category_list)
         category_routing = Predict(SystemCategoryRoutingSignature)
-        result_pred = category_routing(user_query=user_query, category_list=category_list)
-        return result_pred.categories_list
+        result_pred = category_routing(user_query=user_query, users_file_categories=category_list)
+        return result_pred.suggested_categories_list
 
     def file_routing(self, user_query, file_list):
         file_routing = Predict(SystemFileRoutingSignature)
-        result_pred = file_routing(user_query=user_query, file_list=file_list)
-        return result_pred.files_list
+        result_pred = file_routing(user_query=user_query, users_file_paths=file_list)
+        return result_pred.suggested_file_paths_list
 
