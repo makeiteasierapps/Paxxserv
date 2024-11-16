@@ -38,8 +38,8 @@ def create_boss_agent(chat_settings, sio, db, uid, profile_service):
         ai_client = OpenAiClient(db, uid)
 
     boss_agent = BossAgent(
-        ai_client=ai_client,
-        sio=sio,
+        ai_client,
+        sio,
         model=model,
         chat_constants=chat_constants,
         user_analysis=user_analysis
@@ -86,7 +86,6 @@ async def handle_chat(sio, sid, data):
         await chat_service.create_message(chat_id, 'user', user_message, image_path)
         async def save_agent_message(chat_id, message):
             await chat_service.create_message(chat_id, 'agent', message)
-            await sio.emit('agent_message', {"type": "agent_message", "content": message})
 
         if kb_id:
             kb_service = KnowledgeBaseService(db, uid, kb_id)
@@ -97,9 +96,11 @@ async def handle_chat(sio, sid, data):
         if urls:
             kb_document_service = KbDocumentService(db, kb_id)
             extraction_service = ExtractionService(db, uid, kb_document_service)
-            system_message = handle_extraction(urls, extraction_service, boss_agent)
+            url_content = handle_extraction(urls, extraction_service, boss_agent)
+            if url_content:
+                boss_agent.chat_constants += "\n" + url_content
 
-        await boss_agent.process_message(data['chatHistory'], chat_id, user_message, system_message, save_agent_message, image_blob)
+        await boss_agent.process_message(data['chatHistory'], chat_id, user_message, save_agent_message, image_blob)
 
     except Exception as e:
         await sio.emit('error', {"error": str(e)})

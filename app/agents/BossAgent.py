@@ -4,7 +4,7 @@ from app.agents.AnthropicClient import AnthropicClient
 from app.utils.token_counter import token_counter
 
 class BossAgent:
-    def __init__(self, ai_client,  model='gpt-4o-mini',chat_constants=None, user_analysis=None, sio=None):
+    def __init__(self, ai_client, sio, model='gpt-4o-mini', chat_constants=None, user_analysis=None, event_name='chat_response'):
         self.ai_client = ai_client
         self.sio = sio
         self.is_initialized = True
@@ -13,8 +13,9 @@ class BossAgent:
         self.user_analysis = user_analysis
         self.image_path = None
         self.token_counter = token_counter
+        self.event_name = event_name
 
-    async def handle_streaming_response(self, chat_id, new_chat_history, save_callback=None, system_message=None):
+    async def handle_streaming_response(self, chat_id, new_chat_history, save_callback=None):
         system_content = f'''
             ***USER ANALYSIS***
             {self.user_analysis}
@@ -23,9 +24,7 @@ class BossAgent:
             {self.chat_constants}
             **************
         '''
-        if system_message:
-            system_content += f"\n{system_message}"
-        
+
         response = None
         if isinstance(self.ai_client, OpenAiClient):
             openai_messages = [{
@@ -100,8 +99,7 @@ class BossAgent:
         formatted_message = self.format_stream_message(response_chunk, stream_state['inside_code_block'], stream_state['language'])
         formatted_message['room'] = chat_id
         response_chunks.append(formatted_message)
-        if self.sio:
-            await self.sio.emit('chat_response', formatted_message)
+        await self.sio.emit(self.event_name, formatted_message)
 
     def collapse_response_chunks(self, response_chunks):
         collapsed_response = []
@@ -125,8 +123,7 @@ class BossAgent:
             'image_path': self.image_path
         }
         
-        if self.sio:
-            await self.sio.emit('chat_response', end_stream_obj)
+        await self.sio.emit(self.event_name, end_stream_obj)
 
     def format_stream_message(self, message, inside_code_block, language):
         if inside_code_block:
@@ -141,10 +138,10 @@ class BossAgent:
                 'content': message,
             }
 
-    async def process_message(self, chat_history, chat_id, user_message, system_message=None, save_callback=None, image_blob=None):
+    async def process_message(self, chat_history, chat_id, user_message, save_callback=None, image_blob=None):
         new_chat_history = self.manage_chat(chat_history, user_message, image_blob)
-        await self.handle_streaming_response(chat_id, new_chat_history, save_callback, system_message)
-     
+        await self.handle_streaming_response(chat_id, new_chat_history, save_callback)
+
     def manage_chat(self, chat_history, new_user_message, image_blob=None):
         """
         Takes a chat object extracts x amount of tokens and returns a message
@@ -208,5 +205,4 @@ class BossAgent:
             'content': query_instructions
         }
         return system_message
-    
-    
+
