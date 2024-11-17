@@ -1,9 +1,17 @@
 import os
 from typing import List
-from dspy import Signature, InputField, OutputField, LM, configure, Predict
+from dspy import Signature, InputField, OutputField, LM, configure, Predict, ChainOfThought
 
 from dotenv import load_dotenv
 load_dotenv()
+
+class QueryClassifierSignature(Signature):
+    """
+    From a user query, determine their needs.
+    """
+    user_query: str = InputField()
+    requires_AI_response: bool = OutputField()
+    needs_system_files: bool = OutputField()
 
 class SystemCategoryRoutingSignature(Signature):
     """
@@ -32,7 +40,6 @@ class SystemAgent:
             print(f"Failed to initialize dspy: {e}")
 
     def category_routing(self, user_query, category_list):
-        print(category_list)
         category_routing = Predict(SystemCategoryRoutingSignature)
         result_pred = category_routing(user_query=user_query, users_file_categories=category_list)
         return result_pred.suggested_categories_list
@@ -41,4 +48,9 @@ class SystemAgent:
         file_routing = Predict(SystemFileRoutingSignature)
         result_pred = file_routing(user_query=user_query, users_file_paths=file_list)
         return result_pred.suggested_file_paths_list
+    
+    def query_classifier(self, user_query):
+        query_classifier = ChainOfThought(QueryClassifierSignature)
+        result_pred = query_classifier(user_query=user_query)
+        return result_pred.requires_AI_response, result_pred.needs_system_files
 
