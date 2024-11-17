@@ -41,7 +41,6 @@ async def run_system_agent(sio, sid, data, system_state_manager):
     try:
         uid = data.get('uid')
         query = data.get('content')
-        print(f'query: {query}')
         system_agent = SystemAgent()
         requires_AI_response, needs_system_files = system_agent.query_classifier(query)
         

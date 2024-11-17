@@ -1,6 +1,6 @@
 import os
 from typing import List
-from dspy import Signature, InputField, OutputField, LM, configure, Predict, ChainOfThought
+from dspy import Signature, InputField, OutputField, LM, configure, Predict
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -50,7 +50,7 @@ class SystemAgent:
         return result_pred.suggested_file_paths_list
     
     def query_classifier(self, user_query):
-        query_classifier = ChainOfThought(QueryClassifierSignature)
+        query_classifier = Predict(QueryClassifierSignature)
         result_pred = query_classifier(user_query=user_query)
         return result_pred.requires_AI_response, result_pred.needs_system_files
 
