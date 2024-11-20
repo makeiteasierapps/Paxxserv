@@ -60,7 +60,7 @@ async def delete_chat(data: DeleteChatData, chat_service: ChatService = Depends(
 @router.patch("/chat/update_settings")
 async def update_settings(data: UpdateSettingsData, chat_service: ChatService = Depends(get_chat_service)):
     chat_service, _ = chat_service
-    chat_service.update_settings(data.chatId, **data.model_dump(exclude={'chatId', 'uid'}))
+    await chat_service.update_settings(data.chatId, **data.model_dump(exclude={'chatId', 'uid'}))
     return JSONResponse(content={'message': 'Conversation settings updated'})
 
 @router.delete("/messages")
