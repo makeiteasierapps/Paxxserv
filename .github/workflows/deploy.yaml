@@ -18,8 +18,7 @@ jobs:
         chmod +x cloudflared
         
         # Login and run remote commands through the tunnel
-        echo $CLOUDFLARE_TOKEN | ./cloudflared tunnel token
-        ./cloudflared tunnel --token $CLOUDFLARE_TOKEN run << 'EOF'
+        ./cloudflared tunnel run --token "$CLOUDFLARE_TOKEN" << 'EOF'
           cd ~/projects/paxxserv
           
           # Store the old requirements.txt hash
