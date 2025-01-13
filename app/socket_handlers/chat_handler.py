@@ -79,9 +79,7 @@ async def handle_chat(sio, sid, data):
 
         image_path = None
         if image_blob:
-            image_info = await LocalStorageService.upload_file_async(image_blob, uid, 'chats', file_name)
-            image_path = image_info['path']
-            boss_agent.image_path = image_path
+            await LocalStorageService.upload_file_async(image_blob, uid, 'chats', file_name)
 
         await chat_service.create_message(chat_id, 'user', user_message, image_path)
         async def save_agent_message(chat_id, message):
