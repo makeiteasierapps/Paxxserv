@@ -16,14 +16,13 @@ jobs:
         username: gravitaskillis
         port: 22
         key: ${{ secrets.SERVER_SSH_KEY }}
-        command_timeout: "20m"
         script: |
-          cd ~/projects/paxxserv || exit 1
+          cd ~/projects/paxxserv
           
           # Store the old requirements.txt hash
           OLD_HASH=$(md5sum requirements.txt 2>/dev/null | awk '{ print $1 }')
           
-          git pull || exit 1
+          git pull
           
           # Check if requirements.txt has changed
           NEW_HASH=$(md5sum requirements.txt | awk '{ print $1 }')
