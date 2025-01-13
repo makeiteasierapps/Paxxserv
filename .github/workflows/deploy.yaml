@@ -17,8 +17,9 @@ jobs:
         curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
         chmod +x cloudflared
         
-        # Run remote commands through the tunnel
-        ./cloudflared tunnel run-command ${{ secrets.TUNNEL_ID }} << 'EOF'
+        # Login and run remote commands through the tunnel
+        echo $CLOUDFLARE_TOKEN | ./cloudflared tunnel token
+        ./cloudflared tunnel --token $CLOUDFLARE_TOKEN run << 'EOF'
           cd ~/projects/paxxserv
           
           # Store the old requirements.txt hash
