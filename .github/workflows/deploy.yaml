@@ -9,14 +9,16 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-    - name: Deploy to server
-      uses: appleboy/ssh-action@master
-      with:
-        host: ssh.paxxium.com
-        username: gravitaskillis
-        port: 22
-        key: ${{ secrets.SERVER_SSH_KEY }}
-        script: |
+    - name: Deploy using cloudflared
+      env:
+        CLOUDFLARE_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN }}
+      run: |
+        # Install cloudflared
+        curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+        chmod +x cloudflared
+        
+        # Run remote commands through the tunnel
+        ./cloudflared tunnel run-command ${{ secrets.TUNNEL_ID }} << 'EOF'
           cd ~/projects/paxxserv
           
           # Store the old requirements.txt hash
@@ -28,30 +30,15 @@ jobs:
           NEW_HASH=$(md5sum requirements.txt | awk '{ print $1 }')
           
           if [ "$OLD_HASH" != "$NEW_HASH" ]; then
-            echo "requirements.txt has changed. Rebuilding virtual environment."
-            
-            # Remove existing venv if it exists
-            rm -rf venv
-            
-            # Create a new virtual environment
-            python3 -m venv venv
-            
-            # Activate the virtual environment
+            echo "requirements.txt has changed. Updating packages..."
             source venv/bin/activate
-            
-            # Upgrade pip
             pip install --upgrade pip
-            
-            # Install packages from requirements.txt
             pip install -r requirements.txt
-            
-            # Deactivate the virtual environment
             deactivate
-            
-            echo "Virtual environment rebuilt with updated packages."
+            echo "Packages updated successfully."
           else
             echo "No changes in requirements.txt. Skipping package updates."
           fi
           
-          # Restart the service
-          sudo /bin/systemctl restart paxxserv.service
+          sudo systemctl restart paxxserv.service
+EOF
