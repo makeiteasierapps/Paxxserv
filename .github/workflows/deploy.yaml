@@ -9,10 +9,21 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+    - name: Install cloudflared
+      run: |
+        curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+        sudo dpkg -i cloudflared.deb
+        
+    - name: Configure SSH
+      run: |
+        mkdir -p ~/.ssh
+        echo "ProxyCommand cloudflared access tcp --hostname ssh.paxxium.com" > ~/.ssh/config
+        chmod 600 ~/.ssh/config
+
     - name: Deploy to server
       uses: appleboy/ssh-action@master
       with:
-        host: ssh.paxxium.com
+        host: paxxium.com
         username: gravitaskillis
         port: 22
         key: ${{ secrets.SERVER_SSH_KEY }}
