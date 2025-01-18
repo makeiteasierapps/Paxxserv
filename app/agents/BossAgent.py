@@ -4,12 +4,12 @@ from app.agents.AnthropicClient import AnthropicClient
 from app.utils.token_counter import token_counter
 
 class BossAgent:
-    def __init__(self, ai_client, sio, model='gpt-4o-mini', chat_constants=None, user_analysis=None, event_name='chat_response'):
+    def __init__(self, ai_client, sio, model='gpt-4o-mini', system_message=None, user_analysis=None, event_name='chat_response'):
         self.ai_client = ai_client
         self.sio = sio
         self.is_initialized = True
         self.model = model
-        self.chat_constants = chat_constants
+        self.system_message = system_message
         self.user_analysis = user_analysis
         self.image_path = None
         self.token_counter = token_counter
@@ -21,7 +21,7 @@ class BossAgent:
             {self.user_analysis}
             **************
             ***THINGS TO REMEMBER***
-            {self.chat_constants}
+            {self.system_message}
             **************
         '''
 
@@ -184,25 +184,17 @@ class BossAgent:
                     },
                 ],
             })
-        else:
-            formatted_messages.append({
-                "role": "user",
-                "content": new_user_message,
-            })
         
         return formatted_messages
 
     def prepare_url_content_for_ai(self, url_content):
         query_instructions = f'''
-        \nAnswer the users question using the content from the url they are interested in.
+        <<URL_CONTENT_START>>
+        Answer the users question using the content from the url they are interested in.
         URL: {url_content['source_url']}
         CONTENT: {url_content['content']}
-        \n
+        <<URL_CONTENT_END>>
         '''
         
-        system_message = {
-            'role': 'system',
-            'content': query_instructions
-        }
-        return system_message
+        return query_instructions
 
