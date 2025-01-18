@@ -26,9 +26,10 @@ def create_boss_agent(chat_settings, sio, db, uid, profile_service):
     if not chat_settings:
         return None
 
-    system_message = chat_settings.get('system_message')
+    system_message = chat_settings.get('system_message', '')
     use_profile_data = chat_settings.get('use_profile_data', False)
     model = chat_settings.get('agent_model')
+    context_urls = chat_settings.get('context_urls', [])
     user_analysis = profile_service.get_user_analysis(uid) if use_profile_data else None
 
     if model.startswith('claude'):
@@ -44,23 +45,79 @@ def create_boss_agent(chat_settings, sio, db, uid, profile_service):
         user_analysis=user_analysis
     )
 
+    # Add URL content if it exists, but only for fully extracted URLs
+    if context_urls:
+        extracted_urls = [
+            url_data for url_data in context_urls 
+            if isinstance(url_data, dict) and 'url' in url_data and 'content' in url_data
+        ]
+        
+        if extracted_urls:
+            url_content = boss_agent.prepare_multiple_url_content(extracted_urls)
+            if boss_agent.system_message:
+                if "<<URL_CONTENT_START>>" in boss_agent.system_message:
+                    start_idx = boss_agent.system_message.find("<<URL_CONTENT_START>>")
+                    end_idx = boss_agent.system_message.find("<<URL_CONTENT_END>>") + len("<<URL_CONTENT_END>>")
+                    boss_agent.system_message = (
+                        boss_agent.system_message[:start_idx] + 
+                        url_content + 
+                        boss_agent.system_message[end_idx:]
+                    )
+                else:
+                    boss_agent.system_message += "\n" + url_content
+            else:
+                boss_agent.system_message = url_content
+
+    print(boss_agent.system_message)
     return boss_agent
 
 async def handle_extraction(urls, db, uid, boss_agent):
     extraction_service = ExtractionService(db, uid)
-    extracted_docs = []
-    for url in urls:
-        for result in await extraction_service.extract_from_url(url, 'scrape', for_kb=False):
-            extracted_docs.append(result)
-            
-    if extracted_docs:
-        extracted_docs_response = extraction_service.parse_extraction_response(extracted_docs)
-        url_content = boss_agent.prepare_url_content_for_ai(extracted_docs_response)
-        if boss_agent.system_message is None:
-            boss_agent.system_message = url_content
+    url_contents = []
+    urls_to_extract = []
+    
+    # First separate already extracted URLs from ones that need extraction
+    for url_item in urls:
+        if isinstance(url_item, dict) and 'url' in url_item and 'content' in url_item:
+            # Already extracted URL - keep as is
+            url_contents.append(url_item)
         else:
-            boss_agent.system_message += "\n" + url_content
-    return None
+            # New URL that needs extraction
+            url = url_item['url'] if isinstance(url_item, dict) else url_item
+            urls_to_extract.append(url)
+    
+    # Only perform extraction for new URLs
+    if urls_to_extract:
+        for url in urls_to_extract:
+            url_extracted_docs = []
+            for result in await extraction_service.extract_from_url(url, 'scrape', for_kb=False):
+                url_extracted_docs.append(result)
+                
+            if url_extracted_docs:
+                docs_response = extraction_service.parse_extraction_response(url_extracted_docs)
+                url_contents.append({
+                    'url': url,
+                    'content': docs_response['content']
+                })
+    
+    # Update boss_agent's system message with all content
+    if url_contents:
+        formatted_content = boss_agent.prepare_multiple_url_content(url_contents)
+        if boss_agent.system_message:
+            if "<<URL_CONTENT_START>>" in boss_agent.system_message:
+                start_idx = boss_agent.system_message.find("<<URL_CONTENT_START>>")
+                end_idx = boss_agent.system_message.find("<<URL_CONTENT_END>>") + len("<<URL_CONTENT_END>>")
+                boss_agent.system_message = (
+                    boss_agent.system_message[:start_idx] + 
+                    formatted_content + 
+                    boss_agent.system_message[end_idx:]
+                )
+            else:
+                boss_agent.system_message += "\n" + formatted_content
+        else:
+            boss_agent.system_message = formatted_content
+    
+    return url_contents
 
 async def handle_chat(sio, sid, data):
     try:
@@ -68,8 +125,8 @@ async def handle_chat(sio, sid, data):
         uid = chat_settings['uid']
         chat_id = chat_settings['chatId']
         user_message = chat_settings['messages'][0]['content']
+        context_urls = chat_settings['context_urls']
 
-        urls = data.get('urls', [])
         kb_id = data.get('kbId', None)
         image_blob = data.get('imageBlob', None)
         file_name = data.get('fileName', None)
@@ -84,6 +141,7 @@ async def handle_chat(sio, sid, data):
             await LocalStorageService.upload_file_async(image_blob, uid, 'chats', file_name)
 
         await chat_service.create_message(chat_id, 'user', user_message, image_path)
+        
         async def save_agent_message(chat_id, message):
             await chat_service.create_message(chat_id, 'agent', message)
 
@@ -93,9 +151,9 @@ async def handle_chat(sio, sid, data):
             results = colbert_service.search_index(user_message)
             system_message = colbert_service.prepare_vector_response(results)
 
-        if urls:
-            await handle_extraction(urls, db, uid, boss_agent)
-            update_settings = {'context_urls': urls, 'system_message': boss_agent.system_message}
+        if len(context_urls) > 0:
+            context_urls = await handle_extraction(context_urls, db, uid, boss_agent)
+            update_settings = {'context_urls': context_urls}
             await chat_service.update_settings(chat_id, **update_settings)
 
         await boss_agent.process_message(chat_settings['messages'], chat_id, user_message, save_agent_message, image_blob)

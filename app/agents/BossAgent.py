@@ -195,6 +195,16 @@ class BossAgent:
         CONTENT: {url_content['content']}
         <<URL_CONTENT_END>>
         '''
-        
         return query_instructions
+
+    def prepare_multiple_url_content(self, url_contents):
+        combined_content = "<<URL_CONTENT_START>>\n"
+        combined_content += "Answer the users question using the content from the following urls:\n"
+        
+        for url_data in url_contents:
+            combined_content += f"URL: {url_data['url']}\n"
+            combined_content += f"CONTENT: {url_data['content']}\n\n"
+        
+        combined_content += "<<URL_CONTENT_END>>"
+        return combined_content
 
