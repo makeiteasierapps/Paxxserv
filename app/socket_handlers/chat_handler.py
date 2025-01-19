@@ -120,8 +120,11 @@ async def handle_extraction(urls, db, uid, boss_agent):
     return url_contents
 
 async def handle_chat(sio, sid, data):
+
     try:
+        print(f"Received chat data: {json.dumps(data, indent=2)}")
         chat_settings = data.get('selectedChat', None)
+        
         uid = chat_settings['uid']
         chat_id = chat_settings['chatId']
         user_message = chat_settings['messages'][0]['content']
