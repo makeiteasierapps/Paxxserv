@@ -66,7 +66,6 @@ class ExtractionService:
     async def _fetch_and_process_url(self, firecrawl_url, normalized_url, endpoint):
         """Internal method to handle the URL fetching and processing"""
         params = {'url': normalized_url}
-        
         async with httpx.AsyncClient() as client:
             firecrawl_response = await client.post(
                 f"{firecrawl_url}/{endpoint}", 
@@ -75,7 +74,6 @@ class ExtractionService:
             )
             firecrawl_response.raise_for_status()
             firecrawl_data = firecrawl_response.json()
-
         if 'id' in firecrawl_data:
             return await self.poll_job_status(firecrawl_url, firecrawl_data['id'])
         
