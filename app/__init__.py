@@ -1,8 +1,12 @@
+import sys
+import traceback
+import json
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 import os
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from firebase_admin import credentials, initialize_app
 import logging
 import socketio
@@ -38,10 +42,31 @@ async def lifespan(app: FastAPI):
     setup_socket_handlers(socket_client, app)
     
     yield
-    
+
+async def error_handling_middleware(request: Request, call_next):
+    try:
+        return await call_next(request)
+    except Exception as e:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        stack_trace = traceback.format_exception(exc_type, exc_value, exc_traceback)
+        
+        logger.error(f"Unhandled error: {str(e)}")
+        logger.error(f"Stack trace: {''.join(stack_trace)}")
+        
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": str(e),
+                "type": exc_type.__name__,
+                "stack_trace": stack_trace
+            }
+        )
+
 def create_app():
     app = FastAPI(lifespan=lifespan)
     socket_app = socketio.ASGIApp(socket_client, app)
+
+    app.middleware("http")(error_handling_middleware)
 
     app.add_middleware(
         CORSMiddleware,

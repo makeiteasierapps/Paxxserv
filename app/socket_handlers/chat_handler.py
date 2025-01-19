@@ -1,4 +1,6 @@
 import json
+import sys
+import traceback
 from app.services.ChatService import ChatService
 from app.services.ExtractionService import ExtractionService
 from app.services.KnowledgeBaseService import KnowledgeBaseService
@@ -123,12 +125,25 @@ async def handle_chat(sio, sid, data):
 
     try:
         print(f"Received chat data: {json.dumps(data, indent=2)}")
-        chat_settings = data.get('selectedChat', None)
         
-        uid = chat_settings['uid']
-        chat_id = chat_settings['chatId']
-        user_message = chat_settings['messages'][0]['content']
-        context_urls = chat_settings['context_urls']
+        chat_settings = data.get('selectedChat', None)
+        if not chat_settings:
+            await sio.emit('error', {"error": "Chat settings are missing"})
+            return
+
+        uid = chat_settings.get('uid')
+        chat_id = chat_settings.get('chatId')
+        messages = chat_settings.get('messages', [])
+        context_urls = chat_settings.get('context_urls', [])
+        
+        if not uid or not chat_id or not messages:
+            await sio.emit('error', {"error": "Missing required chat parameters"})
+            return
+            
+        user_message = messages[0].get('content') if messages else None
+        if not user_message:
+            await sio.emit('error', {"error": "Message content is missing"})
+            return
 
         kb_id = data.get('kbId', None)
         image_blob = data.get('imageBlob', None)
@@ -162,7 +177,18 @@ async def handle_chat(sio, sid, data):
         await boss_agent.process_message(chat_settings['messages'], chat_id, user_message, save_agent_message, image_blob)
 
     except Exception as e:
-        await sio.emit('error', {"error": str(e)})
+        # Get the full stack trace
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        stack_trace = traceback.format_exception(exc_type, exc_value, exc_traceback)
+        
+        error_details = {
+            "error": str(e),
+            "type": exc_type.__name__,
+            "stack_trace": stack_trace,
+            "location": "handle_chat"
+        }
+        print(f"Error details: {json.dumps(error_details, indent=2)}")
+        await sio.emit('error', error_details)
 
 def setup_chat_handlers(sio):
     @sio.on('chat')

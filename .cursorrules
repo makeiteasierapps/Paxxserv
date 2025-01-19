@@ -1,3 +1,4 @@
 Backend:
 - Use FastAPI
 - Use MongoDB
+- Use lazy formatting for logging errors
