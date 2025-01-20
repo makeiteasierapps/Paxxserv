@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
+from app.utils.custom_json_encoder import CustomJSONEncoder
 
 class ChatService:
     def __init__(self, db):
@@ -10,11 +11,14 @@ class ChatService:
             'uid': uid,
             'chat_name': 'New Chat',
             'agent_model': 'gpt-4o-mini',
-            'updated_at': datetime.utcnow()
+            'system_message': '',
+            'context': [],
+            'updated_at': datetime.now(timezone.utc).isoformat()
         }
 
         result = await self.db['chats'].insert_one(new_chat)
-        new_chat['_id'] = result.inserted_id
+        new_chat.pop('_id')
+        new_chat['chatId'] = str(result.inserted_id)
         return new_chat
         
     async def get_all_chats(self, uid):

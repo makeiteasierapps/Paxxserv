@@ -121,6 +121,7 @@ async def handle_extraction(urls, db, uid, boss_agent):
     return url_contents
 
 async def handle_chat(sio, sid, data):
+    print(data)
 
     try:
         chat_settings = data.get('selectedChat', None)

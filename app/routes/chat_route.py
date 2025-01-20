@@ -44,12 +44,7 @@ async def create_chat(data: ChatData, chat_service: ChatService = Depends(get_ch
     chat_data = await chat_service.create_chat_in_db(
         data.uid,
     )
-    return JSONResponse(content={
-        'chatId': CustomJSONEncoder().default(chat_data['_id']),
-        'chat_name': chat_data['chat_name'],
-        'agent_model': chat_data['agent_model'],
-        'uid': data.uid,
-    })
+    return JSONResponse(content=chat_data)
 
 @router.delete("/chat")
 async def delete_chat(data: DeleteChatData, chat_service: ChatService = Depends(get_chat_service)):
