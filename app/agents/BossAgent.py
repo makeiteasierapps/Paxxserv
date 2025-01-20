@@ -4,13 +4,14 @@ from app.agents.AnthropicClient import AnthropicClient
 from app.utils.token_counter import token_counter
 
 class BossAgent:
-    def __init__(self, ai_client, sio, model='gpt-4o-mini', system_message=None, user_analysis=None, event_name='chat_response'):
+    def __init__(self, ai_client, sio, model='gpt-4o-mini', system_message=None, user_analysis=None, context_urls=None, event_name='chat_response'):
         self.ai_client = ai_client
         self.sio = sio
         self.is_initialized = True
         self.model = model
         self.system_message = system_message
         self.user_analysis = user_analysis
+        self.context_urls = context_urls
         self.image_path = None
         self.token_counter = token_counter
         self.event_name = event_name
@@ -120,7 +121,8 @@ class BossAgent:
             'content': response_chunks,
             'type': 'end_of_stream',
             'room': chat_id,
-            'image_path': self.image_path
+            'image_path': self.image_path,
+            'context_urls': self.context_urls
         }
         
         await self.sio.emit(self.event_name, end_stream_obj)

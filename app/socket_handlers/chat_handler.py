@@ -44,7 +44,7 @@ def create_boss_agent(chat_settings, sio, db, uid, profile_service):
         sio,
         model=model,
         system_message=system_message,
-        user_analysis=user_analysis
+        user_analysis=user_analysis,
     )
 
     # Add URL content if it exists, but only for fully extracted URLs
@@ -70,7 +70,6 @@ def create_boss_agent(chat_settings, sio, db, uid, profile_service):
             else:
                 boss_agent.system_message = url_content
 
-    print(boss_agent.system_message)
     return boss_agent
 
 async def handle_extraction(urls, db, uid, boss_agent):
@@ -124,8 +123,6 @@ async def handle_extraction(urls, db, uid, boss_agent):
 async def handle_chat(sio, sid, data):
 
     try:
-        print(f"Received chat data: {json.dumps(data, indent=2)}")
-        
         chat_settings = data.get('selectedChat', None)
         if not chat_settings:
             await sio.emit('error', {"error": "Chat settings are missing"})
@@ -173,6 +170,7 @@ async def handle_chat(sio, sid, data):
             context_urls = await handle_extraction(context_urls, db, uid, boss_agent)
             update_settings = {'context_urls': context_urls}
             await chat_service.update_settings(chat_id, **update_settings)
+            await sio.emit('context_urls', context_urls)
 
         await boss_agent.process_message(chat_settings['messages'], chat_id, user_message, save_agent_message, image_blob)
 
