@@ -121,8 +121,6 @@ async def handle_extraction(urls, db, uid, boss_agent):
     return url_contents
 
 async def handle_chat(sio, sid, data):
-    print(data)
-
     try:
         chat_settings = data.get('selectedChat', None)
         if not chat_settings:
@@ -144,19 +142,12 @@ async def handle_chat(sio, sid, data):
             return
 
         kb_id = data.get('kbId', None)
-        image_blob = data.get('imageBlob', None)
-        file_name = data.get('fileName', None)
-        system_message = None
 
         db = get_db()
         chat_service, profile_service = initialize_services(db, uid)
         boss_agent = create_boss_agent(chat_settings, sio, db, uid, profile_service)
 
-        image_path = None
-        if image_blob:
-            await LocalStorageService.upload_file_async(image_blob, uid, 'chats', file_name)
-
-        await chat_service.create_message(chat_id, 'user', user_message, image_path)
+        await chat_service.create_message(chat_id, 'user', user_message)
         
         async def save_agent_message(chat_id, message):
             await chat_service.create_message(chat_id, 'agent', message)
@@ -173,7 +164,7 @@ async def handle_chat(sio, sid, data):
             await chat_service.update_settings(chat_id, **update_settings)
             await sio.emit('context_urls', context_urls)
 
-        await boss_agent.process_message(chat_settings['messages'], chat_id, user_message, save_agent_message, image_blob)
+        await boss_agent.process_message(chat_settings['messages'], chat_id, save_agent_message)
 
     except Exception as e:
         # Get the full stack trace

@@ -9,7 +9,7 @@ from fastapi import Request
 
 router = APIRouter()
 
-def get_chat_service(request: Request, dbName: str = Header(...), uid: str = Header(...)):
+def get_chat_service(request: Request, uid: str = Header(...)):
     try:
         mongo_client = request.app.state.mongo_client
         db = mongo_client.db

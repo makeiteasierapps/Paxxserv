@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 from bson import ObjectId
-from app.utils.custom_json_encoder import CustomJSONEncoder
 
 class ChatService:
     def __init__(self, db):
@@ -65,15 +64,14 @@ class ChatService:
             return update_result
         return None
 
-    async def create_message(self, chat_id, message_from, message_content, image_path=None):
-        current_time = datetime.utcnow()
+    async def create_message(self, chat_id, message_from, message_content,):
+        current_time = datetime.now(timezone.utc).isoformat()
         new_message = {
             '_id': ObjectId(),
             'message_from': message_from,
             'content': message_content,
             'type': 'database',
             'current_time': current_time,
-            'image_path': image_path
         }
 
         # Update the chat document to append the new message and update the 'updated_at' field

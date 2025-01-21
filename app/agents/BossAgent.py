@@ -140,11 +140,11 @@ class BossAgent:
                 'content': message,
             }
 
-    async def process_message(self, chat_history, chat_id, user_message, save_callback=None, image_blob=None):
-        new_chat_history = self.manage_chat(chat_history, user_message, image_blob)
+    async def process_message(self, chat_history, chat_id, save_callback=None):
+        new_chat_history = self.manage_chat(chat_history)
         await self.handle_streaming_response(chat_id, new_chat_history, save_callback)
 
-    def manage_chat(self, chat_history, new_user_message, image_blob=None):
+    def manage_chat(self, chat_history):
         """
         Takes a chat object extracts x amount of tokens and returns a message
         object ready to pass into OpenAI chat completion or Anthropic
@@ -169,24 +169,6 @@ class BossAgent:
                     "content": message['content'][0]['content'],
                 })
 
-        if image_blob:
-            base64_image = base64.b64encode(image_blob).decode('utf-8')
-            formatted_messages.append({
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text", 
-                        "text": new_user_message
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{base64_image}"
-                        }
-                    },
-                ],
-            })
-        
         return formatted_messages
 
     def prepare_url_content_for_ai(self, url_content):

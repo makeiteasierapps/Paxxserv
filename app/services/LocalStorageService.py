@@ -9,6 +9,7 @@ load_dotenv()
 class LocalStorageService:
     is_local = os.getenv('LOCAL_DEV') == 'true'
     base_path = '/mnt/media_storage' if not is_local else os.path.join(os.getcwd(), 'media_storage')
+    media_url = os.getenv('MEDIA_URL', 'https://paxxium.com/media')
 
     @staticmethod
     async def download_file_async(path):
@@ -33,6 +34,24 @@ class LocalStorageService:
     async def upload_file_async(file, uid, folder, file_name=None):
         return await LocalStorageService._upload_file_async(file, uid, folder, file_name)
 
+    @staticmethod
+    def get_public_url(path: str) -> str:
+        """
+        Converts an internal storage path to a public URL
+        
+        Args:
+            path (str): Internal storage path (e.g., 'users/123/images/photo.jpg')
+            
+        Returns:
+            str: Complete public URL
+        """
+        if not path:
+            return None
+            
+        # Remove any leading slashes and join with media URL
+        clean_path = path.lstrip('/')
+        return f"{LocalStorageService.media_url}/{clean_path}"
+    
     @staticmethod
     async def _upload_file_async(file, uid, folder, file_name=None):
         try:
