@@ -1,4 +1,4 @@
 Backend:
 - Use FastAPI
 - Use MongoDB
-- Use lazy formatting for logging errors
+- Use lazy % formatting in logging functions

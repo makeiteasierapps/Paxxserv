@@ -130,7 +130,8 @@ async def handle_chat(sio, sid, data):
         uid = chat_settings.get('uid')
         chat_id = chat_settings.get('chatId')
         messages = chat_settings.get('messages', [])
-        context_urls = chat_settings.get('context_urls', [])
+        context_urls = chat_settings.get('context', [])
+        print(context_urls)
         
         if not uid or not chat_id or not messages:
             await sio.emit('error', {"error": "Missing required chat parameters"})

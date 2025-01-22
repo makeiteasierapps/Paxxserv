@@ -1,9 +1,12 @@
 import io
 from PIL import Image
 from dotenv import load_dotenv
+from pydantic import BaseModel
+from typing import List
 import mimetypes
 import os
-from fastapi import APIRouter, Header, Depends, HTTPException, Request
+import logging
+from fastapi import APIRouter, Header, Depends, HTTPException, Request, File, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 import requests
 from app.services.LocalStorageService import LocalStorageService
@@ -12,7 +15,18 @@ load_dotenv()
 
 router = APIRouter()
 
-def get_db_and_image_manager(request: Request, dbName: str = Header(...), uid: str = Header(...)):
+import logging
+
+logger = logging.getLogger(__name__)
+
+class FileData(BaseModel):
+    path: str
+    name: str
+
+class FileUploadRequest(BaseModel):
+    files: List[FileData]
+
+def get_db_and_image_manager(request: Request, uid: str = Header(...)):
     try:
         mongo_client = request.app.state.mongo_client
         db = mongo_client.db
@@ -69,6 +83,59 @@ async def delete_image(request: Request):
     LocalStorageService.delete_image(path)
     return JSONResponse(content={'message': 'Image deleted successfully'}, status_code=200)
 
+@router.post("/images/upload-context")
+async def upload_context(
+    request: Request,
+    files: List[UploadFile] = File(...),
+    uid: str = Header(...)
+):
+    try:
+        logger.info("Received upload request for user %s", uid)
+        
+        uploaded_paths = []
+        for file in files:
+            try:
+                file_content = await file.read()
+                file_path = await LocalStorageService.upload_file_async(
+                    file=file_content,
+                    uid=uid,
+                    folder='chats',
+                    file_name=file.filename
+                )
+                
+                if file_path:
+                    uploaded_paths.append({
+                        'originalName': file.filename,
+                        'storedPath': file_path,
+                        'status': 'success'
+                    })
+                else:
+                    logger.error("Failed to upload file %s", file.filename)
+                    uploaded_paths.append({
+                        'originalName': file.filename,
+                        'status': 'error',
+                        'message': 'Failed to upload file'
+                    })
+            except Exception as file_error:
+                logger.error("Error processing file %s: %s", file.filename, str(file_error))
+                uploaded_paths.append({
+                    'originalName': file.filename,
+                    'status': 'error',
+                    'message': str(file_error)
+                })
+
+        return {
+            'message': f'Uploaded {len(uploaded_paths)} files',
+            'files': uploaded_paths
+        }
+        
+    except Exception as e:
+        logger.error("Upload context error: %s", str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing files: {str(e)}"
+        ) from e
+
 @router.post("/images/save")
 async def save_image(request: Request, uid: str = Header(...)):
     data = await request.json()
@@ -105,9 +172,7 @@ async def save_image(request: Request, uid: str = Header(...)):
     
     # Save both images
     full_image_url = await LocalStorageService.upload_file_async(image_blob, uid, 'dalle_images', file_name=file_name)
-    print(full_image_url)
     thumb_url = await LocalStorageService.upload_file_async(thumb_blob, uid, 'dalle_images/thumbnails', file_name=thumbnail_name)
-    print(thumb_url)
 
     
     return JSONResponse(content={"full_image": full_image_url, "thumbnail": thumb_url}, status_code=200)
