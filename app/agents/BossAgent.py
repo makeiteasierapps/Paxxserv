@@ -141,54 +141,64 @@ class BossAgent:
             }
 
     async def process_message(self, chat_history, chat_id, save_callback=None):
-        new_chat_history = self.manage_chat(chat_history)
+        new_chat_history = self.manage_chat_history(chat_history)
         await self.handle_streaming_response(chat_id, new_chat_history, save_callback)
 
-    def manage_chat(self, chat_history):
+    def manage_chat_history(self, chat_history):
         """
         Takes a chat object extracts x amount of tokens and returns a message
         object ready to pass into OpenAI chat completion or Anthropic
         """
-        
         formatted_messages = []
         token_limit = 20000
         token_count = 0
-        for message in chat_history:
+        
+        # Handle the first (most recent) message separately
+        if chat_history:
+            first_message = chat_history[0]
+            if first_message['message_from'] == 'user':
+                token_count += self.token_counter(first_message['content'])
+                
+                if 'images' in first_message:
+                    content = [{"type": "text", "text": first_message['content']}]
+                    for image_url in first_message['images']:
+                        content.append({
+                            "type": "image_url",
+                            "image_url": {"url": image_url['url']}
+                        })
+                    formatted_messages.append({
+                        "role": "user",
+                        "content": content
+                    })
+                else:
+                    formatted_messages.append({
+                        "role": "user",
+                        "content": first_message['content']
+                    })
+            else:
+                token_count += self.token_counter(first_message['content'][0]['content'])
+                formatted_messages.append({
+                    "role": "assistant",
+                    "content": first_message['content'][0]['content']
+                })
+
+        # Process the rest of the messages normally
+        for message in chat_history[1:]:
             if token_count > token_limit:
                 break
             if message['message_from'] == 'user':
                 token_count += self.token_counter(message['content'])
                 formatted_messages.append({
                     "role": "user",
-                    "content": message['content'],
+                    "content": message['content']
                 })
             else:
                 token_count += self.token_counter(message['content'][0]['content'])
                 formatted_messages.append({
                     "role": "assistant",
-                    "content": message['content'][0]['content'],
+                    "content": message['content'][0]['content']
                 })
 
         return formatted_messages
 
-    def prepare_url_content_for_ai(self, url_content):
-        query_instructions = f'''
-        <<URL_CONTENT_START>>
-        Answer the users question using the content from the url they are interested in.
-        URL: {url_content['source_url']}
-        CONTENT: {url_content['content']}
-        <<URL_CONTENT_END>>
-        '''
-        return query_instructions
-
-    def prepare_multiple_url_content(self, url_contents):
-        combined_content = "<<URL_CONTENT_START>>\n"
-        combined_content += "Answer the users question using the content from the following urls:\n"
-        
-        for url_data in url_contents:
-            combined_content += f"URL: {url_data['url']}\n"
-            combined_content += f"CONTENT: {url_data['content']}\n\n"
-        
-        combined_content += "<<URL_CONTENT_END>>"
-        return combined_content
 

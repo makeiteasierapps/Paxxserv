@@ -46,7 +46,7 @@ class ExtractionService:
             } for url_content in content]
             if for_kb:
                 return await self._process_for_kb(url_docs, normalized_url)
-            
+
             return url_docs
 
         except httpx.RequestError as e:
