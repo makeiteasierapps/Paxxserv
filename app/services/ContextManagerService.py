@@ -37,10 +37,19 @@ class ContextManagerService:
         results = {}
 
         if url_context:
-            results['url'] = await self.process_url_context(url_context)
+            prepared_url_content, url_contents = await self.process_url_context(url_context)
+            results['url'] = prepared_url_content
             if self.settings_provider:
-                await self.settings_provider.update_settings(context_urls=results['url'])
-        
+                # Create a lookup dictionary for quick source-to-content mapping
+                content_updates = {item['source']: item['content'] for item in url_contents}
+                
+                # Update the content in the original context list
+                for item in context:
+                    if item.get('source') in content_updates:
+                        item['content'] = content_updates[item['source']]
+                
+                # Update the entire context array
+                await self.settings_provider.update_settings(context=context)
         if image_context:
             results['image'] = await self.process_image_context(image_context, user_message)
         
@@ -75,7 +84,7 @@ class ContextManagerService:
                         'content': docs_response['content'],
                     })
 
-        return self.prepare_url_content(url_contents)
+        return self.prepare_url_content(url_contents), url_contents
 
     async def process_image_context(self, image_context: List[Dict[str, Any]], user_message: dict) -> dict:
         """

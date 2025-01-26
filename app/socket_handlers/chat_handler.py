@@ -81,6 +81,7 @@ async def handle_chat(sio, sid, data):
             extraction_service = ExtractionService(db, uid)
             extraction_provider = ChatExtractionProvider(extraction_service)
             settings_provider = ChatSettingsProvider(chat_service, chat_id)
+            await settings_provider.update_settings(context=context)
             
             context_manager = ContextManagerService(
                 extraction_provider=extraction_provider,
