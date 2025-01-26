@@ -16,9 +16,9 @@ def get_db():
 def prep_data(data):
     return ''.join([f"# {item['path']}\n{item['content']}\n" for item in data])
 
-def create_system_agent(sio, db, uid, chat_constants):
+def create_system_agent(sio, db, uid, system_message):
     ai_client = OpenAiClient(db, uid)
-    system_boss_agent = BossAgent(ai_client, sio, chat_constants=chat_constants, event_name='system_response')
+    system_boss_agent = BossAgent(ai_client, sio, event_name='system_response', system_message=system_message)
     return system_boss_agent
 
 async def handle_file_routing(sio, sid, query, uid, system_state_manager):
@@ -55,7 +55,7 @@ async def run_system_agent(sio, sid, data, system_state_manager):
             db = get_db()
             distilled_data = prep_data(relevant_files)
             system_agent = create_system_agent(sio, db, uid, distilled_data)
-            await system_agent.process_message([], sid, query, None, None)
+            await system_agent.process_message([], sid)
             
     except HTTPException as e:
         error_message = f"Unauthorized access: {str(e)}"
