@@ -2,9 +2,9 @@ from datetime import datetime, timezone
 from bson import ObjectId
 
 class ChatService:
-    def __init__(self, db):
+    def __init__(self, db, chat_type='user'):
         self.db = db
-        
+        self.chat_type = chat_type
     async def create_chat_in_db(self, uid):
         new_chat = {
             'uid': uid,
@@ -15,7 +15,10 @@ class ChatService:
             'updated_at': datetime.now(timezone.utc).isoformat()
         }
 
-        result = await self.db['chats'].insert_one(new_chat)
+        if self.chat_type == 'user':
+            result = await self.db['chats'].insert_one(new_chat)
+        else:
+            result = await self.db['system_chats'].insert_one(new_chat)
         new_chat.pop('_id')
         new_chat['chatId'] = str(result.inserted_id)
         return new_chat

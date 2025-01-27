@@ -82,8 +82,14 @@ def create_app():
         news_routes, signup_route, profile_route, kb_route, systems_route
     )
     
+    # Create chat routers
+    default_chat_router = chat_route.create_chat_router()
+    system_chat_router = chat_route.create_chat_router(prefix="/system", chat_type="system")
+    
     routers = [
-        chat_route.router,
+        default_chat_router,
+        system_chat_router,
+        systems_route.router,
         sam_route.router,
         moments_route.router,
         auth_route.router,
@@ -92,7 +98,6 @@ def create_app():
         news_routes.router,
         signup_route.router,
         kb_route.router,
-        systems_route.router,
     ]
     
     for router in routers:

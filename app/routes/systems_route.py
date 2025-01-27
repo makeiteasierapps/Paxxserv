@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from app.services.System.SystemService import SystemService
 from app.agents.SystemAgent import SystemAgent
 from app.services.System.SystemIndexManager import SystemIndexManager
+from app.services.ChatService import ChatService
 from app.services.ColbertService import ColbertService
 router = APIRouter()
 
@@ -45,6 +46,7 @@ async def get_system_service(
     await service.initialize()
     return service
 
+
 @router.put('/file-commands')
 async def update_file_commands(
     file_commands: FileCommandsUpdate,
@@ -53,6 +55,7 @@ async def update_file_commands(
 
     await system_service.update_file_commands(file_commands.dict())
     return {"status": "success"}
+
 @router.get('/system-health')
 async def get_system_health(
     system_service: SystemService = Depends(get_system_service)
@@ -90,7 +93,6 @@ async def write_config_file(
     file_update: ConfigFileUpdate,
     system_service: SystemService = Depends(get_system_service)
 ):
-    print(file_update.dict())
     try:
         result = await system_service.write_config_file(file_update.dict())
         return JSONResponse(content=result, status_code=200)
