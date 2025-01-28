@@ -63,7 +63,7 @@ async def handle_chat(sio, sid, data):
             await sio.emit('error', {"error": "Missing required chat parameters"})
             return
         
-        user_message = messages[0].get('content') if messages else None
+        user_message = messages[-1].get('content') if messages else None
         if not user_message:
             await sio.emit('error', {"error": "Message content is missing"})
             return

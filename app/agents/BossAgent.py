@@ -15,6 +15,7 @@ class BossAgent:
         self.image_path = None
         self.token_counter = token_counter
         self.event_name = event_name
+        print(self.event_name)
 
     async def handle_streaming_response(self, chat_id, new_chat_history, save_callback=None):
         system_content = f'''

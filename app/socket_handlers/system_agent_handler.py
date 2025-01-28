@@ -18,6 +18,7 @@ def prep_data(data):
     return ''.join([f"# {item['path']}\n{item['content']}\n" for item in data])
 
 def create_system_agent(sio, db, uid, system_message):
+    print('creating system agent')
     ai_client = OpenAiClient(db, uid)
     system_boss_agent = BossAgent(ai_client, sio, event_name='system_chat_response', system_message=system_message)
     return system_boss_agent
@@ -46,12 +47,15 @@ async def run_system_agent(sio, sid, data, system_state_manager):
         uid = chat_settings.get('uid')
         chat_id = chat_settings.get('chatId')
         messages = chat_settings.get('messages', [])
-        user_message = messages[0].get('content') if messages else None
+        user_message = messages[-1].get('content') if messages else None
+        
         system_agent = SystemAgent()
         relevant_files = await handle_file_routing(sio, sid, user_message, uid, system_state_manager)
+        
         db = get_db()
         chat_service = ChatService(db, chat_type='system')
         await chat_service.create_message(chat_id, 'user', user_message)
+        
         async def save_agent_message(chat_id, message):
             await chat_service.create_message(chat_id, 'agent', message)
         
@@ -59,8 +63,9 @@ async def run_system_agent(sio, sid, data, system_state_manager):
         system_agent = create_system_agent(sio, db, uid, distilled_data)
         await system_agent.process_message(chat_settings['messages'], chat_id, save_agent_message)
             
-    except HTTPException as e:
-        error_message = f"Unauthorized access: {str(e)}"
+    except Exception as e:
+        print('Error in run_system_agent: %s', str(e))
+        error_message = f"Error processing request: {str(e)}"
         await sio.emit('error', {'message': error_message}, room=sid)
 
 def setup_system_agent_handlers(sio, system_state_manager):
