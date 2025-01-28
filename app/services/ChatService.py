@@ -5,6 +5,9 @@ class ChatService:
     def __init__(self, db, chat_type='user'):
         self.db = db
         self.chat_type = chat_type
+        # Select the appropriate collection based on chat_type
+        self.collection = self.db['system_chats'] if chat_type == 'system' else self.db['chats']
+
     async def create_chat_in_db(self, uid):
         new_chat = {
             'uid': uid,
@@ -15,17 +18,13 @@ class ChatService:
             'updated_at': datetime.now(timezone.utc).isoformat()
         }
 
-        if self.chat_type == 'user':
-            result = await self.db['chats'].insert_one(new_chat)
-        else:
-            result = await self.db['system_chats'].insert_one(new_chat)
+        result = await self.collection.insert_one(new_chat)
         new_chat.pop('_id')
         new_chat['chatId'] = str(result.inserted_id)
         return new_chat
         
     async def get_all_chats(self, uid):
-        # Query the conversations collection for conversations belonging to the user
-        chats_cursor = self.db['chats'].find({'uid': uid}).sort('created_at', -1)
+        chats_cursor = self.collection.find({'uid': uid}).sort('created_at', -1)
         
         # Function to recursively convert ObjectId to string
         def convert_objectid(obj):
@@ -47,11 +46,11 @@ class ChatService:
         return chats
 
     async def get_single_chat(self, uid, chat_id):
-        chat = await self.db['chats'].find_one({'_id': ObjectId(chat_id), 'uid': uid})
+        chat = await self.collection.find_one({'_id': ObjectId(chat_id), 'uid': uid})
         return chat if chat else None
 
     async def delete_chat(self, chat_id):
-        result = await self.db['chats'].delete_one({'_id': ObjectId(chat_id)})
+        result = await self.collection.delete_one({'_id': ObjectId(chat_id)})
         return result.deleted_count
 
     async def update_settings(self, chat_id, **kwargs):
@@ -60,7 +59,7 @@ class ChatService:
         """
         update_fields = {k: v for k, v in kwargs.items() if v is not None}
         if update_fields:
-            update_result = await self.db['chats'].update_one(
+            update_result = await self.collection.update_one(
                 {'_id': ObjectId(chat_id)},
                 {'$set': update_fields}
             )
@@ -78,7 +77,7 @@ class ChatService:
         }
 
         # Update the chat document to append the new message and update the 'updated_at' field
-        await self.db.chats.update_one(
+        await self.collection.update_one(
             {'_id': ObjectId(chat_id)}, 
             {
                 '$push': {'messages': new_message},
@@ -90,7 +89,7 @@ class ChatService:
 
     async def delete_all_messages(self, chat_id):
         # Update the chat document to clear the 'messages' array
-        await self.db.chats.update_one(
+        await self.collection.update_one(
             {'_id': ObjectId(chat_id)},
             {'$set': {'messages': []}}
         )

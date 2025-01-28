@@ -44,8 +44,6 @@ async def run_system_agent(sio, sid, data, system_state_manager):
         system_agent = SystemAgent()
         requires_AI_response, needs_system_files = system_agent.query_classifier(query)
         
-        await sio.emit('display_message', {'should_display': requires_AI_response}, room=sid)
-
         relevant_files = []
         if needs_system_files:
             relevant_files = await handle_file_routing(sio, sid, query, uid, system_state_manager)
