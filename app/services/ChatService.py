@@ -66,7 +66,7 @@ class ChatService:
             return update_result
         return None
 
-    async def create_message(self, chat_id, message_from, message_content,):
+    async def create_message(self, chat_id, message_from, message_content):
         current_time = datetime.now(timezone.utc).isoformat()
         new_message = {
             '_id': ObjectId(),
