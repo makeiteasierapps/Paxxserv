@@ -52,10 +52,20 @@ async def run_system_agent(sio, sid, data, system_state_manager):
         system_agent = SystemAgent()
         relevant_files = await handle_file_routing(sio, sid, user_message, uid, system_state_manager)
         
+        
         db = get_db()
         chat_service = ChatService(db, chat_type='system')
         await chat_service.create_message(chat_id, 'user', user_message)
+        context_files = []
+        for file in relevant_files:
+            context_files.append({'type': 'file', 'path': file['path'], 'name': file['path'].split('/')[-1]})
         
+        await chat_service.update_settings(chat_id, context=context_files)
+        # Emit the updated settings
+        await sio.emit('chat_settings_updated', {
+            'chat_id': chat_id,
+            'context': context_files
+        }, room=sid)
         async def save_agent_message(chat_id, message):
             await chat_service.create_message(chat_id, 'agent', message)
         

@@ -63,7 +63,7 @@ async def handle_chat(sio, sid, data):
             await sio.emit('error', {"error": "Missing required chat parameters"})
             return
         
-        user_message = messages[-1].get('content') if messages else None
+        user_message = messages[-1] if messages else None
         if not user_message:
             await sio.emit('error', {"error": "Message content is missing"})
             return
@@ -72,7 +72,7 @@ async def handle_chat(sio, sid, data):
         chat_service, profile_service = initialize_services(db, uid)
         boss_agent = create_boss_agent(chat_settings, sio, db, uid, profile_service)
 
-        await chat_service.create_message(chat_id, 'user', user_message)
+        await chat_service.create_message(chat_id, 'user', user_message.get('content'))
         
         async def save_agent_message(chat_id, message):
             await chat_service.create_message(chat_id, 'agent', message)
