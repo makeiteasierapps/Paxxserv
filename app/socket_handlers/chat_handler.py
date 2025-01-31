@@ -10,6 +10,7 @@ from app.agents.AnthropicClient import AnthropicClient
 from app.agents.OpenAiClient import OpenAiClient
 from app.services.MongoDbClient import MongoDbClient
 from app.services.ColbertService import ColbertService
+from app.services.context_processor import process_chat_context
 from app.services.providers import ChatExtractionProvider, ChatSettingsProvider
 
 def get_db():
@@ -77,24 +78,7 @@ async def handle_chat(sio, sid, data):
         async def save_agent_message(chat_id, message):
             await chat_service.create_message(chat_id, 'agent', message)
 
-        if context:
-            extraction_service = ExtractionService(db, uid)
-            extraction_provider = ChatExtractionProvider(extraction_service)
-            settings_provider = ChatSettingsProvider(chat_service, chat_id)
-            await settings_provider.update_settings(context=context)
-            
-            context_manager = ContextManagerService(
-                extraction_provider=extraction_provider,
-                settings_provider=settings_provider
-            )
-            
-            context_results = await context_manager.process_context(context, user_message)
-            if context_results.get('user_message'):
-                chat_settings['messages'][0] = context_results['user_message']
-            
-            if context_results.get('system_context'):
-                boss_agent.system_message += "\n" + context_results['system_context']
-
+        await process_chat_context(db, uid, chat_id, context, user_message, chat_service, chat_settings, boss_agent)
         await boss_agent.process_message(chat_settings['messages'], chat_id, save_agent_message)
 
     except Exception as e:

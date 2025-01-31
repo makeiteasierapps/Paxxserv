@@ -3,7 +3,7 @@ import base64
 import os
 from app.services.interfaces import ExtractionProvider, SettingsProvider
 from dotenv import load_dotenv
-
+import logging
 load_dotenv()
 
 class ContextManagerService:
@@ -31,9 +31,9 @@ class ContextManagerService:
         Main method to process all types of context and combine results
         """
         url_context = [item for item in context if item.get('type') == 'url'] or None
-        image_context = [item for item in context if item.get('type') == 'file'] or None
+        image_context = [item for item in context if item.get('type') == 'image'] or None
         kb_context = [item for item in context if item.get('type') == 'kb'] or None
-
+        file_context = [item for item in context if item.get('type') == 'file'] or None
         results = {}
 
         if url_context:
@@ -50,6 +50,10 @@ class ContextManagerService:
                 
                 # Update the entire context array
                 await self.settings_provider.update_settings(context=context)
+        
+        if file_context:
+            results['file'] = self.process_file_context(file_context)
+        
         if image_context:
             results['image'] = await self.process_image_context(image_context, user_message)
         
@@ -94,7 +98,7 @@ class ContextManagerService:
         base_path = '/mnt/media_storage' if not is_local else os.path.join(os.getcwd(), 'media_storage')
         image_urls = []
         for image in image_context:
-            file_path = image.get('file_path')
+            file_path = image.get('image_path')
             full_path = os.path.join(base_path, file_path)
             if file_path and os.path.exists(full_path):
                 with open(full_path, 'rb') as image_file:
@@ -102,7 +106,6 @@ class ContextManagerService:
                     image_urls.append({
                         "url": f"data:image/jpeg;base64,{base64_image}"
                     })
-
         user_message['images'] = image_urls
         return user_message
 
@@ -126,26 +129,39 @@ class ContextManagerService:
         
         return kb_results
 
+    def process_file_context(self, file_context: List[Dict[str, Any]]) -> str:
+        """
+        Process file context into a formatted string
+        """
+        return ''.join([f"# {item['path']}\n{item['content']}\n" for item in file_context])
+
     def combine_context_results(self, results: Dict[str, Any]) -> Dict[str, Any]:
         """
         Combine all context results into a final format
         """
         system_context = []
         user_message = None
-        if 'url' in results:
-            system_context.append(results['url'])
+        try:
+            if 'url' in results:
+                system_context.append(results['url'])
+                
+            if 'kb' in results:
+                for kb_result in results['kb']:
+                    system_context.append(kb_result['content'])
             
-        if 'kb' in results:
-            for kb_result in results['kb']:
-                system_context.append(kb_result['content'])
-        
-        if 'image' in results:
-            user_message = results['image']
-            
-        response = {}
-        if system_context:
-            response['system_context'] = '\n\n'.join(system_context)
-        if user_message:
-            response['user_message'] = user_message
+            if 'image' in results:
+                user_message = results['image']
+
+            if 'file' in results:
+                system_context.append(results['file'])
+                
+            response = {}
+            if system_context:
+                response['system_context'] = '\n\n'.join(system_context)
+            if user_message:
+                response['user_message'] = user_message
+        except Exception as e:
+            logging.error('Error combining context results: %s', str(e))
+            response = {}
 
         return response

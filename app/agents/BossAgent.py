@@ -4,7 +4,7 @@ from app.agents.AnthropicClient import AnthropicClient
 from app.utils.token_counter import token_counter
 
 class BossAgent:
-    def __init__(self, ai_client, sio, model='gpt-4o-mini', system_message=None, user_analysis=None, context_urls=None, event_name='chat_response'):
+    def __init__(self, ai_client, sio, model='gpt-4o-mini', system_message='', user_analysis=None, context_urls=None, event_name='chat_response'):
         self.ai_client = ai_client
         self.sio = sio
         self.is_initialized = True
@@ -15,7 +15,6 @@ class BossAgent:
         self.image_path = None
         self.token_counter = token_counter
         self.event_name = event_name
-        print(self.event_name)
 
     async def handle_streaming_response(self, chat_id, new_chat_history, save_callback=None):
         system_content = f'''
