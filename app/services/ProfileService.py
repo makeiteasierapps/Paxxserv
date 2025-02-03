@@ -14,7 +14,7 @@ class ProfileService:
     async def get_profile(self, uid):
         user_doc = await self.db['users'].find_one(
             {'_id': uid}, 
-            {'first_name': 1, 'last_name': 1, 'username': 1, 'analysis': 1}
+            {'first_name': 1, 'last_name': 1, 'username': 1, 'analysis': 1, 'avatar_path': 1, 'is_admin': 1}
         )
         
         if user_doc:

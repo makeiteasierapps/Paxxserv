@@ -79,6 +79,7 @@ async def get_image(image_path: str):
 @router.delete("/images")
 async def delete_image(request: Request):
     data = await request.json()
+    print(data)
     path = data.get('path')
     LocalStorageService.delete_image(path)
     return JSONResponse(content={'message': 'Image deleted successfully'}, status_code=200)
