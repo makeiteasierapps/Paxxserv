@@ -10,24 +10,13 @@ from bson import ObjectId
 class TopicsOutput(BaseModel):
     topics: List[str]
 
-class QuestionsOutput(BaseModel):
-    questions: List[str]
-
 class TopicItemsSignature(Signature):
     """
-    Create a user anaylsis and a list of topics that will be of interes to the user based on the survey.
+    Create a user anaylsis and a list of topics that will be of interest to the user based on the survey.
     """
     survey = InputField()
     user_analysis: str = OutputField()
     topics: TopicsOutput = OutputField(desc='A list of topics')
-
-class QuestionGeneratorSignature(Signature):
-    """
-    Create a list of questions based on the user's details and category.
-    """
-    user_details = InputField()
-    category = InputField()
-    questions: QuestionsOutput = OutputField(desc='The questions should be a personalized list based on the users details')
 
 class AnalyzeUser():
     def __init__(self, db, uid):

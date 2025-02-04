@@ -93,3 +93,22 @@ class OpenAiClient:
             ]
         )
         return response
+    
+    async def extract_structured_data(self, system_message, content, schema):
+        if not self.client:
+            await self.initialize()
+        response = await self.client.chat.completions.parse(
+            model='gpt-4o-mini',
+            messages=[
+                {
+                    'role': 'system',
+                    'content': system_message
+                },
+                {
+                    'role': 'user',
+                    'content': content
+                }
+            ],
+            response_format=schema
+        )
+        return response.choices[0].message.parsed
