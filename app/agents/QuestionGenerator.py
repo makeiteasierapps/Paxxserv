@@ -1,26 +1,17 @@
-import os
-from openai import OpenAI
-import traceback
-from dspy import Signature, InputField, OutputField, ChainOfThought
-from dspy.functional import TypedChainOfThought
-from typing import List
-from pydantic import BaseModel
-import uuid
+from app.models.questions import QuestionSet
 from app.models.user_profile import UserProfile
 
-class QuestionGenerator():
-    def __init__(self, db, uid, llm_client):
-        self.db = db
-        self.uid = uid
-        self.llm_client = llm_client
-
-    def generate_questions(self, content):
+class QuestionGenerator:
+    def __init__(self, llm_client):
+        self.llm_client = llm_client 
+    async def generate_questions(self, user_profile: UserProfile):
         try:
-            pass
+            system_message = """You are an expert at crafting insightful and personalized questions.
+                Based on the missing information in the user profile, generate a set of foundational and objective questions.
+                """ 
+            # Directing the LLM to format its output according to the QuestionSet schema
+            question_set = await self.llm_client.extract_structured_data(system_message, user_profile, QuestionSet) 
+            return question_set
         except Exception as e:
             print(f"Error in generate_questions: {str(e)}")
-            print(traceback.format_exc())
-            yield {'error': str(e)}
-            
-        
-        return ''
+            return {'error': str(e)}

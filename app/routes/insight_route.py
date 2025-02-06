@@ -17,28 +17,25 @@ def get_services(request: Request, uid: str = Header(...)):
         mongo_client = request.app.state.mongo_client
         db = mongo_client.db
         llm_client = OpenAiClient(db, uid)
-        insight_service = InsightService(db, uid, llm_client)
+        question_generator = QuestionGenerator(llm_client)
+        insight_service = InsightService(db, uid, llm_client, question_generator)
         analyze_user = AnalyzeUser(db, uid)
-        return {"db": db, "analyze_user": analyze_user, "mongo_client": mongo_client, "insight_service": insight_service}
+        return {"db": db, "analyze_user": analyze_user, "mongo_client": mongo_client, "insight_service": insight_service, "uid": uid}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Service initialization failed: {str(e)}")
 
 @router.post("/insight/generate_questions")
 async def generate_questions(request: Request, services: dict = Depends(get_services)):
-    content = await request.json()
-    await services["db"]['users'].update_one({'_id': services["profile_service"].uid}, {'$set': {'userintro': content['userInput']}})
-    
-    async def generate():
-        try:
-            question_generator = QuestionGenerator(services["db"], services["profile_service"].uid)
-            for result in question_generator.generate_questions(content['userInput']):
-                yield json.dumps(result) + '\n'
-        except Exception as e:
-            error_msg = f"Error in generate_questions: {str(e)}\n{traceback.format_exc()}"
-            yield json.dumps({"error": error_msg}) + '\n'
-        finally:
-            services["mongo_client"].close()
-            yield ''  # Ensure the stream is properly closed
+    user_intro = await request.json()
+    user_profile, question_set = await services["insight_service"].initial_user_onboarding(user_intro)
+    mongo_client = services["mongo_client"]
+    insight_model = {
+        "uid": services["uid"],
+        "user_profile": user_profile,
+        "question_set": question_set.model_dump()
+    }
+    mongo_client.db.insight.insert_one(insight_model)
+    return {'user_profile': user_profile, 'question_set': question_set.model_dump()}
 
 @router.get("/insight/questions")
 async def get_questions(services: dict = Depends(get_services)):
