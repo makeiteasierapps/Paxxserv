@@ -2,16 +2,12 @@ import json
 import sys
 import traceback
 from app.services.ChatService import ChatService
-from app.services.ExtractionService import ExtractionService
-from app.services.ContextManagerService import ContextManagerService
 from app.services.ProfileService import ProfileService
-from app.agents.BossAgent import BossAgent
+from app.agents.BossAgent import BossAgent, BossAgentConfig
 from app.agents.AnthropicClient import AnthropicClient
 from app.agents.OpenAiClient import OpenAiClient
 from app.services.MongoDbClient import MongoDbClient
-from app.services.ColbertService import ColbertService
 from app.services.context_processor import process_chat_context
-from app.services.providers import ChatExtractionProvider, ChatSettingsProvider
 
 def get_db():
     try:
@@ -39,13 +35,13 @@ def create_boss_agent(chat_settings, sio, db, uid, profile_service):
     else:
         ai_client = OpenAiClient(db, uid)
 
-    boss_agent = BossAgent(
-        ai_client,
-        sio,
+    boss_agent = BossAgent(BossAgentConfig(
+        ai_client=ai_client,
+        sio=sio,
         model=model,
         system_message=system_message,
         user_analysis=user_analysis,
-    )
+    ))
 
     return boss_agent
 

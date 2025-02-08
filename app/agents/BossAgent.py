@@ -1,23 +1,154 @@
 import base64
+from enum import Enum
+from dataclasses import dataclass, field
+from typing import Optional, List, Any, Dict, Union, Mapping, Callable
+import logging
 from app.agents.OpenAiClient import OpenAiClient
 from app.agents.AnthropicClient import AnthropicClient
 from app.utils.token_counter import token_counter
+from app.agents.handlers.stream_handler import StreamHandler
+from app.agents.handlers.function_handler import FunctionHandler
+
+logger = logging.getLogger(__name__) 
+
+class MessageType(Enum):
+    END_OF_STREAM = "end_of_stream"
+
+class Role(Enum):
+    USER = "user"
+    ASSISTANT = "assistant"
+    SYSTEM = "system"
+
+@dataclass
+class Message:
+    content: Union[str, List[Dict]]
+    role: Role
+    type: Optional[MessageType] = None
+    language: Optional[str] = None
+    room: Optional[str] = None
+
+@dataclass
+class BossAgentConfig:
+    ai_client: Any
+    sio: Any
+    model: str = 'gpt-4o-mini'
+    system_message: str = ''
+    user_analysis: Optional[str] = None
+    context_urls: Optional[List[str]] = None
+    event_name: str = 'chat_response'
+    tools: Optional[List[Dict]] = None
+    tool_choice: Optional[str] = None
+    stream_response: bool = True
+    function_map: Mapping[str, Callable] = field(default_factory=dict)
+
 
 class BossAgent:
-    def __init__(self, ai_client, sio, model='gpt-4o-mini', system_message='', user_analysis=None, context_urls=None, event_name='chat_response'):
-        self.ai_client = ai_client
-        self.sio = sio
-        self.is_initialized = True
-        self.model = model
-        self.system_message = system_message
-        self.user_analysis = user_analysis
-        self.context_urls = context_urls
-        self.image_path = None
+    def __init__(self, config: BossAgentConfig):
+        self.ai_client = config.ai_client
+        self.sio = config.sio
+        self.model = config.model
+        self.system_message = config.system_message
+        self.user_analysis = config.user_analysis
+        self.context_urls = config.context_urls
+        self.stream_handler = StreamHandler(config.sio, config.event_name)
+        self.function_handler = FunctionHandler(config.function_map)
         self.token_counter = token_counter
-        self.event_name = event_name
+        self.tools = config.tools
+        self.tool_choice = config.tool_choice
+        self.stream_response = config.stream_response
+        self.image_path = None
+        self.event_name = config.event_name
 
-    async def handle_streaming_response(self, chat_id, new_chat_history, save_callback=None):
-        system_content = f'''
+    async def process_message(self, chat_history: List[Dict], chat_id: str, save_callback=None):
+        """Main entry point for processing messages"""
+        formatted_messages = self._format_chat_history(chat_history)
+        return await self._get_ai_response(chat_id, formatted_messages, save_callback)
+
+    def _format_chat_history(self, chat_history: List[Dict]) -> List[Dict]:
+        """Format chat history with token limiting"""
+        formatted_messages = []
+        token_count = 0
+        token_limit = 20000
+
+        for message in chat_history:
+            if token_count > token_limit:
+                break
+
+            content = message['content']
+            role = Role.USER.value if message['message_from'] == 'user' else Role.ASSISTANT.value
+            
+            if role == Role.USER.value and 'images' in message:
+                content = self._format_message_with_images(message)
+            elif role == Role.ASSISTANT.value:
+                content = message['content'][0]['content']
+            
+            token_count += self.token_counter(content if isinstance(content, str) else content[0]['content'])
+            formatted_messages.append({"role": role, "content": content})
+
+        return formatted_messages
+
+    def _format_message_with_images(self, message: Dict) -> List[Dict]:
+        """Format message that contains images"""
+        return [
+            {"type": "text", "text": message['content']},
+            *[{"type": "image_url", "image_url": {"url": img['url']}} 
+              for img in message['images']]
+        ]
+
+    async def _get_ai_response(self, chat_id: str, formatted_messages: List[Dict], save_callback=None):
+        """Generate and process AI response"""
+        system_content = self._create_system_content()
+        messages = [{"role": Role.SYSTEM.value, "content": system_content}, *formatted_messages]
+        final_response = None
+        
+        try:
+            response = await self._generate_ai_response(messages)
+            # All responses are now streamed
+            stream_result = await self.stream_handler.process_stream(chat_id, response)
+            
+            # Check if we got tool calls
+            if isinstance(stream_result, dict) and 'tool_calls' in stream_result:
+                print("Got tool calls")
+                formatted_messages.append({
+                    "role": "assistant",
+                    "tool_calls": stream_result['tool_calls']
+                })
+
+                print("Processing function calls")
+                conversation_messages = self.function_handler.process_function_calls(
+                    stream_result['tool_calls'],
+                    formatted_messages,
+                    system_content,
+                )
+
+                print("Getting new completion")
+                func_response = await self.ai_client.generate_chat_completion(
+                    conversation_messages,
+                    model=self.model,
+                    stream=True
+                )
+                print("Got completion, starting stream processing")
+                response_chunks = await self.stream_handler.process_stream(chat_id, func_response)
+                print("Stream processing complete")
+                final_response = self.stream_handler.collapse_response_chunks(
+                    response_chunks if isinstance(response_chunks, list) else response_chunks['response_chunks']
+                )
+            else:
+                final_response = self.stream_handler.collapse_response_chunks(stream_result)
+            
+            await self._send_end_of_stream(chat_id, 
+                stream_result['response_chunks'] if isinstance(stream_result, dict) else stream_result
+            )
+            
+        finally:
+            if save_callback and final_response:
+                await save_callback(chat_id, final_response)
+        
+        return final_response
+
+    def _create_system_content(self) -> str:
+        """Create the system content message"""
+        return f'''
             ***USER ANALYSIS***
             {self.user_analysis}
             **************
@@ -26,179 +157,32 @@ class BossAgent:
             **************
         '''
 
-        response = None
+    async def _generate_ai_response(self, messages: List[Dict]):
+        """Generate AI response with appropriate client"""
         if isinstance(self.ai_client, OpenAiClient):
-            openai_messages = [{
-                'role': 'system',
-                'content': system_content
-            }, *new_chat_history]
-            response = await self.ai_client.generate_chat_completion(openai_messages, model=self.model, stream=True)
+            return await self.ai_client.generate_chat_completion(
+                messages,
+                model=self.model,
+                stream=self.stream_response,
+                tools=self.tools,
+                tool_choice='auto'
+            )
         elif isinstance(self.ai_client, AnthropicClient):
-            response = await self.ai_client.generate_chat_completion(messages=new_chat_history, model=self.model, stream=True, system=system_content)
-        
-        response_chunks = await self.process_streaming_response(chat_id, response)
-        collapsed_response = self.collapse_response_chunks(response_chunks)
-        await self.send_end_of_stream_notification(chat_id, response_chunks)
-        if save_callback:
-            await save_callback(chat_id, collapsed_response)
-    
-    async def process_streaming_response(self, chat_id, response):
-        response_chunks = []
-        stream_state = {'inside_code_block': False, 'language': None, 'ignore_next_token': False, 'buffer': ''}
+            return await self.ai_client.generate_chat_completion(
+                messages=messages[1:],  # Exclude system message
+                model=self.model,
+                stream=True,
+                system=messages[0]['content']
+            )
 
-        for chunk in response:
-            if hasattr(chunk, 'type'):
-                if chunk.type == 'message_start':
-                    print('Stream message start')
-                elif chunk.type == 'message_stop':
-                    print('Stream message end')
-                elif chunk.type == 'content_block_delta':
-                    delta = chunk.delta
-                    if delta.type == 'text_delta':
-                        await self.process_response_chunk(chat_id, delta.text, response_chunks, stream_state)
-                elif chunk.type == 'message_delta':
-                    # Handle any top-level changes to the Message object if needed
-                    pass
-            else:  # OpenAI client structure
-                response_chunk = chunk.choices[0].delta.content
-                if response_chunk is not None:
-                    await self.process_response_chunk(chat_id, response_chunk, response_chunks, stream_state)
-
-        return response_chunks
-
-    async def process_response_chunk(self, chat_id, response_chunk, response_chunks, stream_state):
-        if stream_state.get('ignore_next_token', False):
-            stream_state['ignore_next_token'] = False
-            return
-
-        if response_chunk == '```':
-            stream_state['inside_code_block'] = not stream_state['inside_code_block']
-            if stream_state['inside_code_block']:
-                stream_state['buffer'] = ''
-            else:
-                stream_state['language'] = None
-            return
-
-        if stream_state['inside_code_block'] and not stream_state['language']:
-            stream_state['buffer'] += response_chunk
-            if '\n' in stream_state['buffer']:
-                language, code = stream_state['buffer'].split('\n', 1)
-                stream_state['language'] = language.strip()
-                if code:
-                    self.handle_chunk_content(chat_id, code, response_chunks, stream_state)
-                stream_state['buffer'] = ''
-            return
-
-        if response_chunk == '``':
-            stream_state['inside_code_block'] = False
-            stream_state['language'] = None
-            stream_state['ignore_next_token'] = True
-        else:
-            await self.handle_chunk_content(chat_id, response_chunk, response_chunks, stream_state)
-    
-    async def handle_chunk_content(self, chat_id, response_chunk, response_chunks, stream_state):
-        formatted_message = self.format_stream_message(response_chunk, stream_state['inside_code_block'], stream_state['language'])
-        formatted_message['room'] = chat_id
-        response_chunks.append(formatted_message)
-        await self.sio.emit(self.event_name, formatted_message)
-
-    def collapse_response_chunks(self, response_chunks):
-        collapsed_response = []
-        if response_chunks:
-            current_message = response_chunks[0]
-            for chunk in response_chunks[1:]:
-                if chunk['type'] == current_message['type']:
-                    current_message['content'] += chunk['content']
-                else:
-                    collapsed_response.append(current_message)
-                    current_message = chunk
-            collapsed_response.append(current_message)
-        return collapsed_response
-
-    async def send_end_of_stream_notification(self, chat_id, response_chunks):
+    async def _send_end_of_stream(self, chat_id: str, response_chunks: List[Dict]):
         end_stream_obj = {
             'message_from': 'agent',
             'content': response_chunks,
-            'type': 'end_of_stream',
+            'type': MessageType.END_OF_STREAM.value,
             'room': chat_id,
             'image_path': self.image_path,
             'context_urls': self.context_urls
         }
         
         await self.sio.emit(self.event_name, end_stream_obj)
-
-    def format_stream_message(self, message, inside_code_block, language):
-        if inside_code_block:
-            return {
-                'type': 'code',
-                'content': message,
-                'language': language or 'markdown',
-            }
-        else:
-            return {
-                'type': 'text',
-                'content': message,
-            }
-
-    async def process_message(self, chat_history, chat_id, save_callback=None):
-        new_chat_history = self.manage_chat_history(chat_history)
-        await self.handle_streaming_response(chat_id, new_chat_history, save_callback)
-
-    def manage_chat_history(self, chat_history):
-        """
-        Takes a chat object extracts x amount of tokens and returns a message
-        object ready to pass into OpenAI chat completion or Anthropic
-        """
-        formatted_messages = []
-        token_limit = 20000
-        token_count = 0
-        
-        # Handle the first (most recent) message separately
-        if chat_history:
-            first_message = chat_history[0]
-            if first_message['message_from'] == 'user':
-                token_count += self.token_counter(first_message['content'])
-                
-                if 'images' in first_message:
-                    content = [{"type": "text", "text": first_message['content']}]
-                    for image_url in first_message['images']:
-                        content.append({
-                            "type": "image_url",
-                            "image_url": {"url": image_url['url']}
-                        })
-                    formatted_messages.append({
-                        "role": "user",
-                        "content": content
-                    })
-                else:
-                    formatted_messages.append({
-                        "role": "user",
-                        "content": first_message['content']
-                    })
-            else:
-                token_count += self.token_counter(first_message['content'][0]['content'])
-                formatted_messages.append({
-                    "role": "assistant",
-                    "content": first_message['content'][0]['content']
-                })
-
-        # Process the rest of the messages normally
-        for message in chat_history[1:]:
-            if token_count > token_limit:
-                break
-            if message['message_from'] == 'user':
-                token_count += self.token_counter(message['content'])
-                formatted_messages.append({
-                    "role": "user",
-                    "content": message['content']
-                })
-            else:
-                token_count += self.token_counter(message['content'][0]['content'])
-                formatted_messages.append({
-                    "role": "assistant",
-                    "content": message['content'][0]['content']
-                })
-
-        return formatted_messages
-
-

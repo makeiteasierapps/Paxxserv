@@ -1,39 +1,40 @@
 from app.models.user_profile import UserProfile
-
+from app.agents.OpenAiClient import OpenAiClient
+import asyncio
+import json
+import logging
 class InsightService:
-    def __init__(self, db, uid, llm_client, question_generator):
+    def __init__(self, db, sio, uid, question_generator):
         self.db = db
+        self.sio = sio
         self.uid = uid
-        self.llm_client = llm_client
+        self.openai_client = OpenAiClient(db, uid)
         self.question_generator = question_generator
         
+    async def get_user_insight(self):
+        """
+        Fetches the user's insight document containing both question_set and user_profile.
+        Returns None if no document is found.
+        """
+        insight_doc = await self.db['insight'].find_one({'uid': self.uid})
+        insight_doc['_id'] = str(insight_doc['_id'])
+        return insight_doc
         
     async def get_user_analysis(self):
-        user_doc = await self.db['users'].find_one({'_id': self.uid}, {'analysis': 1})
-        
-        if user_doc:
-            return user_doc.get('analysis')
-        
-        return None
+        insight_doc = await self.get_user_insight()
+        if not insight_doc:
+            return None
+        return insight_doc.get('analysis')
     
-    async def load_questions(self, fetch_answered=False):
+    async def load_questions(self):
         """
-        Fetches the question/answers map from the user's profile in MongoDB.
-        Assumes 'profile' is a separate collection with 'uid' as a reference.
-        If fetchAnswered is True, only returns answered questions.
+        Fetches the question/answers map from the user's profile.
         """
-        insight_cursor = self.db['insight'].find({'uid': self.uid})
-        insight_array = []
-        
-        async for insight_doc in insight_cursor:
-            insight_doc['_id'] = str(insight_doc['_id'])
-            if fetch_answered:
-                insight_doc['questions'] = [q for q in insight_doc['questions'] if q.get('answer') is not None]
-                if not insight_doc['questions']:
-                    continue
-            insight_array.append(insight_doc)
-
-        return insight_array
+        insight_doc = await self.get_user_insight()
+        if not insight_doc:
+            return None
+            
+        return insight_doc.get('question_set')
     
     async def update_profile_answer(self, question_id, answer):
         """
@@ -47,37 +48,55 @@ class InsightService:
 
         return {'message': 'User answer updated'}, 200
     
-    async def initial_user_onboarding(self, user_intro):
-        system_message = """You are an expert at understanding and profiling users. 
-            Based on the provided information, create a comprehensive user profile 
-            with both foundational and objective information. Adhere to the schema provided, returning all fields and models even if empty."""
+    def extract_user_data(self, user_info: str):
+        # Return a dictionary indicating this is a background task
+        # The actual processing will be handled by _handle_background_task
+        return {
+            'background': 'Processing user data in the background. You will receive updates via socket.io events.',
+            'function': self._process_user_data,
+            'args': [user_info]
+        }
+    
+    async def _process_user_data(self, user_info: str):
+        """Internal method to process user data asynchronously"""
+        try:
+            system_message = """You are an expert at understanding and profiling users. 
+                Based on the provided information, create a comprehensive user profile 
+                with both foundational and objective information. Adhere to the schema provided, returning all fields and models even if empty."""
 
-        user_profile = await self.llm_client.extract_structured_data(system_message, user_intro, UserProfile)
-        print(user_profile)
-        # Convert the Pydantic model to JSON while preserving class names
-        def model_to_dict(obj):
-            if hasattr(obj, '__class__') and hasattr(obj, 'model_dump'):
-                class_name = obj.__class__.__name__
-                if class_name == "UserProfile":
-                    return {
-                        "foundational": [model_to_dict(item) for item in obj.foundational],
-                        "objective": [model_to_dict(item) for item in obj.objective]
-                    }
-                
-                # For all other Pydantic models
-                data = obj.model_dump()
-                data["category"] = class_name
-                return {k: model_to_dict(v) for k, v in data.items()}
-            elif isinstance(obj, list):
-                return [model_to_dict(item) for item in obj]
-            elif isinstance(obj, dict):
-                return {k: model_to_dict(v) for k, v in obj.items()}
-            return obj
+            user_profile = await self.openai_client.extract_structured_data(system_message, user_info, UserProfile)
+            
+            # Convert the Pydantic model to JSON while preserving class names
+            def model_to_dict(obj):
+                if hasattr(obj, '__class__') and hasattr(obj, 'model_dump'):
+                    class_name = obj.__class__.__name__
+                    if class_name == "UserProfile":
+                        return {
+                            "foundational": [model_to_dict(item) for item in obj.foundational],
+                            "objective": [model_to_dict(item) for item in obj.objective]
+                        }
+                    
+                    # For all other Pydantic models
+                    data = obj.model_dump()
+                    data["category"] = class_name
+                    return {k: model_to_dict(v) for k, v in data.items()}
+                elif isinstance(obj, list):
+                    return [model_to_dict(item) for item in obj]
+                elif isinstance(obj, dict):
+                    return {k: model_to_dict(v) for k, v in obj.items()}
+                return obj
+            
+            user_profile_dict = model_to_dict(user_profile)
+            user_profile_json = json.dumps(user_profile_dict)
+            await self.sio.emit('insight_user_data', user_profile_json)
+            
+            question_set = await self.question_generator.generate_questions(user_profile_json)
+            question_set_dict = model_to_dict(question_set)
+            question_set_json = json.dumps(question_set_dict)
+            await self.sio.emit('insight_question_data', question_set_json)
+        except Exception as e:
+            logging.error("Error processing user data in background task: %s", str(e))
 
-        user_profile_dict = model_to_dict(user_profile)
-        user_profile_json = str(user_profile_dict)
-        question_set = await self.question_generator.generate_questions(user_profile_json)
-        return user_profile_dict, question_set
     
     # def has_content(self,value) -> bool:
     #     """Check if a value contains actual content."""

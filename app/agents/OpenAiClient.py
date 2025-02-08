@@ -37,14 +37,32 @@ class OpenAiClient:
         )
         return response.data[0].embedding
     
-    async def generate_chat_completion(self, messages, model="gpt-4o-mini", json=False, stream=False):
+    async def generate_chat_completion(self, messages, model="gpt-4o-mini", stream=False, tools=None, tool_choice=None):
         if not self.client:
             await self.initialize()
-        kwargs = {"messages": messages, "model": model, "stream": stream}
-        if json:
-            kwargs["response_format"] = {"type": "json_object"}
+            
+        # Build request kwargs
+        kwargs = {
+            "messages": messages,
+            "model": model,
+            "stream": stream
+        }
+
+        if tools:
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = tool_choice
+
+        # Get response
         response = self.client.chat.completions.create(**kwargs)
-        return response if stream else response.choices[0].message.content
+
+        # Handle streaming responses
+        if stream:
+            return response
+            
+        # Get the message from the first choice
+        message = response.choices[0].message
+        
+        return message
             
     async def get_audio_speech(self, message, model="tts-1", voice="nova"):
         if not self.client:

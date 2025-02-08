@@ -1,7 +1,7 @@
 import logging
 from app.services.ChatService import ChatService
 from app.agents.SystemAgent import SystemAgent
-from app.agents.BossAgent import BossAgent
+from app.agents.BossAgent import BossAgent, BossAgentConfig
 from app.agents.OpenAiClient import OpenAiClient
 from app.services.MongoDbClient import MongoDbClient
 from app.services.System.SystemService import SystemService
@@ -16,7 +16,7 @@ def get_db():
     
 def create_system_agent(sio, db, uid):
     ai_client = OpenAiClient(db, uid)
-    system_boss_agent = BossAgent(ai_client, sio, event_name='system_chat_response')
+    system_boss_agent = BossAgent(BossAgentConfig(ai_client, sio, event_name='system_chat_response'))
     return system_boss_agent
 
 async def handle_file_routing(sio, sid, query, uid, system_state_manager):

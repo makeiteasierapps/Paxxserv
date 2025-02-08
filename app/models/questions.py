@@ -1,15 +1,9 @@
 from pydantic import BaseModel
-from typing import List, Optional
-
+from typing import List 
 # Question Category Container
-class Question(BaseModel):
-    text: str
-    answer: Optional[str] = None
-
 class QuestionCategory(BaseModel):
     category: str
-    questions: List[Question]
-
+    questions: List[str] 
 # Schema for Question Set
 class QuestionSet(BaseModel):
     foundational_questions: List[QuestionCategory]

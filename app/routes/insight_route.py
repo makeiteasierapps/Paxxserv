@@ -37,11 +37,10 @@ async def generate_questions(request: Request, services: dict = Depends(get_serv
     mongo_client.db.insight.insert_one(insight_model)
     return {'user_profile': user_profile, 'question_set': question_set.model_dump()}
 
-@router.get("/insight/questions")
+@router.get("/insight")
 async def get_questions(services: dict = Depends(get_services)):
-    questions = await services["insight_service"].load_questions()
-    return JSONResponse(content=questions)
-
+    return await services["insight_service"].get_user_insight()
+    
 @router.post("/insight/answers")
 async def update_answers(request: Request, services: dict = Depends(get_services)):
     data = await request.json()

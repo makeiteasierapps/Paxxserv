@@ -1,9 +1,9 @@
 from app.models.questions import QuestionSet
 from app.models.user_profile import UserProfile
-
+from app.agents.OpenAiClient import OpenAiClient
 class QuestionGenerator:
-    def __init__(self, llm_client):
-        self.llm_client = llm_client 
+    def __init__(self, db, uid):
+        self.llm_client = OpenAiClient(db, uid) 
     async def generate_questions(self, user_profile: UserProfile):
         try:
             system_message = """You are an expert at crafting insightful and personalized questions.
