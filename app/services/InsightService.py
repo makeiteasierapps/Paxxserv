@@ -1,8 +1,9 @@
 from app.models.user_profile import UserProfile
 from app.agents.OpenAiClient import OpenAiClient
-import asyncio
 import json
 import logging
+from app.services.MongoDbClient import MongoDbClient
+
 class InsightService:
     def __init__(self, db, sio, uid, question_generator):
         self.db = db
@@ -49,6 +50,7 @@ class InsightService:
         return {'message': 'User answer updated'}, 200
     
     def extract_user_data(self, user_info: str):
+
         # Return a dictionary indicating this is a background task
         # The actual processing will be handled by _handle_background_task
         return {
@@ -58,46 +60,43 @@ class InsightService:
         }
     
     async def _process_user_data(self, user_info: str):
-        """Internal method to process user data asynchronously"""
         try:
+            # Get fresh db connection for background task
+            db = MongoDbClient('paxxium').db
+            
             system_message = """You are an expert at understanding and profiling users. 
                 Based on the provided information, create a comprehensive user profile 
-                with both foundational and objective information. Adhere to the schema provided, returning all fields and models even if empty."""
-
+                with only the fields that contain data."""
+            
             user_profile = await self.openai_client.extract_structured_data(system_message, user_info, UserProfile)
+            profile_dict = user_profile.model_dump(exclude_none=True, exclude_defaults=True, exclude_unset=True)
+            cleaned_dict = self._remove_empty_structures(profile_dict)
             
-            # Convert the Pydantic model to JSON while preserving class names
-            def model_to_dict(obj):
-                if hasattr(obj, '__class__') and hasattr(obj, 'model_dump'):
-                    class_name = obj.__class__.__name__
-                    if class_name == "UserProfile":
-                        return {
-                            "foundational": [model_to_dict(item) for item in obj.foundational],
-                            "objective": [model_to_dict(item) for item in obj.objective]
-                        }
-                    
-                    # For all other Pydantic models
-                    data = obj.model_dump()
-                    data["category"] = class_name
-                    return {k: model_to_dict(v) for k, v in data.items()}
-                elif isinstance(obj, list):
-                    return [model_to_dict(item) for item in obj]
-                elif isinstance(obj, dict):
-                    return {k: model_to_dict(v) for k, v in obj.items()}
-                return obj
-            
-            user_profile_dict = model_to_dict(user_profile)
-            user_profile_json = json.dumps(user_profile_dict)
-            await self.sio.emit('insight_user_data', user_profile_json)
-            
-            question_set = await self.question_generator.generate_questions(user_profile_json)
-            question_set_dict = model_to_dict(question_set)
-            question_set_json = json.dumps(question_set_dict)
-            await self.sio.emit('insight_question_data', question_set_json)
+            user_db_model = {
+                "uid": self.uid,
+                "user_profile": cleaned_dict
+            }
+            await db['insight'].insert_one(user_db_model)
+            await self.sio.emit('insight_user_data', json.dumps(cleaned_dict))
+                
         except Exception as e:
             logging.error("Error processing user data in background task: %s", str(e))
 
-    
+    def _remove_empty_structures(self, obj):
+        """Recursively remove empty dictionaries and lists from the given object."""
+        if isinstance(obj, dict):
+            return {
+                key: self._remove_empty_structures(value)
+                for key, value in obj.items()
+                if value not in (None, "", {}, []) and self._remove_empty_structures(value) not in (None, "", {}, [])
+            }
+        elif isinstance(obj, list):
+            return [
+                self._remove_empty_structures(item)
+                for item in obj
+                if item not in (None, "", {}, []) and self._remove_empty_structures(item) not in (None, "", {}, [])
+            ]
+        return obj
     # def has_content(self,value) -> bool:
     #     """Check if a value contains actual content."""
     #     if isinstance(value, (str, list)):

@@ -1,29 +1,17 @@
 from uuid import uuid4
-from app.services.MongoDbClient import MongoDbClient
 from app.services.KnowledgeBaseService import KnowledgeBaseService
 from app.services.KbDocumentService import KbDocumentService
 from app.services.ColbertService import ColbertService
 
-def get_db(db_name: str):
-    try:
-        mongo_client = MongoDbClient.get_instance(db_name)
-        return mongo_client.db
-    except Exception as e:
-        raise Exception(f"Database connection failed: {str(e)}")
-    
-async def process_document(sio, sid, data):
+
+async def process_document(sio, sid, data, mongo_client):
     try:
         uid = data.get('uid')
         kb_id = data.get('kbId')
-        db_name = data.get('dbName')
         doc_id = data.get('id')
         operation = data.get('operation', 'embed')
 
-        if not db_name:
-            await sio.emit('error', {"error": "dbName is required"}, room=sid)
-            return
-
-        db = get_db(db_name)
+        db = mongo_client.db
         kb_service = KnowledgeBaseService(db, uid, kb_id)
         kb_document_service = KbDocumentService(db, kb_id)
 
@@ -72,7 +60,7 @@ async def process_and_update_client(
     except Exception as e:
         await sio.emit('process_error', {"process_id": process_id, "status": "error", "message": str(e)}, room=sid)
 
-def setup_document_handlers(sio):
+def setup_document_handlers(sio, mongo_client):
     @sio.on('process_document')
     async def process_document_handler(sid, data):
-        await process_document(sio, sid, data)
+        await process_document(sio, sid, data, mongo_client)

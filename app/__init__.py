@@ -33,7 +33,7 @@ except ValueError as e:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    mongo_client = MongoDbClient.get_instance('paxxium')
+    mongo_client = MongoDbClient('paxxium')
     app.state.mongo_client = mongo_client
     app.state.system_state_manager = await SystemStateManager.get_instance(mongo_client)
     

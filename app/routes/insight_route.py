@@ -5,8 +5,6 @@ from app.services.InsightService import InsightService
 from app.agents.QuestionGenerator import QuestionGenerator
 from app.agents.AnalyzeUser import AnalyzeUser
 from app.agents.OpenAiClient import OpenAiClient
-import json
-import traceback
 
 load_dotenv()
 
@@ -17,7 +15,7 @@ def get_services(request: Request, uid: str = Header(...)):
         mongo_client = request.app.state.mongo_client
         db = mongo_client.db
         llm_client = OpenAiClient(db, uid)
-        question_generator = QuestionGenerator(llm_client)
+        question_generator = QuestionGenerator(db, uid)
         insight_service = InsightService(db, uid, llm_client, question_generator)
         analyze_user = AnalyzeUser(db, uid)
         return {"db": db, "analyze_user": analyze_user, "mongo_client": mongo_client, "insight_service": insight_service, "uid": uid}

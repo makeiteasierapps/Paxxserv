@@ -1,88 +1,5 @@
 from typing import List, Optional
 from pydantic import BaseModel, Field
-def create_original_json_structure() -> dict:
-    return {
-        "foundational": [
-            {
-                "category": "Basic Demographics",
-                "data": [BasicDemographics().model_dump()]
-            },
-            {
-                "category": "Personal Background",
-                "data": [PersonalBackground().model_dump()]
-            },
-            {
-                "category": "Interests and Hobbies",
-                "data": [InterestsAndHobbies().model_dump()]
-            },
-            {
-                "category": "Social Relationships",
-                "data": [SocialRelationships().model_dump()]
-            },
-            {
-                "category": "Emotional Well-being and Self-View",
-                "data": [EmotionalWellbeing().model_dump()]
-            },
-            {
-                "category": "Identity and Personal Narrative",
-                "data": [IdentityAndPersonalNarrative().model_dump()]
-            }
-        ],
-        "objective": [
-            {
-                "category": "Daily Routine",
-                "data": [DailyRoutine().model_dump()]
-            },
-            {
-                "category": "Work Life Balance",
-                "data": [WorkLifeBalance().model_dump()]
-            },
-            {
-                "category": "Lifestyle Preferences",
-                "data": [LifestylePreferences().model_dump()]
-            },
-            {
-                "category": "Goals and Aspirations",
-                "data": [GoalsAndAspirations().model_dump()]
-            },
-            {
-                "category": "Values and Beliefs",
-                "data": [ValuesAndBeliefs().model_dump()]
-            },
-            {
-                "category": "Behavior Patterns",
-                "data": [BehaviorPatterns().model_dump()]
-            },
-            {
-                "category": "Challenges and Pain Points",
-                "data": [ChallengesAndPainPoints().model_dump()]
-            },
-            {
-                "category": "Technology and System Features",
-                "data": [TechnologyAndSystemFeatures().model_dump()]
-            },
-            {
-                "category": "Mindset and Attitude",
-                "data": [MindsetAndAttitude().model_dump()]
-            },
-            {
-                "category": "Emotional Intelligence",
-                "data": [EmotionalIntelligence().model_dump()]
-            },
-            {
-                "category": "Personal Growth",
-                "data": [PersonalGrowth().model_dump()]
-            },
-            {
-                "category": "Future Social Relationship Goals",
-                "data": [FutureSocialRelationshipGoals().model_dump()]
-            },
-            {
-                "category": "Future Identity",
-                "data": [FutureIdentity().model_dump()]
-            }
-        ]
-    }
 
 # Basic Demographics Models
 class Location(BaseModel):
@@ -244,11 +161,25 @@ class FutureIdentity(BaseModel):
     future_narratives_about_self: List[str] = Field(default_factory=list)
     aspirational_life_lessons_and_purpose: Optional[str] = None
 
-# Main User Profile Model
+class FoundationalProfile(BaseModel):
+    basic_demographics: Optional[BasicDemographics] = None
+    personal_background: Optional[PersonalBackground] = None
+    interests_and_hobbies: Optional[InterestsAndHobbies] = None
+    social_relationships: Optional[SocialRelationships] = None
+    emotional_wellbeing: Optional[EmotionalWellbeing] = None
+    identity_and_personal_narrative: Optional[IdentityAndPersonalNarrative] = None
+
+class ObjectiveProfile(BaseModel):
+    lifestyle_preferences: Optional[LifestylePreferences] = None
+    goals_and_aspirations: Optional[GoalsAndAspirations] = None
+    values_and_beliefs: Optional[ValuesAndBeliefs] = None
+    behavior_patterns: Optional[BehaviorPatterns] = None
+    challenges_and_pain_points: Optional[ChallengesAndPainPoints] = None
+    technology_and_system_features: Optional[TechnologyAndSystemFeatures] = None
+    personal_growth: Optional[PersonalGrowth] = None
+    future_social_relationship_goals: Optional[FutureSocialRelationshipGoals] = None
+    future_identity: Optional[FutureIdentity] = None
+
 class UserProfile(BaseModel):
-    foundational: List[BasicDemographics | PersonalBackground | InterestsAndHobbies | 
-               SocialRelationships | EmotionalWellbeing | IdentityAndPersonalNarrative]
-    
-    objective: List[LifestylePreferences | GoalsAndAspirations | ValuesAndBeliefs |
-               BehaviorPatterns | ChallengesAndPainPoints | TechnologyAndSystemFeatures |
-               PersonalGrowth | FutureSocialRelationshipGoals | FutureIdentity]
+    foundational: FoundationalProfile = Field(default_factory=FoundationalProfile)
+    objective: ObjectiveProfile = Field(default_factory=ObjectiveProfile)

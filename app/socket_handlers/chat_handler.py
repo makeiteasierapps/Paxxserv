@@ -6,15 +6,7 @@ from app.services.ProfileService import ProfileService
 from app.agents.BossAgent import BossAgent, BossAgentConfig
 from app.agents.AnthropicClient import AnthropicClient
 from app.agents.OpenAiClient import OpenAiClient
-from app.services.MongoDbClient import MongoDbClient
 from app.services.context_processor import process_chat_context
-
-def get_db():
-    try:
-        mongo_client = MongoDbClient.get_instance('paxxium')
-        return mongo_client.db
-    except Exception as e:
-        raise Exception(f"Database connection failed: {str(e)}")
 
 def initialize_services(db, uid):
     chat_service = ChatService(db)
@@ -45,7 +37,7 @@ def create_boss_agent(chat_settings, sio, db, uid, profile_service):
 
     return boss_agent
 
-async def handle_chat(sio, sid, data):
+async def handle_chat(sio, sid, data, mongo_client):
     try:
         chat_settings = data.get('selectedChat', None)
         if not chat_settings:
@@ -65,7 +57,7 @@ async def handle_chat(sio, sid, data):
             await sio.emit('error', {"error": "Message content is missing"})
             return
 
-        db = get_db()
+        db = mongo_client.db
         chat_service, profile_service = initialize_services(db, uid)
         boss_agent = create_boss_agent(chat_settings, sio, db, uid, profile_service)
 
@@ -91,7 +83,7 @@ async def handle_chat(sio, sid, data):
         print(f"Error details: {json.dumps(error_details, indent=2)}")
         await sio.emit('error', error_details)
 
-def setup_chat_handlers(sio):
+def setup_chat_handlers(sio, mongo_client):
     @sio.on('chat_response')
     async def chat_handler(sid, data):
-        await handle_chat(sio, sid, data)
+        await handle_chat(sio, sid, data, mongo_client)

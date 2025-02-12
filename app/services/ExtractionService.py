@@ -35,6 +35,7 @@ class ExtractionService:
     async def extract_from_url(self, url, endpoint, for_kb=False):
         """Base extraction method that can be used for both KB and chat scenarios"""
         normalized_url = self.normalize_url(url)
+        print(normalized_url)
         firecrawl_url = os.getenv('FIRECRAWL_DEV_URL') if os.getenv('LOCAL_DEV') == 'true' else os.getenv('FIRECRAWL_URL')
         
         try:
@@ -65,7 +66,7 @@ class ExtractionService:
 
     async def _fetch_and_process_url(self, firecrawl_url, normalized_url, endpoint):
         """Internal method to handle the URL fetching and processing"""
-        params = {'url': normalized_url}
+        params = {'url': normalized_url, "removeBase64Images": True,}
         async with httpx.AsyncClient() as client:
             firecrawl_response = await client.post(
                 f"{firecrawl_url}/{endpoint}", 
@@ -74,6 +75,7 @@ class ExtractionService:
             )
             firecrawl_response.raise_for_status()
             firecrawl_data = firecrawl_response.json()
+            print(firecrawl_data)
         if 'id' in firecrawl_data:
             return await self.poll_job_status(firecrawl_url, firecrawl_data['id'])
         

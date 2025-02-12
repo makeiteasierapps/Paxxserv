@@ -65,7 +65,6 @@ class StreamHandler:
 
     async def _handle_openai_chunk(self, chunk: Any, chat_id: str, response_chunks: List, stream_state: StreamState):
         response_chunk = chunk.choices[0].delta.content
-        print(f"Response chunk: {response_chunk}")
         if response_chunk is not None:
             await self._process_response_chunk(chat_id, response_chunk, response_chunks, stream_state)
 

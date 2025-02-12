@@ -1,20 +1,11 @@
 import os
 from dotenv import load_dotenv
-from fastapi import APIRouter, Request, HTTPException, Depends
+from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
-from app.services.MongoDbClient import MongoDbClient
 from app.services.FirebaseService import FirebaseService
 load_dotenv(override=True)
 
 router = APIRouter()
-
-def get_db(request: Request):
-    try:
-        mongo_client = request.app.state.mongo_client
-        db = mongo_client.db
-        return db
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database connection failed: {str(e)}")
 
 @router.get("/auth_check")
 async def get_firebase_config():
@@ -39,14 +30,14 @@ async def get_firebase_config():
         raise HTTPException(status_code=500, detail=f"An error occurred while fetching the configuration: {str(e)}")
 
 @router.post("/auth_check")
-async def check_auth(request: Request, db: MongoDbClient = Depends(get_db)):
+async def check_auth(request: Request):
     """
     Checks if admin has granted access to the user
     """
     try:
         json_data = await request.json()
         uid = json_data.get('uid')
-        user_doc = await db['users'].find_one({'_id': uid})
+        user_doc = await request.app.state.mongo_client.db['users'].find_one({'_id': uid})
         
         if user_doc is None:
             raise HTTPException(status_code=404, detail="User not found")

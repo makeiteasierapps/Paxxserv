@@ -1,4 +1,3 @@
-import base64
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Optional, List, Any, Dict, Union, Mapping, Callable
@@ -8,7 +7,7 @@ from app.agents.AnthropicClient import AnthropicClient
 from app.utils.token_counter import token_counter
 from app.agents.handlers.stream_handler import StreamHandler
 from app.agents.handlers.function_handler import FunctionHandler
-
+from fastapi import FastAPI
 logger = logging.getLogger(__name__) 
 
 class MessageType(Enum):
@@ -40,7 +39,6 @@ class BossAgentConfig:
     tool_choice: Optional[str] = None
     stream_response: bool = True
     function_map: Mapping[str, Callable] = field(default_factory=dict)
-
 
 class BossAgent:
     def __init__(self, config: BossAgentConfig):
@@ -108,28 +106,23 @@ class BossAgent:
             
             # Check if we got tool calls
             if isinstance(stream_result, dict) and 'tool_calls' in stream_result:
-                print("Got tool calls")
                 formatted_messages.append({
                     "role": "assistant",
                     "tool_calls": stream_result['tool_calls']
                 })
 
-                print("Processing function calls")
                 conversation_messages = self.function_handler.process_function_calls(
                     stream_result['tool_calls'],
                     formatted_messages,
                     system_content,
                 )
 
-                print("Getting new completion")
                 func_response = await self.ai_client.generate_chat_completion(
                     conversation_messages,
                     model=self.model,
                     stream=True
                 )
-                print("Got completion, starting stream processing")
                 response_chunks = await self.stream_handler.process_stream(chat_id, func_response)
-                print("Stream processing complete")
                 final_response = self.stream_handler.collapse_response_chunks(
                     response_chunks if isinstance(response_chunks, list) else response_chunks['response_chunks']
                 )

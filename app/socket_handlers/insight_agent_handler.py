@@ -4,7 +4,7 @@ from app.services.InsightService import InsightService
 from app.agents.QuestionGenerator import QuestionGenerator
 from app.agents.BossAgent import BossAgent, BossAgentConfig
 from app.agents.OpenAiClient import OpenAiClient
-from app.services.MongoDbClient import MongoDbClient
+
 tools = [{
     "type": "function",
     "function": {
@@ -22,13 +22,6 @@ tools = [{
     }
 }
 ]
-
-def get_db():
-    try:
-        mongo_client = MongoDbClient.get_instance('paxxium')
-        return mongo_client.db
-    except Exception as e:
-        raise Exception(f"Database connection failed: {str(e)}")
     
 def create_insight_agent(sio, db, uid):
     question_generator = QuestionGenerator(db, uid)
@@ -47,14 +40,15 @@ def validate_chat_settings(data):
         raise ValueError("Chat settings are missing")
     return chat_settings
 
-async def run_insight_agent(sio, sid, data):
+async def run_insight_agent(sio, sid, data, mongo_client):
     try:
         # Get and validate settings
         chat_object = validate_chat_settings(data)
+        print(chat_object)
         uid, chat_id = chat_object.get('uid'), chat_object.get('chatId')
         user_message = chat_object.get('messages', [])[-1] if chat_object.get('messages') else None
 
-        db = get_db()
+        db = mongo_client.db
         chat_service = ChatService(db, chat_type='insight')
 
         await chat_service.create_message(chat_id, 'user', user_message.get('content'))
@@ -71,7 +65,7 @@ async def run_insight_agent(sio, sid, data):
         logging.error('Error in run_insight_agent: %s', str(e))
         await sio.emit('error', {'message': f"Error processing request: {str(e)}"}, room=sid)
 
-def setup_insight_agent_handlers(sio):
+def setup_insight_agent_handlers(sio, mongo_client):
     @sio.on('insight_chat_response')
     async def get_agent_response_handler(sid, data):
-        await run_insight_agent(sio, sid, data)
+        await run_insight_agent(sio, sid, data, mongo_client)

@@ -3,17 +3,9 @@ from app.services.ChatService import ChatService
 from app.agents.SystemAgent import SystemAgent
 from app.agents.BossAgent import BossAgent, BossAgentConfig
 from app.agents.OpenAiClient import OpenAiClient
-from app.services.MongoDbClient import MongoDbClient
 from app.services.System.SystemService import SystemService
 from app.services.context_processor import process_chat_context
 
-def get_db():
-    try:
-        mongo_client = MongoDbClient.get_instance('paxxium')
-        return mongo_client.db
-    except Exception as e:
-        raise Exception(f"Database connection failed: {str(e)}")
-    
 def create_system_agent(sio, db, uid):
     ai_client = OpenAiClient(db, uid)
     system_boss_agent = BossAgent(BossAgentConfig(ai_client, sio, event_name='system_chat_response'))
@@ -40,14 +32,14 @@ def validate_chat_settings(data):
         raise ValueError("Chat settings are missing")
     return chat_settings
 
-async def run_system_agent(sio, sid, data, system_state_manager):
+async def run_system_agent(sio, sid, data, system_state_manager, mongo_client):
     try:
         # Get and validate settings
         chat_settings = validate_chat_settings(data)
         uid, chat_id, context = chat_settings.get('uid'), chat_settings.get('chatId'), chat_settings.get('context', [])
         user_message = chat_settings.get('messages', [])[-1] if chat_settings.get('messages') else None
         # Initialize services and get relevant files
-        db = get_db()
+        db = mongo_client.db
         chat_service = ChatService(db, chat_type='system')
         relevant_files = await handle_file_routing(sio, sid, user_message.get('content'), uid, system_state_manager)
         
@@ -75,7 +67,7 @@ async def run_system_agent(sio, sid, data, system_state_manager):
         logging.error('Error in run_system_agent: %s', str(e))
         await sio.emit('error', {'message': f"Error processing request: {str(e)}"}, room=sid)
 
-def setup_system_agent_handlers(sio, system_state_manager):
+def setup_system_agent_handlers(sio, system_state_manager, mongo_client):
     @sio.on('system_chat_response')
     async def get_agent_response_handler(sid, data):
-        await run_system_agent(sio, sid, data, system_state_manager)
+        await run_system_agent(sio, sid, data, system_state_manager, mongo_client)

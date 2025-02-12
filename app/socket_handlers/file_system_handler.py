@@ -1,14 +1,7 @@
-from app.services.MongoDbClient import MongoDbClient
 import asyncio
 from app.services.System.SystemService import SystemService
 from app.agents.CategoryAgent import CategoryAgent
 
-def get_db(db_name: str):
-    try:
-        mongo_client = MongoDbClient.get_instance(db_name)
-        return mongo_client.db
-    except Exception as e:
-        raise Exception(f"Database connection failed: {str(e)}")
 
 async def get_system_service(data, system_state_manager) -> SystemService:
     uid = data.get('uid')

@@ -3,14 +3,29 @@ import threading
 import json
 import logging
 import asyncio
+from fastapi import FastAPI
+
+def create_runner(func, args):
+    async def wrapped_func(*args):
+        try:
+            await func(*args)
+        except Exception as e:
+            logging.error("Error in background task: %s", str(e))
+    
+    def run_in_thread():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(wrapped_func(*args))
+        finally:
+            loop.close()
+    return run_in_thread
+
 class FunctionHandler:
     def __init__(self, function_map: Mapping[str, Callable]):
         self.function_map = function_map
 
     def process_function_calls(self, tool_calls: List[Any], messages: List[Dict], system_content: str) -> List[Dict]:
-        """
-        Non-blocking function to process function calls and return updated conversation messages
-        """
         conversation_messages = [
             {"role": "system", "content": system_content},
             *messages
@@ -26,25 +41,11 @@ class FunctionHandler:
 
                 arguments = json.loads(tool_call.function.arguments)
                 function_to_call = self.function_map[function_name]
-                
-                # Get the configuration without executing the function
                 result = function_to_call(**arguments)
 
                 if isinstance(result, dict) and 'background' in result:
-                    # Run background task in separate event loop
-                    def create_runner(func, args):
-                        def run_in_thread():
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                            try:
-                                loop.run_until_complete(func(*args))
-                            finally:
-                                loop.close()
-                        return run_in_thread
-
-                    thread = threading.Thread(
-                        target=create_runner(result['function'], result['args'])
-                    )
+                    runner = create_runner(result['function'], result['args'])
+                    thread = threading.Thread(target=runner)
                     thread.daemon = True
                     thread.start()
                     print('Background task created and detached')
@@ -72,7 +73,6 @@ class FunctionHandler:
 
     @staticmethod
     def is_function_call_response(response: Any) -> bool:
-        """Check if the response contains function calls"""
         return (hasattr(response, 'tool_calls') and 
                 isinstance(response.tool_calls, list) and 
                 len(response.tool_calls) > 0)
