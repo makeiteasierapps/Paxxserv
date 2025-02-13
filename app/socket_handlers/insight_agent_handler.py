@@ -1,5 +1,4 @@
 import logging
-from app.services.ChatService import ChatService
 from app.services.InsightService import InsightService
 from app.agents.QuestionGenerator import QuestionGenerator
 from app.agents.BossAgent import BossAgent, BossAgentConfig
@@ -23,9 +22,7 @@ tools = [{
 }
 ]
     
-def create_insight_agent(sio, db, uid):
-    question_generator = QuestionGenerator(db, uid)
-    insight_service = InsightService(db, sio, uid, question_generator)
+def create_insight_agent(sio, db, uid, insight_service):
     function_map = {
         "extract_user_data": insight_service.extract_user_data
     }
@@ -44,21 +41,20 @@ async def run_insight_agent(sio, sid, data, mongo_client):
     try:
         # Get and validate settings
         chat_object = validate_chat_settings(data)
-        print(chat_object)
-        uid, chat_id = chat_object.get('uid'), chat_object.get('chatId')
+        uid = chat_object.get('uid')
         user_message = chat_object.get('messages', [])[-1] if chat_object.get('messages') else None
 
         db = mongo_client.db
-        chat_service = ChatService(db, chat_type='insight')
-
-        await chat_service.create_message(chat_id, 'user', user_message.get('content'))
+        question_generator = QuestionGenerator(db, uid)
+        insight_service = InsightService(db, sio, uid, question_generator)
 
         # Process message with system agent
-        insight_agent = create_insight_agent(sio, db, uid)
+        insight_agent = create_insight_agent(sio, db, uid, insight_service)
+        await insight_service.create_message('user', user_message.get('content'))
         await insight_agent.process_message(
             chat_object['messages'], 
-            chat_id, 
-            # lambda cid, msg: chat_service.create_message(cid, 'agent', msg)
+            'insight', 
+            lambda cid, msg: insight_service.create_message('agent', msg)
         )
 
     except Exception as e:

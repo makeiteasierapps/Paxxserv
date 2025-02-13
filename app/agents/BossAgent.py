@@ -7,7 +7,6 @@ from app.agents.AnthropicClient import AnthropicClient
 from app.utils.token_counter import token_counter
 from app.agents.handlers.stream_handler import StreamHandler
 from app.agents.handlers.function_handler import FunctionHandler
-from fastapi import FastAPI
 logger = logging.getLogger(__name__) 
 
 class MessageType(Enum):
@@ -101,7 +100,6 @@ class BossAgent:
         
         try:
             response = await self._generate_ai_response(messages)
-            # All responses are now streamed
             stream_result = await self.stream_handler.process_stream(chat_id, response)
             
             # Check if we got tool calls

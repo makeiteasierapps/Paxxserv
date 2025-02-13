@@ -1,6 +1,8 @@
 from app.models.user_profile import UserProfile
 from app.agents.OpenAiClient import OpenAiClient
+from datetime import datetime, timezone
 import json
+from bson import ObjectId
 import logging
 from app.services.MongoDbClient import MongoDbClient
 
@@ -37,6 +39,26 @@ class InsightService:
             
         return insight_doc.get('question_set')
     
+    async def create_message(self, message_from, message_content):
+        current_time = datetime.now(timezone.utc).isoformat()
+        new_message = {
+            '_id': ObjectId(),
+            'message_from': message_from,
+            'content': message_content,
+            'type': 'database',
+            'current_time': current_time,
+        }
+
+        # Update the chat document to append the new message and update the 'updated_at' field
+        await self.db['insight'].update_one(
+            {'uid': self.uid}, 
+            {
+                '$push': {'messages': new_message},
+                '$set': {'updated_at': current_time}
+            },
+            upsert=True
+        )
+
     async def update_profile_answer(self, question_id, answer):
         """
         Update a single answer in the user's profile for MongoDB.
@@ -63,12 +85,13 @@ class InsightService:
         try:
             # Get fresh db connection for background task
             db = MongoDbClient('paxxium').db
+            openai_client = OpenAiClient(db, self.uid)
             
             system_message = """You are an expert at understanding and profiling users. 
                 Based on the provided information, create a comprehensive user profile 
                 with only the fields that contain data."""
             
-            user_profile = await self.openai_client.extract_structured_data(system_message, user_info, UserProfile)
+            user_profile = await openai_client.extract_structured_data(system_message, user_info, UserProfile)
             profile_dict = user_profile.model_dump(exclude_none=True, exclude_defaults=True, exclude_unset=True)
             cleaned_dict = self._remove_empty_structures(profile_dict)
             
@@ -76,7 +99,11 @@ class InsightService:
                 "uid": self.uid,
                 "user_profile": cleaned_dict
             }
-            await db['insight'].insert_one(user_db_model)
+            await db['insight'].update_one(
+                {'uid': self.uid},
+                {'$set': user_db_model},
+                upsert=True
+            )
             await self.sio.emit('insight_user_data', json.dumps(cleaned_dict))
                 
         except Exception as e:
@@ -97,6 +124,12 @@ class InsightService:
                 if item not in (None, "", {}, []) and self._remove_empty_structures(item) not in (None, "", {}, [])
             ]
         return obj
+    
+    
+    
+    
+    
+    
     # def has_content(self,value) -> bool:
     #     """Check if a value contains actual content."""
     #     if isinstance(value, (str, list)):

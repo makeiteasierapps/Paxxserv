@@ -37,7 +37,7 @@ async def generate_questions(request: Request, services: dict = Depends(get_serv
 
 @router.get("/insight")
 async def get_questions(services: dict = Depends(get_services)):
-    return await services["insight_service"].get_user_insight()
+    return await JSONResponse(content=services["insight_service"].get_user_insight())
     
 @router.post("/insight/answers")
 async def update_answers(request: Request, services: dict = Depends(get_services)):
