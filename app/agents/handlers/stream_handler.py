@@ -24,17 +24,8 @@ class StreamHandler:
     async def process_stream(self, chat_id: str, response: AsyncIterator) -> List[Dict]:
         response_chunks = []
         stream_state = StreamState()
-
+        
         for chunk in response:
-            # Check for tool calls in the chunk
-            if hasattr(chunk.choices[0].delta, 'tool_calls'):
-                for tool_call in chunk.choices[0].delta.tool_calls or []:
-                    index = tool_call.index
-                    if index not in stream_state.final_tool_calls:
-                        stream_state.final_tool_calls[index] = tool_call
-                    else:
-                        # Append arguments as they stream in
-                        stream_state.final_tool_calls[index].function.arguments += tool_call.function.arguments
             await self._handle_chunk(chunk, chat_id, response_chunks, stream_state)
         
         # If we accumulated any tool calls, return both tool calls and response chunks
@@ -64,6 +55,17 @@ class StreamHandler:
             pass  # Handle message delta if needed
 
     async def _handle_openai_chunk(self, chunk: Any, chat_id: str, response_chunks: List, stream_state: StreamState):
+        # Handle tool calls if present
+        if hasattr(chunk.choices[0].delta, 'tool_calls'):
+            for tool_call in chunk.choices[0].delta.tool_calls or []:
+                index = tool_call.index
+                if index not in stream_state.final_tool_calls:
+                    stream_state.final_tool_calls[index] = tool_call
+                else:
+                    # Append arguments as they stream in
+                    stream_state.final_tool_calls[index].function.arguments += tool_call.function.arguments
+
+        # Handle content if present
         response_chunk = chunk.choices[0].delta.content
         if response_chunk is not None:
             await self._process_response_chunk(chat_id, response_chunk, response_chunks, stream_state)
