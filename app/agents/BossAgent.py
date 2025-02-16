@@ -7,7 +7,9 @@ from app.agents.AnthropicClient import AnthropicClient
 from app.utils.token_counter import token_counter
 from app.agents.handlers.stream_handler import StreamHandler
 from app.agents.handlers.function_handler import FunctionHandler
-logger = logging.getLogger(__name__) 
+from app.agents.chat_history_manager import ChatHistoryManager, DefaultChatHistoryManager
+
+logger = logging.getLogger(__name__)
 
 class MessageType(Enum):
     END_OF_STREAM = "end_of_stream"
@@ -16,6 +18,7 @@ class Role(Enum):
     USER = "user"
     ASSISTANT = "assistant"
     SYSTEM = "system"
+    DEVELOPER = "developer"
 
 @dataclass
 class Message:
@@ -39,117 +42,18 @@ class BossAgentConfig:
     stream_response: bool = True
     function_map: Mapping[str, Callable] = field(default_factory=dict)
 
-class BossAgent:
-    def __init__(self, config: BossAgentConfig):
-        self.ai_client = config.ai_client
-        self.sio = config.sio
-        self.model = config.model
-        self.system_message = config.system_message
-        self.user_analysis = config.user_analysis
-        self.context_urls = config.context_urls
-        self.stream_handler = StreamHandler(config.sio, config.event_name)
-        self.function_handler = FunctionHandler(config.function_map)
-        self.token_counter = token_counter
-        self.tools = config.tools
-        self.tool_choice = config.tool_choice
-        self.stream_response = config.stream_response
-        self.image_path = None
-        self.event_name = config.event_name
+class AIResponseGenerator:
+    """
+    Helper class that encapsulates the logic for calling the appropriate
+    AI client to generate a response. Different agents may use different strategies.
+    """
+    def __init__(self, ai_client: Any, model: str, stream_response: bool, tools: Optional[List[Dict]] = None):
+        self.ai_client = ai_client
+        self.model = model
+        self.stream_response = stream_response
+        self.tools = tools
 
-    async def process_message(self, chat_history: List[Dict], chat_id: str, save_callback=None):
-        """Main entry point for processing messages"""
-        formatted_messages = self._format_chat_history(chat_history)
-        return await self._get_ai_response(chat_id, formatted_messages, save_callback)
-
-    def _format_chat_history(self, chat_history: List[Dict]) -> List[Dict]:
-        """Format chat history with token limiting"""
-        formatted_messages = []
-        token_count = 0
-        token_limit = 20000
-
-        for message in chat_history:
-            if token_count > token_limit:
-                break
-
-            content = message['content']
-            role = Role.USER.value if message['message_from'] == 'user' else Role.ASSISTANT.value
-            
-            if role == Role.USER.value and 'images' in message:
-                content = self._format_message_with_images(message)
-            elif role == Role.ASSISTANT.value:
-                content = message['content'][0]['content']
-            
-            token_count += self.token_counter(content if isinstance(content, str) else content[0]['content'])
-            formatted_messages.append({"role": role, "content": content})
-
-        return formatted_messages
-
-    def _format_message_with_images(self, message: Dict) -> List[Dict]:
-        """Format message that contains images"""
-        return [
-            {"type": "text", "text": message['content']},
-            *[{"type": "image_url", "image_url": {"url": img['url']}} 
-              for img in message['images']]
-        ]
-
-    async def _get_ai_response(self, chat_id: str, formatted_messages: List[Dict], save_callback=None):
-        """Generate and process AI response"""
-        system_content = self._create_system_content()
-        messages = [{"role": Role.SYSTEM.value, "content": system_content}, *formatted_messages]
-        final_response = None
-        
-        try:
-            response = await self._generate_ai_response(messages)
-            stream_result = await self.stream_handler.process_stream(chat_id, response)
-            
-            # Check if we got tool calls
-            if isinstance(stream_result, dict) and 'tool_calls' in stream_result:
-                formatted_messages.append({
-                    "role": "assistant",
-                    "tool_calls": stream_result['tool_calls']
-                })
-
-                conversation_messages = self.function_handler.process_function_calls(
-                    stream_result['tool_calls'],
-                    formatted_messages,
-                    system_content,
-                )
-
-                func_response = await self.ai_client.generate_chat_completion(
-                    conversation_messages,
-                    model=self.model,
-                    stream=True
-                )
-                response_chunks = await self.stream_handler.process_stream(chat_id, func_response)
-                final_response = self.stream_handler.collapse_response_chunks(
-                    response_chunks if isinstance(response_chunks, list) else response_chunks['response_chunks']
-                )
-            else:
-                final_response = self.stream_handler.collapse_response_chunks(stream_result)
-            
-            await self._send_end_of_stream(chat_id, 
-                stream_result['response_chunks'] if isinstance(stream_result, dict) else stream_result
-            )
-            
-        finally:
-            if save_callback and final_response:
-                await save_callback(chat_id, final_response)
-        
-        return final_response
-
-    def _create_system_content(self) -> str:
-        """Create the system content message"""
-        return f'''
-            ***USER ANALYSIS***
-            {self.user_analysis}
-            **************
-            ***THINGS TO REMEMBER***
-            {self.system_message}
-            **************
-        '''
-
-    async def _generate_ai_response(self, messages: List[Dict]):
-        """Generate AI response with appropriate client"""
+    async def generate_response(self, messages: List[Dict]) -> Any:
         if isinstance(self.ai_client, OpenAiClient):
             return await self.ai_client.generate_chat_completion(
                 messages,
@@ -165,6 +69,111 @@ class BossAgent:
                 stream=True,
                 system=messages[0]['content']
             )
+        else:
+            raise ValueError("Unsupported AI client type")
+
+class BossAgent:
+    """
+    The BossAgent ties together the various components:
+    • The AIResponseGenerator (to communicate with the AI service)
+    • The chat history manager (to pre-process the conversation)
+    • Handlers for streaming responses and function calls
+    """
+    def __init__(self, config: BossAgentConfig, chat_history_manager: ChatHistoryManager = None):
+        self.ai_client = config.ai_client
+        self.sio = config.sio
+        self.model = config.model
+        self.system_message = config.system_message
+        self.user_analysis = config.user_analysis
+        self.context_urls = config.context_urls
+        self.event_name = config.event_name
+        self.tools = config.tools
+        self.tool_choice = config.tool_choice
+        self.stream_response = config.stream_response
+        self.image_path = None
+
+        # Initialize handlers
+        self.stream_handler = StreamHandler(config.sio, config.event_name)
+        self.function_handler = FunctionHandler(config.function_map)
+        
+        # Use provided ChatHistoryManager or default
+        self.chat_history_manager = chat_history_manager or DefaultChatHistoryManager()
+        
+        # Initialize AI response generator
+        self.ai_response_generator = AIResponseGenerator(
+            ai_client=self.ai_client,
+            model=self.model,
+            stream_response=self.stream_response,
+            tools=self.tools,
+        )
+
+    async def process_message(self, chat_history: List[Dict], chat_id: str, save_callback=None):
+        """
+        Main entry point for processing messages. The chat_history is processed by 
+        the ChatHistoryManager strategy, then an AI response is generated.
+        """
+        formatted_messages = self.chat_history_manager.process_history(chat_history)
+        return await self._get_ai_response(chat_id, formatted_messages, save_callback)
+
+    async def _get_ai_response(self, chat_id: str, formatted_messages: List[Dict], save_callback=None):
+        """Generate and process AI response"""
+        system_content = self._create_system_content()
+        message_role = Role.DEVELOPER.value if any(model in self.model.lower() for model in ['o1', 'o3-mini']) else Role.SYSTEM.value
+        messages = [{"role": message_role, "content": system_content}, *formatted_messages]
+        final_response = None
+        
+        try:
+            response = await self.ai_response_generator.generate_response(messages)
+            stream_result = await self.stream_handler.process_stream(chat_id, response)
+            
+            if isinstance(stream_result, dict) and 'tool_calls' in stream_result:
+                final_response = await self._handle_tool_calls(
+                    chat_id, stream_result, formatted_messages, system_content
+                )
+            else:
+                final_response = self.stream_handler.collapse_response_chunks(stream_result)
+            
+            await self._send_end_of_stream(chat_id, 
+                stream_result['response_chunks'] if isinstance(stream_result, dict) else stream_result
+            )
+            
+        finally:
+            if save_callback and final_response:
+                await save_callback(chat_id, final_response)
+        
+        return final_response
+
+    async def _handle_tool_calls(self, chat_id: str, stream_result: Dict, 
+                               formatted_messages: List[Dict], system_content: str) -> str:
+        """Handle tool calls and generate follow-up response"""
+        formatted_messages.append({
+            "role": "assistant",
+            "tool_calls": stream_result['tool_calls']
+        })
+
+        conversation_messages = self.function_handler.process_function_calls(
+            stream_result['tool_calls'],
+            formatted_messages,
+            system_content,
+        )
+
+        func_response = await self.ai_response_generator.generate_response(conversation_messages)
+        response_chunks = await self.stream_handler.process_stream(chat_id, func_response)
+        
+        return self.stream_handler.collapse_response_chunks(
+            response_chunks if isinstance(response_chunks, list) else response_chunks['response_chunks']
+        )
+
+    def _create_system_content(self) -> str:
+        formatting_message = "Formatting re-enabled\n" if any(model in self.model.lower() for model in ['o1', 'o3-mini']) else ""
+        return f'''
+            {formatting_message}***USER ANALYSIS***
+            {self.user_analysis}
+            **************
+            ***THINGS TO REMEMBER***
+            {self.system_message}
+            **************
+        '''
 
     async def _send_end_of_stream(self, chat_id: str, response_chunks: List[Dict]):
         end_stream_obj = {
@@ -175,5 +184,4 @@ class BossAgent:
             'image_path': self.image_path,
             'context_urls': self.context_urls
         }
-        
         await self.sio.emit(self.event_name, end_stream_obj)
