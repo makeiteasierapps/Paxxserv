@@ -14,9 +14,8 @@ def get_services(request: Request, uid: str = Header(...)):
     try:
         mongo_client = request.app.state.mongo_client
         db = mongo_client.db
-        llm_client = OpenAiClient(db, uid)
-        question_generator = QuestionGenerator(db, uid)
-        insight_service = InsightService(db, uid, llm_client, question_generator)
+        sio = request.app.state.sio
+        insight_service = InsightService(db, sio, uid)
         analyze_user = AnalyzeUser(db, uid)
         return {"db": db, "analyze_user": analyze_user, "mongo_client": mongo_client, "insight_service": insight_service, "uid": uid}
     except Exception as e:
@@ -37,7 +36,8 @@ async def generate_questions(request: Request, services: dict = Depends(get_serv
 
 @router.get("/insight")
 async def get_questions(services: dict = Depends(get_services)):
-    return await JSONResponse(content=services["insight_service"].get_user_insight())
+    insight_data = await services["insight_service"].get_user_insight()
+    return JSONResponse(content=insight_data)
     
 @router.post("/insight/answers")
 async def update_answers(request: Request, services: dict = Depends(get_services)):

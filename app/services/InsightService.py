@@ -1,26 +1,40 @@
-from app.models.user_profile import UserProfile
-from app.agents.OpenAiClient import OpenAiClient
 from datetime import datetime, timezone
 import json
 from bson import ObjectId
 import logging
+from pydantic import ValidationError, BaseModel
+from typing import List
 from app.services.MongoDbClient import MongoDbClient
 
+class Category(BaseModel):
+    name: str
+    subcategory: str
+    is_new_category: bool
+    is_new_subcategory: bool
+
+class UserEntry(BaseModel):
+    question: str
+    answer: str
+    category: Category
+    follow_up_question: str
+
+class UserProfile(BaseModel):
+    user_entries: List[UserEntry]
+
 class InsightService:
-    def __init__(self, db, sio, uid, question_generator):
+    def __init__(self, db, sio, uid):
         self.db = db
         self.sio = sio
         self.uid = uid
-        self.openai_client = OpenAiClient(db, uid)
-        self.question_generator = question_generator
         
     async def get_user_insight(self):
         """
         Fetches the user's insight document containing both question_set and user_profile.
         Returns None if no document is found.
         """
-        insight_doc = await self.db['insight'].find_one({'uid': self.uid})
+        insight_doc = await self.db['insight'].find_one({'uid': self.uid},{'messages._id': 0})
         insight_doc['_id'] = str(insight_doc['_id'])
+        print(insight_doc)
         return insight_doc
         
     async def get_user_analysis(self):
@@ -71,88 +85,60 @@ class InsightService:
 
         return {'message': 'User answer updated'}, 200
     
-    def extract_user_data(self, user_info: str):
-
+    def extract_user_data(self, user_entries: List[UserEntry]):
         # Return a dictionary indicating this is a background task
         # The actual processing will be handled by _handle_background_task
         return {
             'background': 'Processing user data in the background. You will receive updates via socket.io events.',
             'function': self._process_user_data,
-            'args': [user_info]
+            'args': [user_entries]
         }
     
-    async def _process_user_data(self, user_info: str):
+    def parse_function_call_arguments(self, arguments: List[UserEntry]) -> UserProfile:
+        """
+        Parses and validates JSON arguments from the function call into a UserProfile model.
+        """
         try:
-            # Get fresh db connection for background task
+            user_profile = UserProfile(user_entries=arguments)
+            return user_profile
+        except json.JSONDecodeError as json_err:
+            logging.error("Error decoding JSON: %s", json_err)
+            raise
+        except ValidationError as val_err:
+            logging.error("Validation error: %s", val_err)
+            raise
+
+    async def _process_user_data(self, raw_arguments: str):
+        try:
+            # Parse function call arguments
+            user_profile = self.parse_function_call_arguments(raw_arguments)
+            
+            # Get MongoDB connection
             db = MongoDbClient('paxxium').db
-            openai_client = OpenAiClient(db, self.uid)
+            user_collection = db['insight']
             
-            system_message = """You are an expert at understanding and profiling users. 
-                Based on the provided information, create a comprehensive user profile 
-                with only the fields that contain data."""
-            
-            user_profile = await openai_client.extract_structured_data(system_message, user_info, UserProfile)
-            profile_dict = user_profile.model_dump(exclude_none=True, exclude_defaults=True, exclude_unset=True)
-            cleaned_dict = self._remove_empty_structures(profile_dict)
-            
-            user_db_model = {
-                "uid": self.uid,
-                "user_profile": cleaned_dict
-            }
-            await db['insight'].update_one(
-                {'uid': self.uid},
-                {'$set': user_db_model},
-                upsert=True
+            update_query = {'uid': self.uid}  # Match user
+            update_data = {'$push': {}}
+
+            # Category-based update
+            for entry in user_profile.user_entries:
+                category = entry.category  # category is a single object, not a list
+                category_path = f"categories.{category.name}.{category.subcategory}"
+                # Convert the entry to a dict and remove the category field since it's handled separately
+                entry_data = entry.model_dump()
+                del entry_data['category']
+                update_data['$push'].setdefault(category_path, []).append(entry_data)
+
+            # Perform update
+            await user_collection.update_one(update_query, update_data, upsert=True)
+
+            # Emit updated data
+            updated_profile = await user_collection.find_one(
+                {'uid': self.uid}, 
+                {'_id': 0, 'categories': 1}
             )
-            await self.sio.emit('insight_user_data', json.dumps(cleaned_dict))
-                
+            print(updated_profile)
+            await self.sio.emit('insight_user_data', json.dumps(updated_profile))
+
         except Exception as e:
-            logging.error("Error processing user data in background task: %s", str(e))
-
-    def _remove_empty_structures(self, obj):
-        """Recursively remove empty dictionaries and lists from the given object."""
-        if isinstance(obj, dict):
-            return {
-                key: self._remove_empty_structures(value)
-                for key, value in obj.items()
-                if value not in (None, "", {}, []) and self._remove_empty_structures(value) not in (None, "", {}, [])
-            }
-        elif isinstance(obj, list):
-            return [
-                self._remove_empty_structures(item)
-                for item in obj
-                if item not in (None, "", {}, []) and self._remove_empty_structures(item) not in (None, "", {}, [])
-            ]
-        return obj
-    
-    
-    
-    
-    
-    
-    # def has_content(self,value) -> bool:
-    #     """Check if a value contains actual content."""
-    #     if isinstance(value, (str, list)):
-    #         return bool(value)  # Returns False for empty strings/lists
-    #     return value is not None
-
-    # def get_unanswered_user_profile(self, user_profile: UserProfile) -> dict:
-    #     """Create a structure containing only unanswered fields from the user profile."""
-    #     def _filter_model(model: BaseModel) -> dict:
-    #         return {
-    #             field_name: (
-    #                 _filter_model(field_value) if isinstance(field_value, BaseModel)
-    #                 else [_filter_model(item) for item in field_value] if isinstance(field_value, list) and field_value and isinstance(field_value[0], BaseModel)
-    #                 else field_value
-    #             )
-    #             for field_name, field_value in model
-    #             if not self.has_content(field_value) or (
-    #                 isinstance(field_value, BaseModel) and _filter_model(field_value)
-    #             ) or (
-    #                 isinstance(field_value, list) and field_value and 
-    #                 isinstance(field_value[0], BaseModel) and 
-    #                 any(_filter_model(item) for item in field_value)
-    #             )
-    #         }
-        
-    #     return _filter_model(user_profile)
+            logging.error("Error processing user data: %s", str(e))

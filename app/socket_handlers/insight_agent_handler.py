@@ -4,23 +4,146 @@ from app.agents.QuestionGenerator import QuestionGenerator
 from app.agents.BossAgent import BossAgent, BossAgentConfig
 from app.agents.OpenAiClient import OpenAiClient
 
+
+# tools = [{
+#     "type": "function",
+#     "function": {
+#         "name": "extract_user_data",
+#         "description": "Used when the user provides information about themselves",
+#         "parameters": {
+#             "type": "object", 
+#             "properties": {
+#             "user_info": {
+#                 "type": "string", 
+#                 "description": "The user's information"}
+#         }, 
+#         "required": ["user_info"],
+#         }
+#     }
+# }
+# ]
+
+CATEGORIES = [
+    "basic_demographics",
+
+    "cultural_influences",
+    "personal_background",
+    "interests_and_hobbies",
+    "social_relationships",
+    "emotional_landscape",
+    "self_perception",
+    "coping_mechanisms",
+    "life_philosophy",
+    "pivotal_past_experiences",
+    "personal_storytelling",
+    "daily_routine",
+    "work_life_balance",
+    "lifestyle_preferences",
+    "goals_and_aspirations",
+    "values_and_beliefs",
+    "behavior_patterns",
+    "challenges_and_pain_points",
+    "mindset_and_attitude",
+    "emotional_intelligence",
+    "personal_growth",
+    "behavior_patterns",
+    "future_social_relationship_goals",
+    "future_identity",
+    "personal_growth",
+    "future_identity",
+]
+
+SUBCATEGORIES = [
+    "age_range",
+    "gender_identity",
+    "location",
+    "education_level",
+    "occupation",
+    "regular_hobbies",
+    "current_interests",
+    "artistic_inclinations",
+    "learning_interests",
+    "passions",
+    "hobbies_shared_with_others",
+    "relationship_history",
+    "current_dynamics",
+    "interaction_patterns",
+    "mood_patterns",
+    "emotional_triggers",
+    "strengths",
+    "weaknesses",
+    "life_meaning",
+    "narratives_about_self",
+    "life_lessons",
+    "work",
+    "leisure",
+    "exercise",
+    "spiritual_practices",
+    "spiritual_beliefs",
+       
+]
+
 tools = [{
     "type": "function",
     "function": {
         "name": "extract_user_data",
         "description": "Used when the user provides information about themselves",
         "parameters": {
-            "type": "object", 
+            "type": "object",
             "properties": {
-            "user_info": {
-                "type": "string", 
-                "description": "The user's information"}
-        }, 
-        "required": ["user_info"],
+                "user_entries": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "question": {
+                                "type": "string",
+                                "description": "The original question that prompted the user's response."
+                            },
+                            "answer": {
+                                "type": "string",
+                                "description": "A specific piece of user-provided information."
+                            },
+                            "category": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {
+                                        "type": "string",
+                                        "enum": CATEGORIES,
+                                        "description": "The category this answer belongs to. If none of the existing categories match, return a new suggested category."
+                                    },
+                                    "subcategory": {
+                                        "type": "string",
+                                        "enum": SUBCATEGORIES,
+                                        "description": "A more specific subcategory within the chosen category. If none of the existing subcategories match, return a new suggested subcategory."
+                                    },
+                                    "is_new_category": {
+                                        "type": "boolean",
+                                        "description": "True if this is a newly suggested category."
+                                    },
+                                    "is_new_subcategory": {
+                                        "type": "boolean",
+                                        "description": "True if this is a newly suggested subcategory."
+                                    }
+                                },
+                                "required": ["name", "subcategory", "is_new_category", "is_new_subcategory"],
+                                "description": "The category and subcategory that best describes this answer."
+                            },
+                            "follow_up_question": {
+                                "type": "string",
+                                "description": "A follow-up question generated to encourage deeper exploration of this topic."
+                            }
+                        },
+                        "required": ["question", "answer", "category", "subcategory", "follow_up_question"]
+                    },
+                    "description": "A list of user-provided information entries with their associated categories, subcategories, and follow-up questions."
+                }
+            },
+            "required": ["user_entries"]
         }
     }
-}
-]
+}]
+
     
 def create_insight_agent(sio, db, uid, insight_service):
     function_map = {

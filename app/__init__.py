@@ -40,7 +40,7 @@ async def lifespan(app: FastAPI):
     # Setup Socket.IO event handlers after system_state_manager is initialized
     from app.socket_handlers.setup_socket_handlers import setup_socket_handlers
     setup_socket_handlers(socket_client, app)
-    
+    app.state.sio = socket_client
     yield
 
 async def error_handling_middleware(request: Request, call_next):
