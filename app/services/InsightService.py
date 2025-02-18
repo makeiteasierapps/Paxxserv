@@ -3,14 +3,26 @@ import json
 from bson import ObjectId
 import logging
 from pydantic import ValidationError, BaseModel
-from typing import List
+from typing import List, Optional, Dict, Any
+
 from app.services.MongoDbClient import MongoDbClient
 
+# Database Models
+class Answer(BaseModel):
+    question: str
+    answer: str
+    follow_up_question: Optional[str] = None
+
+class InsightDocument(BaseModel):
+    questions_data: Dict[str, Dict[str, List[Answer]]]
+    messages: Optional[List[Dict[str, Any]]] = None
+    analysis: Optional[Dict[str, Any]] = None
+    updated_at: Optional[str] = None
+
+# OpenAI Function Response Models
 class Category(BaseModel):
     name: str
     subcategory: str
-    is_new_category: bool
-    is_new_subcategory: bool
 
 class UserEntry(BaseModel):
     question: str
@@ -18,7 +30,17 @@ class UserEntry(BaseModel):
     category: Category
     follow_up_question: str
 
-class UserProfile(BaseModel):
+class OpenAIFunctionResponse(BaseModel):
+    """
+    Represents the structured response from OpenAI's function call for user insight extraction.
+    
+    This model matches the schema defined in the OpenAI function tool configuration and is used
+    to parse and validate the AI's categorized interpretation of user responses.
+
+    Attributes:
+        user_entries (List[UserEntry]): A list of processed user responses, each containing
+            the original question, answer, categorization, and follow-up questions.
+    """
     user_entries: List[UserEntry]
 
 class InsightService:
@@ -27,33 +49,27 @@ class InsightService:
         self.sio = sio
         self.uid = uid
         
-    async def get_user_insight(self):
+    async def get_user_insight(self) -> Optional[InsightDocument]:
         """
-        Fetches the user's insight document containing both question_set and user_profile.
+        Fetches the user's insight document.
         Returns None if no document is found.
         """
-        insight_doc = await self.db['insight'].find_one({'uid': self.uid},{'messages._id': 0})
-        insight_doc['_id'] = str(insight_doc['_id'])
-        print(insight_doc)
-        return insight_doc
+        insight_doc = await self.db['insight'].find_one({'uid': self.uid}, {'messages._id': 0, 'categories.all': 0, 'categories.all_subcategories': 0})
+        if insight_doc:
+            insight_doc['_id'] = str(insight_doc['_id'])
+            return InsightDocument(**insight_doc)
+        return None
         
-    async def get_user_analysis(self):
+    async def get_user_analysis(self) -> Optional[Dict[str, Any]]:
         insight_doc = await self.get_user_insight()
         if not insight_doc:
             return None
-        return insight_doc.get('analysis')
+        return insight_doc.analysis
     
-    async def load_questions(self):
+    async def create_message(self, message_from: str, message_content: str):
         """
-        Fetches the question/answers map from the user's profile.
+        Creates a new message in the insight document.
         """
-        insight_doc = await self.get_user_insight()
-        if not insight_doc:
-            return None
-            
-        return insight_doc.get('question_set')
-    
-    async def create_message(self, message_from, message_content):
         current_time = datetime.now(timezone.utc).isoformat()
         new_message = {
             '_id': ObjectId(),
@@ -63,7 +79,6 @@ class InsightService:
             'current_time': current_time,
         }
 
-        # Update the chat document to append the new message and update the 'updated_at' field
         await self.db['insight'].update_one(
             {'uid': self.uid}, 
             {
@@ -73,17 +88,27 @@ class InsightService:
             upsert=True
         )
 
-    async def update_profile_answer(self, question_id, answer):
+    async def update_profile_answer(self, answer_data: Dict[str, Any]):
         """
-        Update a single answer in the user's profile for MongoDB.
-        Assumes 'profile' is a separate collection with 'uid' as a reference.
+        Update or add an answer in the user's profile categories structure.
+        The answer will be stored under its respective category and subcategory.
         """
-        await self.db['questions'].update_one(
-            {'uid': self.uid, 'questions._id': question_id},
-            {'$set': {'questions.$.answer': answer}}
-        )
+        try:
+            index = answer_data['index']
+            updated_answer = answer_data['answer']
+            category = answer_data['category']
+            subcategory = answer_data['subcategory']
+            category_path = f"questions_data.{category}.{subcategory}.{index}.answer"
+            await self.db['insight'].update_one(
+                {'uid': self.uid},
+                {'$set': {category_path: updated_answer}}  # Set the answer at the specific index
+            )
 
-        return {'message': 'User answer updated'}, 200
+            return {'message': 'Answer updated successfully'}, 200
+            
+        except Exception as e:
+            logging.error("Error updating profile answer: %s", e)
+            raise
     
     def extract_user_data(self, user_entries: List[UserEntry]):
         # Return a dictionary indicating this is a background task
@@ -94,13 +119,12 @@ class InsightService:
             'args': [user_entries]
         }
     
-    def parse_function_call_arguments(self, arguments: List[UserEntry]) -> UserProfile:
+    def parse_function_call_arguments(self, arguments: List[UserEntry]) -> OpenAIFunctionResponse:
         """
-        Parses and validates JSON arguments from the function call into a UserProfile model.
+        Parses and validates JSON arguments from the function call into an OpenAIFunctionResponse model.
         """
         try:
-            user_profile = UserProfile(user_entries=arguments)
-            return user_profile
+            return OpenAIFunctionResponse(user_entries=arguments)
         except json.JSONDecodeError as json_err:
             logging.error("Error decoding JSON: %s", json_err)
             raise
@@ -112,7 +136,7 @@ class InsightService:
         try:
             # Parse function call arguments
             user_profile = self.parse_function_call_arguments(raw_arguments)
-            
+
             # Get MongoDB connection
             db = MongoDbClient('paxxium').db
             user_collection = db['insight']
@@ -122,23 +146,39 @@ class InsightService:
 
             # Category-based update
             for entry in user_profile.user_entries:
-                category = entry.category  # category is a single object, not a list
-                category_path = f"categories.{category.name}.{category.subcategory}"
+                category = entry.category
+                category_name = category.name.replace(' ', '_').lower()
+                subcategory_name = category.subcategory.replace(' ', '_').lower()
+                category_path = f"questions_data.{category_name}.{subcategory_name}"
+
+                # Add category and subcategory if they don't exist
+                await user_collection.update_one(
+                    {'uid': self.uid},
+                    {
+                        '$addToSet': {
+                            'categories.all': category_name,
+                            'categories.all_subcategories': subcategory_name,
+                            f'categories.{category_name}.subcategories': subcategory_name
+                        }
+                    },
+                    upsert=True
+                )
+
                 # Convert the entry to a dict and remove the category field since it's handled separately
                 entry_data = entry.model_dump()
                 del entry_data['category']
-                update_data['$push'].setdefault(category_path, []).append(entry_data)
+                update_data['$push'][category_path] = entry_data
 
-            # Perform update
-            await user_collection.update_one(update_query, update_data, upsert=True)
+            # Perform update for the answers
+            if update_data['$push']:
+                await user_collection.update_one(update_query, update_data, upsert=True)
 
             # Emit updated data
-            updated_profile = await user_collection.find_one(
+            updated_data = await user_collection.find_one(
                 {'uid': self.uid}, 
-                {'_id': 0, 'categories': 1}
+                {'_id': 0, 'questions_data': 1, 'categories.all': 0, 'categories.all_subcategories': 0}
             )
-            print(updated_profile)
-            await self.sio.emit('insight_user_data', json.dumps(updated_profile))
+            await self.sio.emit('insight_user_data', json.dumps(updated_data))
 
         except Exception as e:
             logging.error("Error processing user data: %s", str(e))
