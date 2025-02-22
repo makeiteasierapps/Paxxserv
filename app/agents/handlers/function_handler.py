@@ -50,12 +50,22 @@ class FunctionHandler:
                     thread.daemon = True
                     thread.start()
                     print('Background task created and detached')
-                    
-                    conversation_messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "content": result['background']
-                    })
+                    if 'follow_up_questions' in result:
+                        print(result['follow_up_questions'])
+                        conversation_messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": f'''
+                            Choose one of the following follow-up questions to ask the user:
+                            {result['follow_up_questions']}
+                            '''
+                        })
+                    else:
+                        conversation_messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "content": result['background']
+                        })
                 else:
                     conversation_messages.append({
                         "role": "tool",

@@ -30,6 +30,11 @@ class UserEntry(BaseModel):
     category: Category
     follow_up_question: str
 
+class FollowUpQuestion(BaseModel):
+    question: str
+    answer: Optional[str] = None
+    category: Category
+
 class OpenAIFunctionResponse(BaseModel):
     """
     Represents the structured response from OpenAI's function call for user insight extraction.
@@ -113,10 +118,16 @@ class InsightService:
     def extract_user_data(self, user_entries: List[UserEntry]):
         # Return a dictionary indicating this is a background task
         # The actual processing will be handled by _handle_background_task
+        # Process follow-up questions
+        follow_up_questions = [
+            FollowUpQuestion(question=entry['follow_up_question'], category=entry['category'])
+            for entry in user_entries
+        ]
         return {
             'background': 'Processing user data in the background. You will receive updates via socket.io events.',
             'function': self._process_user_data,
-            'args': [user_entries]
+            'args': [user_entries],
+            'follow_up_questions': follow_up_questions
         }
     
     def parse_function_call_arguments(self, arguments: List[UserEntry]) -> OpenAIFunctionResponse:
@@ -176,7 +187,7 @@ class InsightService:
             # Emit updated data
             updated_data = await user_collection.find_one(
                 {'uid': self.uid}, 
-                {'_id': 0, 'questions_data': 1, 'categories.all': 0, 'categories.all_subcategories': 0}
+                {'_id': 0, 'questions_data': 1}
             )
             await self.sio.emit('insight_user_data', json.dumps(updated_data))
 

@@ -90,6 +90,7 @@ async def run_insight_agent(sio, sid, data, mongo_client):
         chat_object = validate_chat_settings(data)
         uid = chat_object.get('uid')
         user_message = chat_object.get('messages', [])[-1] if chat_object.get('messages') else None
+        print(user_message)
 
         db = mongo_client.db
         insight_service = InsightService(db, sio, uid)
