@@ -33,6 +33,7 @@ class FunctionHandler:
         ]
         
         for tool_call in tool_calls:
+            print(tool_call)
             try:
                 function_name = tool_call.function.name
                 if not self.function_map:
@@ -44,28 +45,17 @@ class FunctionHandler:
                 function_to_call = self.function_map[function_name]
                 result = function_to_call(**arguments)
 
-                if isinstance(result, dict) and 'background' in result:
+                if isinstance(result, dict) and 'content' in result:
                     runner = create_runner(result['function'], result['args'])
                     thread = threading.Thread(target=runner)
                     thread.daemon = True
                     thread.start()
-                    print('Background task created and detached')
-                    if 'follow_up_questions' in result:
-                        print(result['follow_up_questions'])
-                        conversation_messages.append({
-                            "role": "tool",
-                            "tool_call_id": tool_call.id,
-                            "content": f'''
-                            Choose one of the following follow-up questions to ask the user:
-                            {result['follow_up_questions']}
-                            '''
-                        })
-                    else:
-                        conversation_messages.append({
-                            "role": "tool",
-                            "tool_call_id": tool_call.id,
-                            "content": result['background']
-                        })
+                    
+                    conversation_messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": result['content']
+                    })
                 else:
                     conversation_messages.append({
                         "role": "tool",

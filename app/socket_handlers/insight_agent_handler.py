@@ -4,16 +4,7 @@ from app.agents.BossAgent import BossAgent, BossAgentConfig
 from app.agents.OpenAiClient import OpenAiClient
 
 
-async def get_insight_tool(db, uid):
-    # Fetch categories from database
-    user_data = await db['insight'].find_one(
-        {'uid': uid},
-        {'_id': 0, 'categories': 1}
-    ) or {'categories': {'all': [], 'all_subcategories': []}}
-    
-    categories = user_data['categories'].get('all', [])
-    subcategories = user_data['categories'].get('all_subcategories', [])
-
+async def get_insight_tool():
     return [{
         "type": "function",
         "function": {
@@ -40,26 +31,20 @@ async def get_insight_tool(db, uid):
                                     "properties": {
                                         "name": {
                                             "type": "string",
-                                            "enum": categories,
-                                            "description": "The category this answer belongs to. If none of the existing categories match, return a new suggested category."
+                                            "description": "The category this answer belongs to."
                                         },
                                         "subcategory": {
                                             "type": "string",
-                                            "enum": subcategories,
-                                            "description": "A subcategory that best describes this answer. If none of the existing subcategories match, return a new suggested subcategory."
+                                            "description": "A subcategory that best describes this answer."
                                         },
                                     },
                                     "required": ["name", "subcategory"],
                                     "description": "The category and subcategory that best describes this answer."
                                 },
-                                "follow_up_question": {
-                                    "type": "string",
-                                    "description": "A follow-up question generated to encourage deeper exploration of this topic."
-                                }
                             },
-                            "required": ["question", "answer", "category", "follow_up_question"]
+                            "required": ["question", "answer", "category"]
                         },
-                        "description": "A list of user-provided information entries with their associated categories, subcategories, and follow-up questions."
+                        "description": "A list of user-provided information entries with their associated categories, subcategories"
                     }
                 },
                 "required": ["user_entries"]
@@ -73,8 +58,21 @@ async def create_insight_agent(sio, db, uid, insight_service):
         "extract_user_data": insight_service.extract_user_data
     }
     ai_client = OpenAiClient(db, uid)
-    tools = await get_insight_tool(db, uid)
-    config = BossAgentConfig(ai_client, sio, event_name='insight_chat_response', tools=tools, tool_choice='required', function_map=function_map)
+    profile = await insight_service.get_user_profile_as_string()
+    print(profile)
+    system_message = f'''
+    You have access to the user's known profile data. When extracting new insights, only include information that is not already present in the provided profile.
+
+    If the user confirms previously known data, do not extract it again.
+
+    If the user provides an updated version of an existing detail (e.g., new job, new city, changed preferences), classify it as an update.
+
+    Maintain consistency in categorization.
+    Here is the user's profile:
+    {profile}
+    '''
+    tools = await get_insight_tool()
+    config = BossAgentConfig(ai_client, sio, event_name='insight_chat_response', tools=tools, tool_choice='required', function_map=function_map, system_message=system_message, model='gpt-4o-mini')
     insight_agent = BossAgent(config)
     return insight_agent
 
@@ -90,7 +88,6 @@ async def run_insight_agent(sio, sid, data, mongo_client):
         chat_object = validate_chat_settings(data)
         uid = chat_object.get('uid')
         user_message = chat_object.get('messages', [])[-1] if chat_object.get('messages') else None
-        print(user_message)
 
         db = mongo_client.db
         insight_service = InsightService(db, sio, uid)

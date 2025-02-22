@@ -11,7 +11,6 @@ from app.services.MongoDbClient import MongoDbClient
 class Answer(BaseModel):
     question: str
     answer: str
-    follow_up_question: Optional[str] = None
 
 class InsightDocument(BaseModel):
     questions_data: Dict[str, Dict[str, List[Answer]]]
@@ -27,12 +26,6 @@ class Category(BaseModel):
 class UserEntry(BaseModel):
     question: str
     answer: str
-    category: Category
-    follow_up_question: str
-
-class FollowUpQuestion(BaseModel):
-    question: str
-    answer: Optional[str] = None
     category: Category
 
 class OpenAIFunctionResponse(BaseModel):
@@ -93,6 +86,37 @@ class InsightService:
             upsert=True
         )
 
+    async def get_user_profile_as_string(self) -> str:
+        """Fetches user profile from MongoDB and formats it as a human-readable string."""
+
+        try:
+           
+            user_collection = self.db['insight']
+
+            # Retrieve user's structured profile
+            profile_data = await user_collection.find_one(
+                {'uid': self.uid},
+                {'_id': 0, 'profile_data': 1}
+            )
+
+            if not profile_data or 'profile_data' not in profile_data:
+                return "No profile data found for this user."
+
+            # Convert profile_data into a readable format
+            profile_text = "User Profile Overview:\n"
+            for category, subcategories in profile_data['profile_data'].items():
+                profile_text += f"\n🔹 **{category.replace('_', ' ').title()}**:\n"
+                for subcategory, details in subcategories.items():
+                    last_answer = details.get("latest_answer", "Unknown")
+                    last_updated = details.get("last_updated", "N/A")
+                    profile_text += f"  - **{subcategory.replace('_', ' ').title()}**: {last_answer} (Updated: {last_updated})\n"
+
+            return profile_text
+
+        except Exception as e:
+            logging.error(f"Error fetching user profile: {str(e)}")
+            return "Error retrieving user profile."
+    
     async def update_profile_answer(self, answer_data: Dict[str, Any]):
         """
         Update or add an answer in the user's profile categories structure.
@@ -115,21 +139,6 @@ class InsightService:
             logging.error("Error updating profile answer: %s", e)
             raise
     
-    def extract_user_data(self, user_entries: List[UserEntry]):
-        # Return a dictionary indicating this is a background task
-        # The actual processing will be handled by _handle_background_task
-        # Process follow-up questions
-        follow_up_questions = [
-            FollowUpQuestion(question=entry['follow_up_question'], category=entry['category'])
-            for entry in user_entries
-        ]
-        return {
-            'background': 'Processing user data in the background. You will receive updates via socket.io events.',
-            'function': self._process_user_data,
-            'args': [user_entries],
-            'follow_up_questions': follow_up_questions
-        }
-    
     def parse_function_call_arguments(self, arguments: List[UserEntry]) -> OpenAIFunctionResponse:
         """
         Parses and validates JSON arguments from the function call into an OpenAIFunctionResponse model.
@@ -142,52 +151,65 @@ class InsightService:
         except ValidationError as val_err:
             logging.error("Validation error: %s", val_err)
             raise
-
+    
+    def extract_user_data(self, user_entries: List[UserEntry]):
+        # Return a dictionary indicating this is a background task
+        # The actual processing will be handled by _handle_background_task
+        # Process follow-up questions
+        return {
+            'content': 'Ask follow up questions to the user',
+            'function': self._process_user_data,
+            'args': [user_entries],
+        }
+    
     async def _process_user_data(self, raw_arguments: str):
         try:
             # Parse function call arguments
+            print(raw_arguments)
             user_profile = self.parse_function_call_arguments(raw_arguments)
 
             # Get MongoDB connection
             db = MongoDbClient('paxxium').db
             user_collection = db['insight']
-            
-            update_query = {'uid': self.uid}  # Match user
-            update_data = {'$push': {}}
 
-            # Category-based update
+            update_query = {'uid': self.uid}  # Match the user
+            update_data = {'$push': {}}  # For updating `questions_data`
+            set_data = {'$set': {}}  # For updating `profile_data`
+
+            current_timestamp = datetime.now(timezone.utc).isoformat()  # Current UTC timestamp
+
+            # Process each user entry from the extracted data
             for entry in user_profile.user_entries:
-                category = entry.category
-                category_name = category.name.replace(' ', '_').lower()
-                subcategory_name = category.subcategory.replace(' ', '_').lower()
+                category_name = entry.category.name.replace(' ', '_').lower()
+                subcategory_name = entry.category.subcategory.replace(' ', '_').lower()
                 category_path = f"questions_data.{category_name}.{subcategory_name}"
+                profile_path = f"profile_data.{category_name}.{subcategory_name}"
 
-                # Add category and subcategory if they don't exist
-                await user_collection.update_one(
-                    {'uid': self.uid},
-                    {
-                        '$addToSet': {
-                            'categories.all': category_name,
-                            'categories.all_subcategories': subcategory_name,
-                            f'categories.{category_name}.subcategories': subcategory_name
-                        }
-                    },
-                    upsert=True
-                )
-
-                # Convert the entry to a dict and remove the category field since it's handled separately
+                # Prepare historical entry (questions_data)
                 entry_data = entry.model_dump()
-                del entry_data['category']
-                update_data['$push'][category_path] = entry_data
+                entry_data['timestamp'] = current_timestamp  # Add timestamp
+                del entry_data['category']  # Remove category since we're not storing predefined ones
 
-            # Perform update for the answers
+                update_data['$push'][category_path] = entry_data  # Store in `questions_data`
+
+                # Update structured `profile_data` with the latest answer
+                set_data['$set'][profile_path] = {
+                    "latest_answer": entry.answer,
+                    "last_updated": current_timestamp
+                }
+
+            # Perform update for historical records
             if update_data['$push']:
                 await user_collection.update_one(update_query, update_data, upsert=True)
 
-            # Emit updated data
+            # Perform update for structured profile data
+            if set_data['$set']:
+                await user_collection.update_one(update_query, set_data, upsert=True)
+
+            # Emit updated profile and historical data
             updated_data = await user_collection.find_one(
                 {'uid': self.uid}, 
-                {'_id': 0, 'questions_data': 1}
+                {'_id': 0, 'profile_data': 1, 'questions_data': 1}
             )
             await self.sio.emit('insight_user_data', json.dumps(updated_data))
 
