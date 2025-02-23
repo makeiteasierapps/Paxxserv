@@ -38,7 +38,6 @@ class BossAgentConfig:
     context_urls: Optional[List[str]] = None
     event_name: str = 'chat_response'
     tools: Optional[List[Dict]] = None
-    tool_choice: Optional[str] = None
     stream_response: bool = True
     function_map: Mapping[str, Callable] = field(default_factory=dict)
 
@@ -60,7 +59,6 @@ class AIResponseGenerator:
                 model=self.model,
                 stream=self.stream_response,
                 tools=self.tools,
-                tool_choice='auto'
             )
         elif isinstance(self.ai_client, AnthropicClient):
             return await self.ai_client.generate_chat_completion(
@@ -88,7 +86,6 @@ class BossAgent:
         self.context_urls = config.context_urls
         self.event_name = config.event_name
         self.tools = config.tools
-        self.tool_choice = config.tool_choice
         self.stream_response = config.stream_response
         self.image_path = None
 

@@ -37,7 +37,7 @@ class OpenAiClient:
         )
         return response.data[0].embedding
     
-    async def generate_chat_completion(self, messages, model="gpt-4o-mini", stream=False, tools=None, tool_choice=None):
+    async def generate_chat_completion(self, messages, model="gpt-4o-mini", stream=False, tools=None):
         if not self.client:
             await self.initialize()
             
@@ -50,7 +50,6 @@ class OpenAiClient:
 
         if tools:
             kwargs["tools"] = tools
-            kwargs["tool_choice"] = tool_choice
 
         # Get response
         response = self.client.chat.completions.create(**kwargs)

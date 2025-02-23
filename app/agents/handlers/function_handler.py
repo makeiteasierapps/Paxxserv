@@ -31,9 +31,8 @@ class FunctionHandler:
             {"role": "system", "content": system_content},
             *messages
         ]
-        
+        print(tool_calls)
         for tool_call in tool_calls:
-            print(tool_call)
             try:
                 function_name = tool_call.function.name
                 if not self.function_map:

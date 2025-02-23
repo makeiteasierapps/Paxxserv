@@ -10,6 +10,7 @@ async def get_insight_tool():
         "function": {
             "name": "extract_user_data",
             "description": "Used when the user provides information about themselves",
+            "strict": True,
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -39,15 +40,18 @@ async def get_insight_tool():
                                         },
                                     },
                                     "required": ["name", "subcategory"],
+                                    "additionalProperties": False,
                                     "description": "The category and subcategory that best describes this answer."
                                 },
                             },
-                            "required": ["question", "answer", "category"]
+                            "required": ["question", "answer", "category"],
+                            "additionalProperties": False
                         },
                         "description": "A list of user-provided information entries with their associated categories, subcategories"
                     }
                 },
-                "required": ["user_entries"]
+                "required": ["user_entries"],
+                "additionalProperties": False 
             }
         }
     }]
@@ -72,7 +76,7 @@ async def create_insight_agent(sio, db, uid, insight_service):
     {profile}
     '''
     tools = await get_insight_tool()
-    config = BossAgentConfig(ai_client, sio, event_name='insight_chat_response', tools=tools, tool_choice='required', function_map=function_map, system_message=system_message, model='gpt-4o-mini')
+    config = BossAgentConfig(ai_client, sio, event_name='insight_chat_response', tools=tools, function_map=function_map, system_message=system_message, model='gpt-4o-mini')
     insight_agent = BossAgent(config)
     return insight_agent
 
