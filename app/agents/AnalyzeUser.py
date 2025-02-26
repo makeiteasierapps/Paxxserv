@@ -1,8 +1,6 @@
 import os
-import dspy
 import traceback
-from dspy import Signature, InputField, OutputField, ChainOfThought
-from dspy.functional import TypedChainOfThought
+from dspy import Signature, InputField, OutputField, ChainOfThought, LM, configure
 from typing import List
 from pydantic import BaseModel
 from bson import ObjectId
@@ -24,8 +22,8 @@ class AnalyzeUser():
         self.uid = uid
         self.openai_key = os.getenv('OPENAI_API_KEY')
         try:
-            lm = dspy.OpenAI(model='gpt-4o-mini', max_tokens=1000, api_key=self.openai_key)
-            dspy.settings.configure(lm=lm)
+            lm = LM('openai/gpt-4o-mini')
+            configure(lm=lm)
         except Exception as e:
             print(f"Failed to initialize dspy: {e}")
     
@@ -37,7 +35,7 @@ class AnalyzeUser():
                 category_name = category['category']
                 questions_string = self._format_questions(category)
                 
-                analysis_prompt = TypedChainOfThought(TopicItemsSignature)
+                analysis_prompt = ChainOfThought(TopicItemsSignature)
                 response = analysis_prompt(survey=questions_string)
                 
                 analyses.append(f"{category_name} analysis: {response.user_analysis}")

@@ -1,5 +1,5 @@
 from enum import Enum
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional, List, Dict, Any, AsyncIterator
 import logging
 
@@ -14,7 +14,6 @@ class StreamState:
     language: Optional[str] = None
     ignore_next_token: bool = False
     buffer: str = ""
-    final_tool_calls: dict = field(default_factory=dict)
 
 class StreamHandler:
     def __init__(self, sio, event_name):
@@ -27,14 +26,7 @@ class StreamHandler:
         
         for chunk in response:
             await self._handle_chunk(chunk, chat_id, response_chunks, stream_state)
-        
-        # If we accumulated any tool calls, return both tool calls and response chunks
-        if stream_state.final_tool_calls:
-            return {
-                'tool_calls': list(stream_state.final_tool_calls.values()),
-                'response_chunks': response_chunks
-            }
-        
+
         return response_chunks
 
     async def _handle_chunk(self, chunk: Any, chat_id: str, response_chunks: List, stream_state: StreamState):
@@ -55,16 +47,6 @@ class StreamHandler:
             pass  # Handle message delta if needed
 
     async def _handle_openai_chunk(self, chunk: Any, chat_id: str, response_chunks: List, stream_state: StreamState):
-        # Handle tool calls if present
-        if hasattr(chunk.choices[0].delta, 'tool_calls'):
-            for tool_call in chunk.choices[0].delta.tool_calls or []:
-                index = tool_call.index
-                if index not in stream_state.final_tool_calls:
-                    stream_state.final_tool_calls[index] = tool_call
-                else:
-                    # Append arguments as they stream in
-                    stream_state.final_tool_calls[index].function.arguments += tool_call.function.arguments
-
         # Handle content if present
         response_chunk = chunk.choices[0].delta.content
         if response_chunk is not None:

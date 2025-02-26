@@ -1,10 +1,9 @@
 import logging
-from app.services.InsightService import InsightService
-from app.agents.BossAgent import BossAgent, BossAgentConfig
+from app.agents.BossAgent import  BossAgentConfig
 from app.agents.OpenAiClient import OpenAiClient
+from app.agents.InsightAgent import InsightAgent
 
-
-async def get_insight_tool():
+async def get_insight_tools():
     return [{
         "type": "function",
         "function": {
@@ -56,28 +55,14 @@ async def get_insight_tool():
         }
     }]
 
-
-async def create_insight_agent(sio, db, uid, insight_service):
-    function_map = {
-        "extract_user_data": insight_service.extract_user_data
-    }
+async def create_dspy_agent(sio, db, uid):
     ai_client = OpenAiClient(db, uid)
-    profile = await insight_service.get_user_profile_as_string()
-    print(profile)
+
     system_message = f'''
-    You have access to the user's known profile data. When extracting new insights, only include information that is not already present in the provided profile.
-
-    If the user confirms previously known data, do not extract it again.
-
-    If the user provides an updated version of an existing detail (e.g., new job, new city, changed preferences), classify it as an update.
-
-    Maintain consistency in categorization.
-    Here is the user's profile:
-    {profile}
+    
     '''
-    tools = await get_insight_tool()
-    config = BossAgentConfig(ai_client, sio, event_name='insight_chat_response', tools=tools, function_map=function_map, system_message=system_message, model='gpt-4o-mini')
-    insight_agent = BossAgent(config)
+    config = BossAgentConfig(ai_client, sio, event_name='insight_chat_response', system_message=system_message, model='gpt-4o')
+    insight_agent = InsightAgent(config, db, uid)
     return insight_agent
 
 def validate_chat_settings(data):
@@ -91,19 +76,10 @@ async def run_insight_agent(sio, sid, data, mongo_client):
         # Get and validate settings
         chat_object = validate_chat_settings(data)
         uid = chat_object.get('uid')
-        user_message = chat_object.get('messages', [])[-1] if chat_object.get('messages') else None
-
         db = mongo_client.db
-        insight_service = InsightService(db, sio, uid)
+        insight_agent = await create_dspy_agent(sio, db, uid)
 
-        # Process message with system agent
-        insight_agent = await create_insight_agent(sio, db, uid, insight_service)
-        await insight_service.create_message('user', user_message.get('content'))
-        await insight_agent.process_message(
-            chat_object['messages'], 
-            'insight', 
-            lambda cid, msg: insight_service.create_message('agent', msg)
-        )
+        await insight_agent.handle_user_input(chat_object.get('messages'))
 
     except Exception as e:
         logging.error('Error in run_insight_agent: %s', str(e))

@@ -1,7 +1,6 @@
 import dspy
 import os
-from dspy import Signature, InputField, OutputField
-from dspy.functional import TypedPredictor
+from dspy import Signature, InputField, OutputField, LM, configure, Predict
 from pydantic import BaseModel
 from typing import List
 
@@ -36,14 +35,14 @@ class ContentProcessor:
         self.openai_key = os.getenv('OPENAI_API_KEY')
         
         try:
-            lm = dspy.OpenAI(model=self.model, api_key=self.openai_key)
-            dspy.settings.configure(lm=lm)
+            lm = LM('openai/gpt-4o-mini')
+            configure(lm=lm)
         except Exception as e:
             print(f"Failed to initialize dspy: {e}")
 
     def extract_content(self, moment):
         content = moment['transcript']
-        extract_actions = TypedPredictor(ActionItemsSignature)
+        extract_actions = Predict(ActionItemsSignature)
         actions_pred = extract_actions(content=content)
         generate_summary_prompt = dspy.ChainOfThought(DocumentContent)
         content_pred = generate_summary_prompt(document=content)
@@ -65,7 +64,7 @@ class ContentProcessor:
         # Takes the action items of the previous snapshot, combines it with the action items of the current snapshot, and generates a new list of action items.
         list_1_str = ', '.join(previous_snapshot['actionItems'])
         list_2_str = ', '.join(current_snapshot['actionItems'])
-        generate_new_actions_prompt = TypedPredictor(NewActionItemsSignature)
+        generate_new_actions_prompt = Predict(NewActionItemsSignature)
         new_action_items_pred = generate_new_actions_prompt(list_1=list_1_str, list_2=list_2_str)
         new_action_items = new_action_items_pred.combined_list.actions
 

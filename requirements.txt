@@ -1,4 +1,4 @@
-dspy-ai
+dspy
 python-dotenv
 pymongo
 firebase-admin
@@ -16,3 +16,4 @@ ragatouille
 lxml-html-clean
 paramiko
 motor
+psutil

@@ -49,6 +49,20 @@ class DefaultChatHistoryManager(ChatHistoryManager):
             
         return formatted_messages
 
+    def get_system_and_last_user_message(self, chat_history: List[Dict]) -> List[Dict]:
+        """
+        Returns a list containing only the system message (if present) and the last user message.
+        """
+        processed_history = self.process_history(chat_history)
+        result = []
+        
+        # Find last user message
+        last_user_message = next((msg for msg in reversed(processed_history) if msg['role'] == 'user'), None)
+        if last_user_message:
+            result.append(last_user_message)
+            
+        return result
+
     def _format_message_with_images(self, message: Dict) -> List[Dict]:
         return [
             {"type": "text", "text": message['content']},

@@ -1,8 +1,7 @@
 import dspy
 from dotenv import load_dotenv
 import os
-from dspy import Signature, InputField, OutputField
-from dspy.functional import TypedPredictor
+from dspy import Signature, InputField, OutputField, LM, configure, Predict
 from pydantic import BaseModel
 from typing import List, Dict
 
@@ -34,8 +33,8 @@ class CategoryAgent:
         self.openai_key = os.getenv('OPENAI_API_KEY')
 
         try:
-            lm = dspy.LM('openai/gpt-4o-mini')
-            dspy.configure(lm=lm)
+            lm = LM('openai/gpt-4o-mini')
+            configure(lm=lm)
         except Exception as e:
             print(f"Failed to initialize dspy: {e}")
         
@@ -43,7 +42,7 @@ class CategoryAgent:
         try:
             # Convert category_list to a string representation
             category_list_str = ', '.join(category_list)
-            does_file_belong_in_category = TypedPredictor(DoesFileBelongInCategorySignature)
+            does_file_belong_in_category = Predict(DoesFileBelongInCategorySignature)
             result_pred = does_file_belong_in_category(file_path=file_path, category_list=category_list_str)
             result_obj = {
                 "belongs": result_pred.result.belongs,
@@ -57,7 +56,7 @@ class CategoryAgent:
         
     def create_new_category(self, file_path):
         try:
-            generate_new_category = TypedPredictor(GenerateNewCategorySignature)
+            generate_new_category = Predict(GenerateNewCategorySignature)
             result_pred = generate_new_category(file_path=file_path)
             print(result_pred.new_category)
             return result_pred.new_category
