@@ -1,7 +1,7 @@
 import logging
 from app.agents.BossAgent import  BossAgentConfig
 from app.agents.OpenAiClient import OpenAiClient
-from app.agents.InsightAgent import InsightAgent
+from app.agents.Insight.InsightAgent import InsightAgent
 
 async def get_insight_tools():
     return [{
