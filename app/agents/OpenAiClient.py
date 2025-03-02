@@ -38,7 +38,6 @@ class OpenAiClient:
         return response.data[0].embedding
     
     async def generate_chat_completion(self, messages, model="gpt-4o-mini", stream=False):
-        print(model)
         if not self.client:
             await self.initialize()
             
