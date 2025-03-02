@@ -56,31 +56,40 @@ class InsightDbManager:
             **contradiction, 'entry_data': entry_copy, 'status': 'pending'
         })
 
-    async def handle_merge_resolution(self, user_collection, push_operations, resolution_record, entry_copy, category_name, subcategory_name):
+    async def handle_merge_resolution(self, user_collection, push_operations, resolution_record, entry_id):
         resolution_record['resolution'] = 'merged_values'
         push_operations['$push'].setdefault('resolved_contradictions', []).append(resolution_record)
-        await self.mark_entries_partially_superseded(
-            user_collection, category_name, subcategory_name, entry_copy.get('entry_id')
-        )
+        await self.mark_entries_partially_superseded(user_collection, entry_id)
 
-    async def handle_keep_new_resolution(self, user_collection, push_operations, resolution_record, category_name, subcategory_name):
+    async def handle_keep_new_resolution(self, user_collection, push_operations, resolution_record, entry_id):
         resolution_record['resolution'] = 'used_new_value'
         push_operations['$push'].setdefault('resolved_contradictions', []).append(resolution_record)
-        await self.mark_entries_superseded(user_collection, category_name, subcategory_name)
+        await self.mark_entries_superseded(user_collection, entry_id)
 
-    async def mark_entries_partially_superseded(self, user_collection, category_name, subcategory_name, entry_id):
-        await user_collection.update_many(
-            {'uid': self.uid, f"questions_data.{category_name}.{subcategory_name}.superseded": {'$ne': True}},
-            {'$set': {f"questions_data.{category_name}.{subcategory_name}.$[elem].partially_superseded": True}},
-            array_filters=[{"elem.entry_id": {'$ne': entry_id}}]
-        )
+    def _parse_entry_id(self, entry_id):
+        """Extract category and subcategory from the structured entry_id"""
+        parts = entry_id.split('.')
+        if len(parts) >= 3:
+            return parts[0], parts[1]
+        return None, None
 
-    async def mark_entries_superseded(self, user_collection, category_name, subcategory_name):
-        await user_collection.update_many(
-            {'uid': self.uid},
-            {'$set': {f"questions_data.{category_name}.{subcategory_name}.$[elem].superseded": True}},
-            array_filters=[{"elem.superseded": {'$ne': True}}]
-        )
+    async def mark_entries_superseded(self, user_collection, entry_id):
+        category, subcategory = self._parse_entry_id(entry_id)
+        if category and subcategory:
+            await user_collection.update_many(
+                {'uid': self.uid},
+                {'$set': {f"questions_data.{category}.{subcategory}.$[elem].superseded": True}},
+                array_filters=[{"elem.entry_id": {'$ne': entry_id}, "elem.superseded": {'$ne': True}}]
+            )
+
+    async def mark_entries_partially_superseded(self, user_collection, entry_id):
+        category, subcategory = self._parse_entry_id(entry_id)
+        if category and subcategory:
+            await user_collection.update_many(
+                {'uid': self.uid},
+                {'$set': {f"questions_data.{category}.{subcategory}.$[elem].partially_superseded": True}},
+                array_filters=[{"elem.entry_id": {'$ne': entry_id}, "elem.superseded": {'$ne': True}}]
+            )
 
     async def get_current_profile(self, user_collection):
         current_data = await user_collection.find_one({'uid': self.uid}, {'_id': 0, 'profile_data': 1}) or {}
