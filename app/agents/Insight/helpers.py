@@ -26,3 +26,10 @@ def parse_collection_items(answer):
             if item and len(item) > 1:
                 items.append(item)
     return items
+
+def parse_entry_id(entry_id):
+    """Extract category and subcategory from the structured entry_id"""
+    parts = entry_id.split('.')
+    if len(parts) >= 3:
+        return parts[0], parts[1]
+    return None, None

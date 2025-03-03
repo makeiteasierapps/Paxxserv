@@ -1,5 +1,5 @@
 import logging
-from app.agents.BossAgent import  BossAgentConfig
+from app.agents.BossAgent import  BossAgentConfig, BossAgent
 from app.agents.OpenAiClient import OpenAiClient
 from app.agents.insight.InsightAgent import InsightAgent
 
@@ -62,8 +62,9 @@ async def create_dspy_agent(sio, db, uid):
     
     '''
     config = BossAgentConfig(ai_client, sio, event_name='insight_chat_response', system_message=system_message, model='gpt-4o')
-    insight_agent = InsightAgent(config, db, uid)
-    return insight_agent
+    boss_agent = BossAgent(config)
+    insight_agent = InsightAgent(db, uid, sio)
+    return boss_agent, insight_agent
 
 def validate_chat_settings(data):
     chat_settings = data.get('selectedChat')
@@ -77,9 +78,15 @@ async def run_insight_agent(sio, sid, data, mongo_client):
         chat_object = validate_chat_settings(data)
         uid = chat_object.get('uid')
         db = mongo_client.db
-        insight_agent = await create_dspy_agent(sio, db, uid)
+        boss_agent, insight_agent = await create_dspy_agent(sio, db, uid)
+        messages = chat_object.get('messages')
 
-        await insight_agent.handle_user_input(chat_object.get('messages'))
+        await boss_agent.process_message(
+            messages,
+            'insight',
+            lambda cid, msg: insight_agent.insight_db_manager.create_message('agent', msg)
+        )
+        await insight_agent.handle_user_input(messages)
 
     except Exception as e:
         logging.error('Error in run_insight_agent: %s', str(e))

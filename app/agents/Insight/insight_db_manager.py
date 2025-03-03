@@ -1,10 +1,12 @@
 from datetime import datetime, timezone
 from bson import ObjectId
+from app.agents.insight.helpers import parse_entry_id
 
 class InsightDbManager:
     def __init__(self, uid, db):
         self.uid = uid
         self.db = db
+        self.user_collection = db['insight']
 
     async def create_message(self, message_from: str, message_content: str):
         """
@@ -19,7 +21,7 @@ class InsightDbManager:
             'current_time': current_time,
         }
 
-        await self.db['insight'].update_one(
+        await self.user_collection.update_one(
             {'uid': self.uid}, 
             {
                 '$push': {'messages': new_message},
@@ -28,7 +30,13 @@ class InsightDbManager:
             upsert=True
         )
 
-    async def fetch_updated_data(self, user_collection):
+    async def add_new_contradiction(self, contradiction_path, contradiction):
+        await self.user_collection.update_one(
+            {'uid': self.uid},
+            {'$push': {contradiction_path: contradiction}}
+        )
+
+    async def fetch_updated_data(self):
         projection = {
             '_id': 0,
             'profile_data': 1,
@@ -37,60 +45,101 @@ class InsightDbManager:
             'contradictions': 1,
             'contradiction_review_queue': 1
         }
-        return await user_collection.find_one({'uid': self.uid}, projection)
+        return await self.user_collection.find_one({'uid': self.uid}, projection)
 
-    async def execute_db_operations(self, user_collection, push_operations, update_operations):
-        if push_operations.get('$push'):
-            await user_collection.update_one({'uid': self.uid}, push_operations, upsert=True)
+    async def handle_needs_clarification_resolution(self, contradiction, entry_dict):
+        """Handle cases where the contradiction needs human clarification"""
+        await self.user_collection.update_one(
+            {'uid': self.uid},
+            {'$push': {
+                'contradiction_review_queue': {
+                    **contradiction,
+                    'entry_data': entry_dict,
+                    'status': 'pending'
+                }
+            }}
+        )
 
-        for operation in update_operations:
-            await user_collection.update_one({'uid': self.uid}, operation, upsert=True)
-
-    async def handle_keep_existing_resolution(self, push_operations, resolution_record, entry_copy):
+    async def handle_keep_existing_resolution(self, resolution_record):
+        """Handle cases where we keep the existing value"""
         resolution_record['resolution'] = 'kept_existing_value'
-        push_operations['$push'].setdefault('resolved_contradictions', []).append(resolution_record)
-        entry_copy['superseded'] = True
+        await self.user_collection.update_one(
+            {'uid': self.uid},
+            {'$push': {'resolved_contradictions': resolution_record}}
+        )
 
-    async def handle_needs_clarification_resolution(self, push_operations, contradiction, entry_copy):
-        push_operations['$push'].setdefault('contradiction_review_queue', []).append({
-            **contradiction, 'entry_data': entry_copy, 'status': 'pending'
-        })
-
-    async def handle_merge_resolution(self, user_collection, push_operations, resolution_record, entry_id):
+    async def handle_merge_resolution(self, resolution_record, old_entry_id):
+        """Handle cases where values should be merged"""
+        old_category, old_subcategory = parse_entry_id(old_entry_id)
+        
+        # Remove old entry
+        if old_category and old_subcategory:
+            await self.user_collection.update_one(
+                {'uid': self.uid},
+                {'$pull': {
+                    f"questions_data.{old_category}.{old_subcategory}": {
+                        'entry_id': old_entry_id
+                    }
+                }}
+            )
+        
         resolution_record['resolution'] = 'merged_values'
-        push_operations['$push'].setdefault('resolved_contradictions', []).append(resolution_record)
-        await self.mark_entries_partially_superseded(user_collection, entry_id)
+        await self.user_collection.update_one(
+            {'uid': self.uid},
+            {'$push': {'resolved_contradictions': resolution_record}}
+        )
 
-    async def handle_keep_new_resolution(self, user_collection, push_operations, resolution_record, entry_id):
+    async def handle_keep_new_resolution(self, resolution_record, old_entry_id):
+        """Handle cases where we keep the new value"""
+        old_category, old_subcategory = parse_entry_id(old_entry_id)
+        
+        # Remove old entry
+        if old_category and old_subcategory:
+            await self.user_collection.update_one(
+                {'uid': self.uid},
+                {'$pull': {
+                    f"questions_data.{old_category}.{old_subcategory}": {
+                        'entry_id': old_entry_id
+                    }
+                }}
+            )
+        
         resolution_record['resolution'] = 'used_new_value'
-        push_operations['$push'].setdefault('resolved_contradictions', []).append(resolution_record)
-        await self.mark_entries_superseded(user_collection, entry_id)
+        await self.user_collection.update_one(
+            {'uid': self.uid},
+            {'$push': {'resolved_contradictions': resolution_record}}
+        )
 
-    def _parse_entry_id(self, entry_id):
-        """Extract category and subcategory from the structured entry_id"""
-        parts = entry_id.split('.')
-        if len(parts) >= 3:
-            return parts[0], parts[1]
-        return None, None
-
-    async def mark_entries_superseded(self, user_collection, entry_id):
-        category, subcategory = self._parse_entry_id(entry_id)
-        if category and subcategory:
-            await user_collection.update_many(
-                {'uid': self.uid},
-                {'$set': {f"questions_data.{category}.{subcategory}.$[elem].superseded": True}},
-                array_filters=[{"elem.entry_id": {'$ne': entry_id}, "elem.superseded": {'$ne': True}}]
-            )
-
-    async def mark_entries_partially_superseded(self, user_collection, entry_id):
-        category, subcategory = self._parse_entry_id(entry_id)
-        if category and subcategory:
-            await user_collection.update_many(
-                {'uid': self.uid},
-                {'$set': {f"questions_data.{category}.{subcategory}.$[elem].partially_superseded": True}},
-                array_filters=[{"elem.entry_id": {'$ne': entry_id}, "elem.superseded": {'$ne': True}}]
-            )
-
-    async def get_current_profile(self, user_collection):
-        current_data = await user_collection.find_one({'uid': self.uid}, {'_id': 0, 'profile_data': 1}) or {}
+    async def get_current_profile(self):
+        current_data = await self.user_collection.find_one({'uid': self.uid}, {'_id': 0, 'profile_data': 1}) or {}
         return current_data.get('profile_data', {})
+
+    async def update_profile_version_history(self, category_name, subcategory_name, existing_data, current_timestamp, trigger):
+        """Add existing data to profile history before updating"""
+        version_path = f"profile_history.{category_name}.{subcategory_name}"
+        item = {
+            'value': existing_data,
+            'timestamp': current_timestamp,
+            'change_type': 'update',
+            'triggered_by': trigger
+        }
+        await self.user_collection.update_one(
+            {'uid': self.uid},
+            {'$push': {version_path: item}}
+        )
+
+    async def add_questions_entry(self, category_name, subcategory_name, entry_data):
+        """Add new entry to questions data"""
+        category_path = f"questions_data.{category_name}.{subcategory_name}"
+        await self.user_collection.update_one(
+            {'uid': self.uid},
+            {'$push': {category_path: entry_data}}
+        )
+
+    async def update_profile_data(self, category_name, subcategory_name, profile_update):
+        """Update profile data with new values"""
+        profile_path = f"profile_data.{category_name}.{subcategory_name}"
+        await self.user_collection.update_one(
+            {'uid': self.uid},
+            {'$set': {profile_path: profile_update}}
+        )

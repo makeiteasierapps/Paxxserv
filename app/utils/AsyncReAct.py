@@ -6,7 +6,6 @@ from litellm import ContextWindowExceededError
 from pydantic import BaseModel
 
 import dspy
-from dspy.primitives.program import Module
 from dspy.primitives.tool import Tool
 
 logger = logging.getLogger(__name__)
