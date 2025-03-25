@@ -39,10 +39,17 @@ class DefaultChatHistoryManager(ChatHistoryManager):
             elif role == 'assistant':
                 content = message['content'][0]['content']
 
+            # Fix the problematic condition to properly handle different content types
             if isinstance(content, str):
                 token_count += self.token_counter(content)
-            else:
+            elif isinstance(content, list) and content and isinstance(content[0], dict) and 'content' in content[0]:
                 token_count += self.token_counter(content[0]['content'])
+            elif isinstance(content, list) and content:
+                # Fallback for other list structures
+                token_count += self.token_counter(str(content))
+            else:
+                # Safe fallback for any other content type
+                token_count += self.token_counter(str(content))
                 
             formatted_message = {"role": role, "content": content}
             formatted_messages.append(formatted_message)
